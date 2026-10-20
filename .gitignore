@@ -9,3 +9,11 @@ venv/
 .env.*
 !.env.example
 *.log
+
+# Generated SEC XBRL snapshots and valuation outputs
+sec_raw/
+sec_history.json
+sec_dcf_v02.json
+companyfacts.json
+*.db
+*.db-journal
