@@ -67,5 +67,36 @@ class DcfLedgerIntegration(unittest.TestCase):
         with TahminDefteri(self.db) as ledger:
             self.assertEqual(len(ledger.tahminleri_listele()), 0)
 
+    def test_v02_forecasts_persist_with_engine_version(self):
+        v02 = dict(
+            yillar=3, gelir_0=100, buyume=.1, marj_0=.2,
+            marj_hedef=.2, yakinlasma=.5, satis_sermaye=2,
+            vergi_orani=.25, iskonto=.10, uc_buyume=.02,
+            uc_roic=.12, hisse=10
+        )
+        result = degerle_ve_kaydet(**dict(self.kwargs, inputs=v02, engine="v0.2"))
+        self.assertEqual(result["durum"], "gecerli")
+        self.assertEqual(len(result["tahmin_kimlikleri"]), 6)
+        with TahminDefteri(self.db) as ledger:
+            records = ledger.tahminleri_listele()
+            self.assertTrue(all(r["model_version"] == "uretim-0.2.0-alpha"
+                                for r in records))
+
+    def test_v02_rejects_unsupported_terminal_growth(self):
+        v02 = dict(
+            yillar=3, gelir_0=100, buyume=.1, marj_0=.2,
+            marj_hedef=.2, yakinlasma=.5, satis_sermaye=2,
+            vergi_orani=.25, iskonto=.10, uc_buyume=.11,
+            uc_roic=.12, hisse=10
+        )
+        with self.assertRaises(ValueError):
+            degerle_ve_kaydet(**dict(self.kwargs, inputs=v02, engine="v0.2"))
+        self.assertFalse(os.path.exists(self.db))
+
+    def test_unknown_engine_is_rejected(self):
+        with self.assertRaises(ValueError):
+            degerle_ve_kaydet(**dict(self.kwargs, engine="future"))
+        self.assertFalse(os.path.exists(self.db))
+
 if __name__ == "__main__":
     unittest.main()
