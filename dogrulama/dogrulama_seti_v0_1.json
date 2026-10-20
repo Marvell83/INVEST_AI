@@ -1,0 +1,755 @@
+{
+  "surum": "dogrulama-0.1",
+  "tarih": "2026-10-20",
+  "referans_motor": "referans-0.1",
+  "tolerans_goreli": 0.000001,
+  "tolerans_mutlak": 1e-9,
+  "vakalar": [
+    {
+      "kod": "K01",
+      "ad": "Büyümesiz sürekli nakit akışı",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 5,
+        "buyume": 0,
+        "faaliyet_marji": 0.2,
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.1,
+        "uc_buyume": 0,
+        "uc_roic": 0.15,
+        "net_borc": 0,
+        "hisse": 100,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "beklenen": {
+        "durum": "gecerli",
+        "acik_donem_bd": 568.6180154112672,
+        "uc_deger": 1500,
+        "uc_deger_bd": 931.3819845887324,
+        "firma_degeri": 1500,
+        "ozsermaye_degeri": 1500,
+        "hisse_basi_deger": 15,
+        "uc_deger_payi": 0.6209213230591552,
+        "uyarilar_tam": []
+      }
+    },
+    {
+      "kod": "K02",
+      "ad": "Gordon uç değer formülü",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 500,
+        "yillar": 1,
+        "buyume": [
+          0.04
+        ],
+        "faaliyet_marji": [
+          0.3
+        ],
+        "vergi_orani": 0.2,
+        "satis_sermaye": 1.5,
+        "iskonto": 0.08,
+        "uc_buyume": 0.03,
+        "uc_roic": 0.2,
+        "net_borc": 0,
+        "hisse": 10,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "beklenen": {
+        "durum": "gecerli",
+        "acik_donem_bd": 103.20987654320987,
+        "uc_deger": 2185.248,
+        "uc_deger_bd": 2023.3777777777775,
+        "firma_degeri": 2126.5876543209874,
+        "ozsermaye_degeri": 2126.5876543209874,
+        "hisse_basi_deger": 212.65876543209873,
+        "uc_deger_payi": 0.9514669069325692,
+        "uyarilar_tam": [
+          "UC_DEGER_BASKIN"
+        ]
+      }
+    },
+    {
+      "kod": "K03",
+      "ad": "Elle hesaplanmış 3 yıllık DCF",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 3,
+        "buyume": [
+          0.2,
+          0.15,
+          0.1
+        ],
+        "faaliyet_marji": [
+          0.15,
+          0.18,
+          0.2
+        ],
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.09,
+        "uc_buyume": 0.03,
+        "uc_roic": 0.15,
+        "net_borc": 300,
+        "hisse": 50,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "beklenen": {
+        "durum": "gecerli",
+        "acik_donem_bd": 235.70939338037977,
+        "uc_deger": 3127.080000000001,
+        "uc_deger_bd": 2414.679516829353,
+        "firma_degeri": 2650.388910209733,
+        "ozsermaye_degeri": 2350.388910209733,
+        "hisse_basi_deger": 47.00777820419466,
+        "uc_deger_payi": 0.9110661109121048,
+        "uyarilar_tam": [
+          "UC_DEGER_BASKIN"
+        ],
+        "tablo": [
+          {
+            "yil": 1,
+            "gelir": 1200,
+            "nopat": 135,
+            "yeniden_yatirim": 100,
+            "fcff": 35,
+            "bugunku_deger": 32.11009174311926
+          },
+          {
+            "yil": 2,
+            "gelir": 1380,
+            "nopat": 186.3,
+            "yeniden_yatirim": 90,
+            "fcff": 96.3,
+            "bugunku_deger": 81.0537833515697
+          },
+          {
+            "yil": 3,
+            "gelir": 1518,
+            "nopat": 227.7,
+            "yeniden_yatirim": 69,
+            "fcff": 158.7,
+            "bugunku_deger": 122.54551828569082
+          }
+        ]
+      }
+    },
+    {
+      "kod": "K04",
+      "ad": "İlk yıllarda negatif FCFF",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 200,
+        "yillar": 5,
+        "buyume": [
+          0.6,
+          0.5,
+          0.4,
+          0.3,
+          0.2
+        ],
+        "faaliyet_marji": [
+          -0.1,
+          -0.02,
+          0.05,
+          0.12,
+          0.18
+        ],
+        "vergi_orani": 0.21,
+        "satis_sermaye": 1.2,
+        "iskonto": 0.1,
+        "uc_buyume": 0.03,
+        "uc_roic": 0.15,
+        "net_borc": -50,
+        "hisse": 40,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "beklenen": {
+        "durum": "gecerli",
+        "acik_donem_bd": -386.6446446570755,
+        "uc_deger": 1754.7798527999998,
+        "uc_deger_bd": 1089.580227878125,
+        "firma_degeri": 702.9355832210495,
+        "ozsermaye_degeri": 752.9355832210495,
+        "hisse_basi_deger": 18.823389580526236,
+        "uc_deger_payi": 1.5500427832737682,
+        "uyarilar_tam": [
+          "NEGATIF_FCFF_YILLARI",
+          "UC_DEGER_BASKIN"
+        ]
+      }
+    },
+    {
+      "kod": "K05",
+      "ad": "Değer yıkan büyüme",
+      "tur": "karsilastirma",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 5,
+        "buyume": 0.15,
+        "faaliyet_marji": 0.05,
+        "vergi_orani": 0.25,
+        "satis_sermaye": 1,
+        "iskonto": 0.09,
+        "uc_buyume": 0.02,
+        "uc_roic": 0.1,
+        "net_borc": 0,
+        "hisse": 100,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "girdi_karsilastirma": {
+        "gelir_0": 1000,
+        "yillar": 5,
+        "buyume": 0,
+        "faaliyet_marji": 0.05,
+        "vergi_orani": 0.25,
+        "satis_sermaye": 1,
+        "iskonto": 0.09,
+        "uc_buyume": 0.02,
+        "uc_roic": 0.1,
+        "net_borc": 0,
+        "hisse": 100,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "iliski": "kucuk",
+      "beklenen": {
+        "durum": "gecerli",
+        "acik_donem_bd": -547.2786692856847,
+        "uc_deger": 879.2504276785716,
+        "uc_deger_bd": 571.452449364547,
+        "firma_degeri": 24.17378007886225,
+        "ozsermaye_degeri": 24.17378007886225,
+        "hisse_basi_deger": 0.2417378007886225,
+        "uc_deger_payi": 23.639350052010673,
+        "uyarilar_tam": [
+          "BUYUME_DEGER_YIKIYOR",
+          "NEGATIF_FCFF_YILLARI",
+          "UC_DEGER_BASKIN"
+        ]
+      }
+    },
+    {
+      "kod": "K06",
+      "ad": "Uç büyüme iskontoyu aşıyor",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 3,
+        "buyume": [
+          0.2,
+          0.15,
+          0.1
+        ],
+        "faaliyet_marji": [
+          0.15,
+          0.18,
+          0.2
+        ],
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.03,
+        "uc_buyume": 0.035,
+        "uc_roic": 0.15,
+        "net_borc": 300,
+        "hisse": 50,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "beklenen": {
+        "durum": "gecersiz",
+        "hatalar_icermeli": [
+          "UC_BUYUME_ISKONTOYU_ASIYOR"
+        ]
+      }
+    },
+    {
+      "kod": "K07",
+      "ad": "Uç büyüme nominal tavanın üstünde",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 3,
+        "buyume": [
+          0.2,
+          0.15,
+          0.1
+        ],
+        "faaliyet_marji": [
+          0.15,
+          0.18,
+          0.2
+        ],
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.1,
+        "uc_buyume": 0.05,
+        "uc_roic": 0.15,
+        "net_borc": 300,
+        "hisse": 50,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "beklenen": {
+        "durum": "gecersiz",
+        "hatalar_icermeli": [
+          "UC_BUYUME_TAVAN_USTU"
+        ]
+      }
+    },
+    {
+      "kod": "K08",
+      "ad": "Uç değer baskın",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 3,
+        "buyume": [
+          0.2,
+          0.15,
+          0.1
+        ],
+        "faaliyet_marji": [
+          0.15,
+          0.18,
+          0.2
+        ],
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.045,
+        "uc_buyume": 0.04,
+        "uc_roic": 0.2,
+        "net_borc": 300,
+        "hisse": 50,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "beklenen": {
+        "durum": "gecerli",
+        "acik_donem_bd": 260.7458883341809,
+        "uc_deger": 37889.28000000003,
+        "uc_deger_bd": 33202.24739408562,
+        "firma_degeri": 33462.993282419804,
+        "ozsermaye_degeri": 33162.993282419804,
+        "hisse_basi_deger": 663.259865648396,
+        "uc_deger_payi": 0.9922079329205984,
+        "uyarilar_tam": [
+          "UC_DEGER_BASKIN"
+        ]
+      }
+    },
+    {
+      "kod": "K09",
+      "ad": "Uç ROIC = iskonto değişmezliği",
+      "tur": "degismezlik",
+      "girdiler": [
+        {
+          "gelir_0": 1000,
+          "yillar": 3,
+          "buyume": [
+            0.2,
+            0.15,
+            0.1
+          ],
+          "faaliyet_marji": [
+            0.15,
+            0.18,
+            0.2
+          ],
+          "vergi_orani": 0.25,
+          "satis_sermaye": 2,
+          "iskonto": 0.09,
+          "uc_buyume": 0.01,
+          "uc_roic": 0.09,
+          "net_borc": 300,
+          "hisse": 50,
+          "uc_buyume_tavani": 0.04,
+          "sbc_yontemi": "gider",
+          "iskonto_zamani": "yil_sonu"
+        },
+        {
+          "gelir_0": 1000,
+          "yillar": 3,
+          "buyume": [
+            0.2,
+            0.15,
+            0.1
+          ],
+          "faaliyet_marji": [
+            0.15,
+            0.18,
+            0.2
+          ],
+          "vergi_orani": 0.25,
+          "satis_sermaye": 2,
+          "iskonto": 0.09,
+          "uc_buyume": 0.03,
+          "uc_roic": 0.09,
+          "net_borc": 300,
+          "hisse": 50,
+          "uc_buyume_tavani": 0.04,
+          "sbc_yontemi": "gider",
+          "iskonto_zamani": "yil_sonu"
+        }
+      ],
+      "iliski": "uc_deger_orani",
+      "beklenen_oran": 1.0198019801980198
+    },
+    {
+      "kod": "K10",
+      "ad": "Hisse bazlı ücret çift sayımı",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 3,
+        "buyume": [
+          0.2,
+          0.15,
+          0.1
+        ],
+        "faaliyet_marji": [
+          0.15,
+          0.18,
+          0.2
+        ],
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.09,
+        "uc_buyume": 0.03,
+        "uc_roic": 0.15,
+        "net_borc": 300,
+        "hisse": 50,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu",
+        "yillik_sulandirma": 0.02
+      },
+      "beklenen": {
+        "durum": "gecersiz",
+        "hatalar_icermeli": [
+          "SBC_CIFT_SAYIM"
+        ]
+      }
+    },
+    {
+      "kod": "K11",
+      "ad": "SBC sulandırma yöntemi",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 3,
+        "buyume": [
+          0.2,
+          0.15,
+          0.1
+        ],
+        "faaliyet_marji": [
+          0.15,
+          0.18,
+          0.2
+        ],
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.09,
+        "uc_buyume": 0.03,
+        "uc_roic": 0.15,
+        "net_borc": 300,
+        "hisse": 50,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "sulandirma",
+        "iskonto_zamani": "yil_sonu",
+        "sbc_gelire_orani": 0.05,
+        "yillik_sulandirma": 0.015
+      },
+      "beklenen": {
+        "durum": "gecerli",
+        "acik_donem_bd": 364.5072813041251,
+        "uc_deger": 3908.8500000000013,
+        "uc_deger_bd": 3018.3493960366914,
+        "firma_degeri": 3382.8566773408165,
+        "ozsermaye_degeri": 3082.8566773408165,
+        "hisse_basi_deger": 58.963764596180305,
+        "uc_deger_payi": 0.892248677354355,
+        "uyarilar_tam": [
+          "UC_DEGER_BASKIN"
+        ]
+      }
+    },
+    {
+      "kod": "K12",
+      "ad": "Yıl ortası iskonto",
+      "tur": "karsilastirma",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 3,
+        "buyume": [
+          0.2,
+          0.15,
+          0.1
+        ],
+        "faaliyet_marji": [
+          0.15,
+          0.18,
+          0.2
+        ],
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.09,
+        "uc_buyume": 0.03,
+        "uc_roic": 0.15,
+        "net_borc": 300,
+        "hisse": 50,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_ortasi"
+      },
+      "girdi_karsilastirma": {
+        "gelir_0": 1000,
+        "yillar": 3,
+        "buyume": [
+          0.2,
+          0.15,
+          0.1
+        ],
+        "faaliyet_marji": [
+          0.15,
+          0.18,
+          0.2
+        ],
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.09,
+        "uc_buyume": 0.03,
+        "uc_roic": 0.15,
+        "net_borc": 300,
+        "hisse": 50,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "iliski": "buyuk",
+      "beklenen": {
+        "durum": "gecerli",
+        "acik_donem_bd": 246.08783139205366,
+        "uc_deger": 3127.080000000001,
+        "uc_deger_bd": 2414.679516829353,
+        "firma_degeri": 2660.767348221407,
+        "ozsermaye_degeri": 2360.767348221407,
+        "hisse_basi_deger": 47.215346964428136,
+        "uc_deger_payi": 0.9075124581799489,
+        "uyarilar_tam": [
+          "UC_DEGER_BASKIN"
+        ]
+      }
+    },
+    {
+      "kod": "K13",
+      "ad": "Ölçek değişmezliği",
+      "tur": "degismezlik",
+      "girdiler": [
+        {
+          "gelir_0": 1000,
+          "yillar": 3,
+          "buyume": [
+            0.2,
+            0.15,
+            0.1
+          ],
+          "faaliyet_marji": [
+            0.15,
+            0.18,
+            0.2
+          ],
+          "vergi_orani": 0.25,
+          "satis_sermaye": 2,
+          "iskonto": 0.09,
+          "uc_buyume": 0.03,
+          "uc_roic": 0.15,
+          "net_borc": 300,
+          "hisse": 50,
+          "uc_buyume_tavani": 0.04,
+          "sbc_yontemi": "gider",
+          "iskonto_zamani": "yil_sonu"
+        },
+        {
+          "gelir_0": 1000000,
+          "yillar": 3,
+          "buyume": [
+            0.2,
+            0.15,
+            0.1
+          ],
+          "faaliyet_marji": [
+            0.15,
+            0.18,
+            0.2
+          ],
+          "vergi_orani": 0.25,
+          "satis_sermaye": 2,
+          "iskonto": 0.09,
+          "uc_buyume": 0.03,
+          "uc_roic": 0.15,
+          "net_borc": 300000,
+          "hisse": 50,
+          "uc_buyume_tavani": 0.04,
+          "sbc_yontemi": "gider",
+          "iskonto_zamani": "yil_sonu"
+        }
+      ],
+      "iliski": "kat",
+      "beklenen_oran": 1000
+    },
+    {
+      "kod": "K14",
+      "ad": "Negatif özsermaye",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 5,
+        "buyume": 0.15,
+        "faaliyet_marji": 0.05,
+        "vergi_orani": 0.25,
+        "satis_sermaye": 1,
+        "iskonto": 0.09,
+        "uc_buyume": 0.02,
+        "uc_roic": 0.1,
+        "net_borc": 5000,
+        "hisse": 100,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "beklenen": {
+        "durum": "gecerli",
+        "acik_donem_bd": -547.2786692856847,
+        "uc_deger": 879.2504276785716,
+        "uc_deger_bd": 571.452449364547,
+        "firma_degeri": 24.17378007886225,
+        "ozsermaye_degeri": -4975.826219921138,
+        "hisse_basi_deger": -49.75826219921137,
+        "uc_deger_payi": 23.639350052010673,
+        "uyarilar_tam": [
+          "BUYUME_DEGER_YIKIYOR",
+          "NEGATIF_FCFF_YILLARI",
+          "OZSERMAYE_NEGATIF",
+          "UC_DEGER_BASKIN"
+        ]
+      }
+    },
+    {
+      "kod": "K15",
+      "ad": "Ters DCF: tek çözüm",
+      "tur": "ters_dcf",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 3,
+        "buyume": 0.12,
+        "faaliyet_marji": [
+          0.15,
+          0.18,
+          0.2
+        ],
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.09,
+        "uc_buyume": 0.03,
+        "uc_roic": 0.15,
+        "net_borc": 300,
+        "hisse": 50,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "fiyat": 43.71901694865522,
+      "beklenen": {
+        "durum": "tek_cozum",
+        "ima_edilen_buyume": 0.12,
+        "sabit_tutulanlar_icermeli": [
+          "faaliyet_marji",
+          "satis_sermaye",
+          "iskonto",
+          "uc_buyume",
+          "uc_roic"
+        ]
+      }
+    },
+    {
+      "kod": "K16",
+      "ad": "Ters DCF: çözüm yok",
+      "tur": "ters_dcf",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 5,
+        "buyume": 0.15,
+        "faaliyet_marji": 0.05,
+        "vergi_orani": 0.25,
+        "satis_sermaye": 1,
+        "iskonto": 0.09,
+        "uc_buyume": 0.02,
+        "uc_roic": 0.1,
+        "net_borc": 0,
+        "hisse": 100,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "fiyat": 87.0258192935284,
+      "beklenen": {
+        "durum": "cozum_yok",
+        "ima_edilen_buyume": null
+      }
+    },
+    {
+      "kod": "K17",
+      "ad": "Liste uzunluğu uyumsuz",
+      "tur": "degerle",
+      "girdi": {
+        "gelir_0": 1000,
+        "yillar": 5,
+        "buyume": [
+          0.2,
+          0.15,
+          0.1
+        ],
+        "faaliyet_marji": [
+          0.15,
+          0.18,
+          0.2
+        ],
+        "vergi_orani": 0.25,
+        "satis_sermaye": 2,
+        "iskonto": 0.09,
+        "uc_buyume": 0.03,
+        "uc_roic": 0.15,
+        "net_borc": 300,
+        "hisse": 50,
+        "uc_buyume_tavani": 0.04,
+        "sbc_yontemi": "gider",
+        "iskonto_zamani": "yil_sonu"
+      },
+      "beklenen": {
+        "durum": "gecersiz",
+        "hatalar_icermeli": [
+          "LISTE_UZUNLUGU_UYUMSUZ"
+        ]
+      }
+    }
+  ]
+}
