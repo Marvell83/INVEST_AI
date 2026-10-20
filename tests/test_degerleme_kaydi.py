@@ -53,20 +53,19 @@ class DcfLedgerIntegration(unittest.TestCase):
             degerle_ve_kaydet(**dict(self.kwargs, sources=[]))
 
     def test_transaction_rollback_when_second_record_fails(self):
+        from unittest.mock import patch
+        original = TahminDefteri.tahmin_kaydet
+        calls = [0]
+        def fail_on_second(instance, **kwargs):
+            calls[0] += 1
+            if calls[0] == 2:
+                raise RuntimeError("synthetic insert failure")
+            return original(instance, **kwargs)
+        with patch.object(TahminDefteri, "tahmin_kaydet", fail_on_second):
+            with self.assertRaises(RuntimeError):
+                degerle_ve_kaydet(**self.kwargs)
         with TahminDefteri(self.db) as ledger:
-            ledger.tahmin_kaydet(company="DEMO", metric="fcff",
-                target_period="2027-FY", currency="USD", predicted=999,
-                model_version="uretim-0.1.0", assumptions={
-                    "inputs": INPUTS, "scenario": "base", "base_year": 2026,
-                    "valuation_metric": "fcff", "valuation_result": {
-                        "firma_degeri": 0, "ozsermaye_degeri": 0,
-                        "hisse_basi_deger": 0, "uc_deger_payi": 0}},
-                sources=["synthetic test"])
-        # A conflict in an existing row should never leave earlier inserts.
-        with self.assertRaises(sqlite3.IntegrityError):
-            degerle_ve_kaydet(**self.kwargs)
-        with TahminDefteri(self.db) as ledger:
-            self.assertEqual(len(ledger.tahminleri_listele()), 1)
+            self.assertEqual(len(ledger.tahminleri_listele()), 0)
 
 if __name__ == "__main__":
     unittest.main()
