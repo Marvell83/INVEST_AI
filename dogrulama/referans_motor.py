@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 YATIRIM AI — Değerleme Çekirdeği REFERANS MOTORU (doğrulama seti için)
-Bu dosya üretim motoru değildir; bağımsız, okunabilir karşılaştırma uygulamasıdır.
+
+Bu dosya üretim motoru değildir. Amacı, KONVANSIYONLAR.md'de tanımlanan hesap
+kurallarının bağımsız ve okunabilir bir uygulamasını sağlamak; doğrulama setindeki
+beklenen değerler buradan ve elle hesaplardan gelir. Üretim motoru farklı kodla
+yazılabilir ama aynı girdiye aynı sonucu vermelidir.
 """
 import math
 
@@ -39,6 +43,7 @@ def _hatalar(g):
     if g.get("sbc_yontemi", "gider") not in ("gider", "sulandirma"):
         h.append("SBC_YONTEMI_GECERSIZ")
     if g.get("sbc_yontemi", "gider") == "gider" and g.get("yillik_sulandirma", 0) > 0:
+        # marjlar zaten hisse bazlı ücreti gider olarak içeriyor; ayrıca sulandırma uygulamak çift sayım
         h.append("SBC_CIFT_SAYIM")
     if g.get("iskonto_zamani", "yil_sonu") not in ("yil_sonu", "yil_ortasi"):
         h.append("ISKONTO_ZAMANI_GECERSIZ")
@@ -67,8 +72,8 @@ def degerle(girdi):
     for i in range(n):
         yil = i + 1
         gelir = onceki_gelir * (1 + buyume[i])
-        nopat = gelir * (marj[i] + sbc_orani) * (1 - t)
-        yeniden_yatirim = (gelir - onceki_gelir) / sc
+        nopat = gelir * (marj[i] + sbc_orani) * (1 - t)       # sulandırma yönteminde SBC geri eklenir
+        yeniden_yatirim = (gelir - onceki_gelir) / sc          # büyüme bedava değildir
         fcff = nopat - yeniden_yatirim
         faktor = (1 + r) ** -(yil - 0.5 if yil_ortasi else yil)
         bd = fcff * faktor
@@ -77,17 +82,19 @@ def degerle(girdi):
                       "fcff": fcff, "iskonto_faktoru": faktor, "bugunku_deger": bd})
         onceki_gelir = gelir
 
+    # uç değer: N+1 yılı, kalıcı durum. Yeniden yatırım oranı = g / ROIC (Damodaran)
     gelir_uc = onceki_gelir * (1 + g_uc)
     nopat_uc = gelir_uc * (marj[-1] + sbc_orani) * (1 - t)
     fcff_uc = nopat_uc * (1 - g_uc / roic_uc)
     uc_deger = fcff_uc / (r - g_uc)
-    uc_bd = uc_deger * (1 + r) ** -n
+    uc_bd = uc_deger * (1 + r) ** -n                           # her iki konvansiyonda da N. yıl sonuna
     firma = acik_bd + uc_bd
     ozsermaye = firma - g.get("net_borc", 0.0)
     hisse_n = g["hisse"] * (1 + g.get("yillik_sulandirma", 0.0)) ** n if sbc_yontemi == "sulandirma" else g["hisse"]
     hisse_basi = ozsermaye / hisse_n
     pay = uc_bd / firma if firma > 0 else None
 
+    # yeni sermayenin getirisi, şirketin ulaştığı SON marjla ölçülür (ilk yılların zararı değil)
     marjinal_roic = (marj[-1] + sbc_orani) * (1 - t) * sc
     if any(b > 0 for b in buyume) and marjinal_roic < r:
         uyarilar.append("BUYUME_DEGER_YIKIYOR")
@@ -107,7 +114,8 @@ def degerle(girdi):
 
 
 def ters_dcf(girdi, fiyat, alt=-0.5, ust=1.0, adim=1500):
-    """Implied constant revenue growth with fixed operating assumptions."""
+    """Fiyatın ima ettiği SABİT yıllık gelir büyümesi. Marj, satış/sermaye, vergi, iskonto ve
+    uç varsayımlar sabit tutulur. Çözüm yoksa ya da birden çoksa sayı uydurmaz, durumu söyler."""
     sabitler = ["faaliyet_marji", "satis_sermaye", "vergi_orani", "iskonto", "uc_buyume", "uc_roic",
                 "net_borc", "hisse", "sbc_yontemi", "iskonto_zamani"]
 
