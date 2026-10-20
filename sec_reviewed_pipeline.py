@@ -11,6 +11,7 @@ import math
 
 from sec_companyfacts import normalize_companyfacts
 from sec_gap_audit import audit_company
+from sec_revenue_reconciliation import apply_revenue_review
 from sec_v02_bridge import value_sec_snapshot
 from tahmin_defteri import TahminDefteri
 
@@ -39,16 +40,22 @@ def _validate_periods(periods, *, baseline_end, years):
 
 
 def analyze_and_record(*, raw_companyfacts, as_of, proposal,
-                       future_period_ends, db_path):
+                       future_period_ends, db_path, revenue_review=None):
     """Returns valuation, CIK, source audit and ledger row IDs.
 
     Refuses incomplete/contradictory historic inputs; does not silently repair.
     All batch writes belong to one SQLite transaction, or none persist.
     """
     audit = audit_company(raw_companyfacts, as_of=as_of)
-    if audit["status"] != "READY_FOR_MANUAL_ASSUMPTIONS":
-        raise ValueError("SEC baseline requires manual review: " + audit["status"])
     snapshot = normalize_companyfacts(raw_companyfacts, as_of=as_of)
+    reconciliation = None
+    if audit["status"] == "REVENUE_ALIASES_CONFLICT" and revenue_review is not None:
+        snapshot, reconciliation = apply_revenue_review(
+            raw_companyfacts, snapshot, as_of=as_of, review=revenue_review)
+    elif audit["status"] != "READY_FOR_MANUAL_ASSUMPTIONS":
+        raise ValueError("SEC baseline requires manual review: " + audit["status"])
+    elif revenue_review is not None:
+        raise ValueError("revenue review cannot override an uncontested baseline")
     valued = value_sec_snapshot(snapshot, proposal)
     forecasts = valued["valuation"]["tablo"]
     _validate_periods(future_period_ends, baseline_end=valued["historical_period_end"],
@@ -60,6 +67,8 @@ def analyze_and_record(*, raw_companyfacts, as_of, proposal,
         "Share count: " + valued["share_count_source"],
         "Net debt: " + valued["net_debt_source"],
         *valued["manual_assumption_sources"],
+        *(["SEC revenue reconciliation: " + reconciliation["statement_url"]]
+          if reconciliation is not None else []),
     ]
     # Distinguish date of source availability (as_of) from the date the model
     # was actually run. Historic as-of data alone do not prove an old prediction.
@@ -76,6 +85,7 @@ def analyze_and_record(*, raw_companyfacts, as_of, proposal,
         "valuation_summary": {k: valued["valuation"][k]
                               for k in ("firma_degeri", "ozsermaye_degeri", "hisse_basi_deger", "uc_deger_payi")},
         "historical_prediction_verifiable": False,
+        "revenue_reconciliation": reconciliation,
     }
     ids = []
     with TahminDefteri(db_path) as ledger:
@@ -102,5 +112,6 @@ def analyze_and_record(*, raw_companyfacts, as_of, proposal,
         "historical_as_of": as_of,
         "forecast_rows": len(ids), "forecast_ids": ids,
         "valuation": valued["valuation"], "sec_audit": audit,
+        "revenue_reconciliation": reconciliation,
         "warning": "Created now, not a verifiable prediction made at historical as-of date; do not score FCFF against CFO less CapEx",
     }
