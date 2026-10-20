@@ -1,6 +1,6 @@
 import math
 import unittest
-from degerleme_v02 import degerle_v02
+from degerleme_v02 import degerle_v02, ters_dcf_v02
 
 BASE = dict(yillar=3, gelir_0=100, buyume=0.1,
     marj_0=.2, marj_hedef=.2, yakinlasma=.5,
@@ -54,5 +54,25 @@ class TestV02Engine(unittest.TestCase):
         a=degerle_v02(dict(BASE,baslangic_zarar=500))
         self.assertEqual(a['tablo'][-1]['nakit_vergi'],0)
         self.assertAlmostEqual(a['uc_nopat_normalize'],a['tablo'][-1]['gelir']*1.02*.2*.75)
+
+class TestReverseDCFV02(unittest.TestCase):
+    def test_recovers_known_growth(self):
+        known = degerle_v02(dict(BASE, buyume=.12))["hisse_basi_deger"]
+        result = ters_dcf_v02(BASE, known, .08, .16, grid_steps=1024)
+        self.assertEqual(result["durum"], "tek_cozum_dogrulandi")
+        self.assertAlmostEqual(result["ima_edilen_buyume"], .12, 5)
+        self.assertFalse(result["tum_kokler_bulundu_garantisi"])
+    def test_unverified_is_not_no_solution_proof(self):
+        result = ters_dcf_v02(BASE, 1000000, .05, .3, grid_steps=256)
+        self.assertEqual(result["durum"], "cozum_dogrulanamadi")
+        self.assertIsNone(result["ima_edilen_buyume"])
+    def test_rejects_growth_below_minus_one(self):
+        with self.assertRaises(ValueError):
+            ters_dcf_v02(BASE, 10, lower=-1.1, upper=.2)
+    def test_boundary_root(self):
+        known = degerle_v02(dict(BASE, buyume=.10))["hisse_basi_deger"]
+        result = ters_dcf_v02(BASE, known, lower=.10, upper=.2, grid_steps=256)
+        self.assertEqual(result["durum"], "tek_cozum_dogrulandi")
+        self.assertAlmostEqual(result["ima_edilen_buyume"], .10, 5)
 
 if __name__ == '__main__': unittest.main()
