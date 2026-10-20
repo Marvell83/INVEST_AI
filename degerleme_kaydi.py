@@ -11,10 +11,11 @@ import math
 from pathlib import Path
 
 from dogrulama.uretim_motoru import degerle
+from degerleme_v02 import degerle_v02
 from tahmin_defteri import TahminDefteri
 
 def degerle_ve_kaydet(*, db_path, company, currency, base_year,
-                       inputs, sources, scenario="base"):
+                       inputs, sources, scenario="base", engine="v0.1"):
     """Value once, persist a dated snapshot and annual forecast observations.
 
     Returns valuation and IDs. Uses an explicit transaction so failures
@@ -30,7 +31,12 @@ def degerle_ve_kaydet(*, db_path, company, currency, base_year,
         raise ValueError("scenario is required")
     if not isinstance(sources, list) or not sources or not all(isinstance(s, str) and s.strip() for s in sources):
         raise ValueError("at least one source is required")
-    result = degerle(inputs)
+    if engine == "v0.1":
+        result = degerle(inputs)
+    elif engine == "v0.2":
+        result = degerle_v02(inputs)
+    else:
+        raise ValueError("unknown valuation engine")
     if result["durum"] != "gecerli":
         return {"durum": "gecersiz", "degerleme": result, "tahmin_kimlikleri": []}
     rows = result["tablo"]
@@ -54,6 +60,8 @@ def degerle_ve_kaydet(*, db_path, company, currency, base_year,
                                        "ozsermaye_degeri": result["ozsermaye_degeri"],
                                        "hisse_basi_deger": result["hisse_basi_deger"],
                                        "uc_deger_payi": result["uc_deger_payi"]}}
+                    if engine != "v0.1":
+                        assumptions["engine"] = engine
                     fid = ledger.tahmin_kaydet(
                         company=company, metric=metric, target_period=period,
                         currency=currency, predicted=row[key],
