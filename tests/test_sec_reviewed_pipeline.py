@@ -98,3 +98,51 @@ class ReviewedPipelineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ConflictPipelineTests(unittest.TestCase):
+    def setUp(self):
+        from test_sec_companyfacts import fixture, fact
+        self.temp = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.temp.name, "forecasts.sqlite")
+        self.raw = fixture()
+        for info in self.raw["facts"]["us-gaap"].values():
+            for row in info["units"].get("USD", []):
+                row["accn"] = "0000000042-25-000001"
+        row = fact(950)
+        row["accn"] = "0000000042-25-000001"
+        self.raw["facts"]["us-gaap"]["Revenues"] = {"units": {"USD": [row]}}
+        self.review = dict(schema_version="invest-ai-revenue-review-v1",
+            status="approved", cik="0000000042", fiscal_end="2024-12-31",
+            revenue_concept="Revenues", value_usd=950,
+            accession="0000000042-25-000001",
+            statement_url="https://www.sec.gov/Archives/edgar/data/42/000000004225000001/sample.htm",
+            statement_label="Consolidated revenues",
+            reviewer="Test analyst", reviewed_at="2025-03-01",
+            rationale="Verified annual group revenues from consolidated SEC statements.")
+        self.args = dict(raw_companyfacts=self.raw, as_of="2025-03-01",
+            proposal=copy.deepcopy(PROPOSAL),
+            future_period_ends=["2025-12-31", "2026-12-31", "2027-12-31"],
+            db_path=self.path)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_conflict_without_review_remains_blocked(self):
+        with self.assertRaisesRegex(ValueError, "requires manual review"):
+            analyze_and_record(**self.args)
+
+    def test_reviewed_fact_flows_into_ledger(self):
+        result = analyze_and_record(**self.args, revenue_review=self.review)
+        self.assertEqual(result["forecast_rows"], 9)
+        self.assertEqual(result["revenue_reconciliation"]["value_usd"], 950)
+        with TahminDefteri(self.path) as ledger:
+            record = ledger.db.execute(
+                "SELECT assumptions_json, sources_json FROM forecasts LIMIT 1").fetchone()
+            self.assertEqual(json.loads(record[0])["historic_facts"]["revenue"]["value_usd"], 950)
+            self.assertIn("sample.htm", record[1])
+
+    def test_wrong_human_override_does_not_write(self):
+        with self.assertRaises(ValueError):
+            analyze_and_record(**self.args,
+                revenue_review=dict(self.review, value_usd=950000))
+        self.assertFalse(os.path.exists(self.path))
