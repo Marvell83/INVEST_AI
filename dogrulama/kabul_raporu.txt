@@ -1,0 +1,18 @@
+GEÇTİ  K01  Büyümesiz sürekli nakit akışı
+GEÇTİ  K02  Gordon uç değer formülü
+GEÇTİ  K03  Elle hesaplanmış 3 yıllık DCF
+GEÇTİ  K04  İlk yıllarda negatif FCFF
+GEÇTİ  K05  Değer yıkan büyüme
+GEÇTİ  K06  Uç büyüme iskontoyu aşıyor
+GEÇTİ  K07  Uç büyüme nominal tavanın üstünde
+GEÇTİ  K08  Uç değer baskın
+GEÇTİ  K09  Uç ROIC = iskonto değişmezliği
+GEÇTİ  K10  Hisse bazlı ücret çift sayımı
+GEÇTİ  K11  SBC sulandırma yöntemi
+GEÇTİ  K12  Yıl ortası iskonto
+GEÇTİ  K13  Ölçek değişmezliği
+GEÇTİ  K14  Negatif özsermaye
+GEÇTİ  K15  Ters DCF: tek çözüm
+GEÇTİ  K16  Ters DCF: çözüm yok
+GEÇTİ  K17  Liste uzunluğu uyumsuz
+17/17 vaka geçti (dogrulama-0.1)
