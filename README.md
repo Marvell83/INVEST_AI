@@ -83,3 +83,14 @@ Tahmin Defteri'ne kaydetmek için `degerle_ve_kaydet(..., inputs=girdi, engine="
 
 Yerelde çalıştırılan v0.2 testleri: **16/16 başarılı**. Daha önceki v0.1 kabul testleri: **17/17** ve deneysel modül testleri: **7/7**. GitHub Actions'ın bu değişiklikler üzerindeki sonucu ayrıca kontrol edilmelidir. Bunlar ekonomik tahmin doğruluğu kanıtı değildir.
 
+
+
+## SEC Company Facts — tarihli gerçek finansal veri altyapısı (yeni)
+
+**Yeni modüller:** `sec_companyfacts.py` ve `sec_v02_bridge.py`. ABD SEC'nin Company Facts XBRL API'sinden yalnız USD birimindeki seçilmiş 10-K / 10-K/A yıllık muhasebe olguları alınır. Her satır açıklanma tarihi (`filed`), dönem başı/sonu (`start/end`), accession, XBRL kavramı ve kaynak URL'siyle korunur. `--as-of` filtresi, geçmiş bir analiz tarihinde henüz yayımlanmamış bilgilerle hesaplama yapılmasını engeller.
+
+**DCF bağlantısı:** Son ortak tarihsel gelir ve EBIT kaydından `gelir_0` ve `marj_0` çıkarılır; büyüme, iskonto, hedef marj, terminal varsayımlar, hisse adedi ve net borç kaynakları kullanıcı tarafından belirtilmeden değerleme oluşturulmaz. CFO - CapEx, FCFF sanılmaz. Bu modül sadece SEC yıllık XBRL verisini kapsar; **InvestingPro, canlı fiyat, sektör araştırması veya otomatik yatırım önerisi içermez.**
+
+[SEC kurulum, komutlar, sentetik örnek ve sınırlamalar](docs/SEC_INTEGRASYON.md)
+
+Test komutu: `python -m unittest discover -s tests -v`. SEC modülleri için yerelde **20/20 sentetik test başarılı**. Gerçek şirket verileriyle kapsamlı kontrol ve GitHub Actions sonuç doğrulaması ayrıca gereklidir.
