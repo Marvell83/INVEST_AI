@@ -157,3 +157,36 @@ def degerle_v02(inputs):
     if not all(math.isfinite(x) for x in (present_operating, terminal_pv, enterprise, equity)):
         raise ValueError("non-finite valuation output")
     return result
+
+def ters_dcf_v02(inputs, price, lower=-0.5, upper=1.0, grid_steps=4096):
+    """Explore price-implied constant growth without a completeness guarantee.
+
+    Each detected candidate is checked against the DCF valuation. Finite
+    grid sampling cannot prove there are no additional roots.
+    """
+    from dogrulama.moduller_v02 import tum_kokler
+    price = _num(price, "price")
+    lower = _num(lower, "lower")
+    upper = _num(upper, "upper")
+    if price <= 0 or not (-1 < lower < upper) or grid_steps < 3:
+        raise ValueError("invalid price, growth bounds or grid steps")
+    degerle_v02(dict(inputs, buyume=lower))
+    def residual(rate):
+        value = degerle_v02(dict(inputs, buyume=rate))
+        return value["hisse_basi_deger"] - price
+    candidates = tum_kokler(residual, lower, upper, adim=grid_steps,
+                            x_tol=1e-10, y_tol=max(1e-9, abs(price)*1e-10))
+    tolerance = max(1e-6, abs(price)*1e-7)
+    verified = []
+    for rate in candidates:
+        difference = residual(rate)
+        if math.isfinite(difference) and abs(difference) <= tolerance:
+            verified.append({"buyume": rate, "fiyat_farki": difference})
+    state = ("tek_cozum_dogrulandi" if len(verified) == 1 else
+             "coklu_cozum_dogrulandi" if verified else "cozum_dogrulanamadi")
+    return {"durum": state, "fiyat": price,
+            "ima_edilen_buyume": verified[0]["buyume"] if len(verified) == 1 else None,
+            "dogrulanan_kokler": verified,
+            "arama_araligi": [lower, upper], "adim": grid_steps,
+            "tum_kokler_bulundu_garantisi": False,
+            "aciklama": "Grid, sign-change bisection and tangent heuristic; absence of candidates is not proof of no roots."}
