@@ -109,3 +109,14 @@ Yeni, korunmalı veri akışı:
 - Denetim, kaynak ve kullanım ayrıntısı: [docs/SEC_KAYNAK_DENETIMI_V02.md](docs/SEC_KAYNAK_DENETIMI_V02.md).
 
 Test komutu: `python -m unittest discover -s tests -v`. Yerelde SEC modülleri için sentetik dosyalar ve SQLite uyumlu bir test adaptörüyle **38/38 test** geçmiştir. **GitHub üzerindeki gerçek tahmin defteriyle yeni CI sonucu henüz onaylanmamıştır**. Üretime hazır veya yatırım tavsiyesi değildir.
+
+
+## SEC 10-K gelir etiketi mutabakatı — yedi araştırma adayı (2026-10-20)
+
+Yedi şirketin resmî 10-K tablolarında konsolide gelir satırı araştırıldı ve yerel SEC Company Facts XBRL arşivinde **7/7 CIK / mali dönem / accession / tutar eşleşmesi** bulundu. Kanıtlar ve tutarlar: [SEC 7 gelir mutabakatı](docs/SEC_7_GELIR_MUTABAKATI.md); makine-okunur **onaylanmamış** adaylar: [evidence/sec_2026_revenue_review_candidates.json](evidence/sec_2026_revenue_review_candidates.json).
+
+**Önemli:** Birincil kaynak araştırması, yetkili analistin imzaladığı muhasebe incelemesiyle aynı şey değildir. Aday JSON'un `status` alanı `proposed_requires_human_signoff` olduğu için sistem **bu 7 şirket için değerleme kilidini açmaz**. Kaynak okunup doğrulandıktan sonra `sec_revenue_reconciliation.py`, açıkça `approved` ve kaynak alanları dolu bir incelemeyi SEC XBRL verileriyle karşılaştırabilir.
+
+`sec_reviewed_pipeline.analyze_and_record(..., revenue_review=...)` ve `sec_reviewed_cli.py --revenue-review approved_review.json` ile bu karar kayıt altına alınır. Yeni testler doğru onay, yanlış şirket, yanlış yıl, yanlış accession, yanlış tutar, sahte kaynak adresi ve eksik EBIT gibi durumları kapsar. Asıl GitHub CI sonucu ayrıca doğrulanmalıdır.
+
+Veri sınırı: 117 şirketin ilk örnekleminde 86 aday daha önce teknik ön kontrolden geçiyordu; 7 kaynak açıklaması bulunsa bile **31 manuel inceleme gerektiren şirketin sayısı yetkili onay olmadan azaltılmaz**. Kalan 24 dosya başka veri sorunları yüzünden ayrıca incelenecek.
