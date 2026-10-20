@@ -94,3 +94,18 @@ Yerelde çalıştırılan v0.2 testleri: **16/16 başarılı**. Daha önceki v0.
 [SEC kurulum, komutlar, sentetik örnek ve sınırlamalar](docs/SEC_INTEGRASYON.md)
 
 Test komutu: `python -m unittest discover -s tests -v`. SEC modülleri için yerelde **20/20 sentetik test başarılı**. Gerçek şirket verileriyle kapsamlı kontrol ve GitHub Actions sonuç doğrulaması ayrıca gereklidir.
+
+
+## SEC kaynak kalite kapısı ve v0.2 tahmin kaydı (20.10.2026)
+
+Yeni, korunmalı veri akışı:
+
+`SEC ham Company Facts` → `sec_gap_audit.py` (dönem/kaynak/çelişki) → `sec_v02_bridge.py` → `degerleme_v02.py` → `sec_reviewed_pipeline.py` → `tahmin_defteri.py`.
+
+- 117 yerel SEC dosyasının yeniden denetiminde **86** şirket yalnızca ön incelemeyi geçti; **31** şirketin manuel kontrol gerektirdiği saptandı. Bunların **7** tanesinde birden fazla yıllık gelir etiketi arasında %5'ten büyük tutar ayrışması var.
+- `sec_gap_audit.py`: kaynak ve mali yıl uyuşmazlığını ayrı raporlar; IFRS/eksik EBIT/pozitif olmayan geliri uydurma verilerle doldurmaz.
+- `sec_reviewed_pipeline.py`: yalnız kaynak denetimini geçen ham SEC verilerinden deneysel v0.2 DCF üretip gelir, EBIT ve FCFF tahminlerini **kaynaklı, dönemli SQLite kayıtlarına** dönüştürür. Eski doğrudan `sec_v02_bridge.py` kullanımı **bu yeni denetim kapısını atlar**; yeni araştırmalarda korumalı akışı tercih edin.
+- `sec_reviewed_cli.py`: bu akışı dosyalar üzerinden çalıştırır. Kullanıcı tüm gelecek varsayımları ve gelecekteki **mali yıl bitiş tarihlerini** verir; sistem bunları kendiliğinden tahmin etmez.
+- Denetim, kaynak ve kullanım ayrıntısı: [docs/SEC_KAYNAK_DENETIMI_V02.md](docs/SEC_KAYNAK_DENETIMI_V02.md).
+
+Test komutu: `python -m unittest discover -s tests -v`. Yerelde SEC modülleri için sentetik dosyalar ve SQLite uyumlu bir test adaptörüyle **38/38 test** geçmiştir. **GitHub üzerindeki gerçek tahmin defteriyle yeni CI sonucu henüz onaylanmamıştır**. Üretime hazır veya yatırım tavsiyesi değildir.
