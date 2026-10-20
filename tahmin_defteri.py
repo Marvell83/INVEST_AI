@@ -25,6 +25,10 @@ def _number(value, name):
         raise ValueError(f"{name}: finite number required")
     return float(value)
 
+class _NoCommit:
+    def __enter__(self): return self
+    def __exit__(self, *_): return False
+
 class TahminDefteri:
     def __init__(self, path):
         self.path = str(Path(path))
@@ -102,7 +106,8 @@ class TahminDefteri:
                        currency=currency, predicted=predicted, model_version=model_version,
                        assumptions=assumptions, sources=sources)
         digest = hashlib.sha256(_json(payload).encode("utf-8")).hexdigest()
-        with self.db:
+        managed_transaction = self.db.in_transaction
+        with self.db if not managed_transaction else _NoCommit():
             cur = self.db.execute("""
                 INSERT INTO forecasts(created_at, company, metric, target_period,
                 currency, predicted, model_version, assumptions_json, sources_json, digest)
