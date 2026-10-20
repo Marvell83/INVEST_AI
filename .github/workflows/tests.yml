@@ -1,0 +1,22 @@
+name: Valuation Kernel Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  valuation-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Frozen v0.1 acceptance cases
+        run: |
+          cd dogrulama
+          python kabul_testi.py
+      - name: Experimental v0.2 module tests
+        run: |
+          cd dogrulama
+          python -m unittest test_moduller_v02 -v
