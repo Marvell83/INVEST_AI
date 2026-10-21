@@ -176,3 +176,20 @@ python gercek_sirket_pilotu.py --companyfacts CIK0000320193_AAPL.json --expected
 Ham SEC JSON depoya eklenmedi; veri kaynağı [SEC Company Facts](https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json). Yerel arşiv SHA-256 özeti, kullanılan finansal olguların accession/kavram/dosyalama tarihleri JSON raporunda saklı. **Bu canlı fiyat takibi, güncel 2026 tam yıl bilançosu, doğrulanmış kredi notu veya DCF hedef fiyatı değildir.** Kaynaklı ileriye dönük varsayımlar olmadan DCF üretilmez.
 
 `python -m unittest discover -s tests -v` yeni pilota ait çevrimdışı regresyon testlerini de keşfeder. Yerel kalite bileşenleriyle **31 test** geçti. **GitHub'daki birebir sürüm üzerinde CI durumu henüz teyit edilmedi**; test sayısını tüm depo onayı gibi değerlendirmeyin.
+
+
+## Apple: kaynaklı üç senaryolu DCF ve ters DCF örneği (21 Ekim 2026)
+
+İlk gerçek şirket örneğinin **yalnız tarihli ve varsayımsal stres modeli** olan çalışma, `ornekler/apple_dcf_stres_pilotu_2026_10.py` içinde. Apple'ın FY2025 SEC 10-K ciro ve EBIT'i, 2026 Haziran 10-Q bilançosu, Temmuz 2026 hisse sayısı ve **20 Ekim 2026 kapanış fiyatı** birbirinden farklı kaynak tarihleridir. Bu karışım güncel bir kesin hedef fiyat **değildir**. Model FY2026 ilk 9 aylık sonuçlarını TTM yıllık finansallara dönüştürmez.
+
+- **Temkinli / baz / iyimser:** yalnız analist tarafından oluşturulmuş yıllık ciro büyümesi, hedef faaliyet marjı, sermaye devir oranı, iskonto ve terminal büyüme stresleri. Model çıktıları sırasıyla yaklaşık **71,83 / 132,61 / 242,28 USD/hisse**. Bunlar piyasa konsensüsü veya alış/satış tavsiyesi değildir.
+- **Koşullu ters DCF:** 339,50 USD önceki seans kapanışı için, diğer baz senaryo varsayımları sabitken yaklaşık **%34,53** beş yıllık sabit yıllık büyüme. Kök araması kapsam garantisi vermez.
+- **Piotroski ihraç ayrımı:** 2025'te çalışan vergisi sonrası 58,146 milyon hisse ihraç edildiği halde 401,672 milyon hisse geri alındı. «Hisse sayısı azaldı» ifadesi «hiç yeni hisse çıkarılmadı» anlamına gelmez. Dokuzuncu F-Score koşulu sürüm ve ihraç tanımı belirlenmeden kesinleştirilmez.
+- Örnek testler `tests/test_apple_dcf_stres_pilotu.py`; ayrıntılı kaynaklar, yıl farkları ve varsayımlar: [docs/APPLE_UC_SENARYOLU_DCF_2026_10_21.md](docs/APPLE_UC_SENARYOLU_DCF_2026_10_21.md).
+
+```bash
+python -m ornekler.apple_dcf_stres_pilotu_2026_10 --out apple_stres_sonuclari.json
+python -m unittest discover -s tests -v
+```
+
+Yeni kod için GitHub Actions sonucu henüz doğrulanmamıştır; canlı fiyat kaynağına otomatik bağlanmaz. Gelişmiş, bağımsız yerel HTML örneği ve daha sıkı tarih/doğrulama kontrolleri ayrıca indirilebilir ZIP paketi olarak hazırlanmıştır.
