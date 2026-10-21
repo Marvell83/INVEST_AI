@@ -78,7 +78,7 @@ def _derived_gross_profit(data, as_of, end, revenue):
         return None, "MATCHED_COST_OF_REVENUE_MISSING"
     amounts = [f["value_usd"] for f in costs]
     scale = max(abs(v) for v in amounts)
-    if scale and (max(amounts) - min(amounts)) / scale > .05:
+    if scale and (max(amounts) - min(amounts)) / scale > .005:
         return None, "CONFLICTING_COST_OF_REVENUE_ALIASES"
     cost = costs[0]
     if cost["value_usd"] < 0 or revenue["value_usd"] <= 0:
@@ -113,7 +113,7 @@ def _noncurrent_debt(data, as_of, end):
             return None, "NEGATIVE_NONCURRENT_DEBT"
         if derived and direct["accession"] == derived["accession"]:
             a, b = direct["value_usd"], derived["value_usd"]
-            if max(abs(a), abs(b)) and abs(a-b)/max(abs(a), abs(b)) > .05:
+            if max(abs(a), abs(b)) and abs(a-b)/max(abs(a), abs(b)) > .005:
                 return None, "NONCURRENT_DEBT_RECONCILIATION_CONFLICT"
         return direct, None
     if derived:
@@ -263,5 +263,7 @@ def compute_piotroski(companyfacts, *, as_of, sector="unknown", equity_offering_
                            "asset_turnover":turnover,"prior_asset_turnover":prev_turnover,
                            "leverage":lm,"prior_leverage":lp,
                            "current_ratio":liquid,"prior_current_ratio":prev_liquid}
+    if any(f.get("method") in ("REVENUE_MINUS_MATCHED_COST", "TOTAL_LONG_TERM_DEBT_MINUS_CURRENT_PORTION") for f in result["provenance"].values()):
+        result["warnings"].append("Derived SEC facts are same-filing arithmetic, not manually verified consolidated statement totals")
     result["warnings"].append("Piotroski is a screening signal, not fair value; originally tested with high book-to-market firms")
     return result
