@@ -120,3 +120,20 @@ Yedi şirketin resmî 10-K tablolarında konsolide gelir satırı araştırıld�
 `sec_reviewed_pipeline.analyze_and_record(..., revenue_review=...)` ve `sec_reviewed_cli.py --revenue-review approved_review.json` ile bu karar kayıt altına alınır. Yeni testler doğru onay, yanlış şirket, yanlış yıl, yanlış accession, yanlış tutar, sahte kaynak adresi ve eksik EBIT gibi durumları kapsar. Asıl GitHub CI sonucu ayrıca doğrulanmalıdır.
 
 Veri sınırı: 117 şirketin ilk örnekleminde 86 aday daha önce teknik ön kontrolden geçiyordu; 7 kaynak açıklaması bulunsa bile **31 manuel inceleme gerektiren şirketin sayısı yetkili onay olmadan azaltılmaz**. Kalan 24 dosya başka veri sorunları yüzünden ayrıca incelenecek.
+
+
+## Finansal kalite: Piotroski F-Score + kredi notları (v0.1)
+
+`piotroski_fscore.py` SEC 10-K/10-K/A yıllık US-GAAP olgularından dokuz Piotroski göstergesini hesaplar. Eksik/kapsamı çelişen veri **0 puana dönüştürülmez**: `score=null`, `score_range=[alt,üst]`, `missing_reasons` ile raporlanır. Banka/sigorta ve doğrulanmamış sektörleri otomatik sıralamayız. Sermaye ihracı göstergesi için hisse sayısı değişimine bakmak yerine tarihli ve kaynaklı manuel inceleme gerekir.
+
+`kredi_notlari.py` Moody's, S&P, Fitch **uzun vadeli ihraççı notlarını** ayrı, append-only SQLite olay defterinde saklar. Yayımlanma tarihi, etki tarihi, kaynak URL ve görünüm korunur; not geri çekilmişse eski not etkin sayılmaz. **Kredi notlarından doğrudan WACC, Piotroski puanı veya hisse değerlemesi üretilmez.**
+
+`sirket_kalite_cli.py` bu iki kalite görünümünü tek JSON raporunda **birleştirmeden yan yana** sunar:
+
+```bash
+python sirket_kalite_cli.py report --companyfacts companyfacts.json --as-of 2026-10-21 --sector non_financial --out kalite_raporu.json
+```
+
+Ayrıntılı sözleşme, 9 gösterge, kredi notu girişi, veri sınırlamaları ve testler: [Piotroski + kredi modülü rehberi](docs/PIOTROSKI_KREDI_KATMANI_V01.md).
+
+**Doğrulama:** Geliştirme ortamında 23 sentetik birim testi başarılıdır. GitHub Actions sonuçları ayrıca kontrol edilmelidir. Bu muhasebe testi geçmiş fiyat performansı/gelecek getirisi doğrulaması değildir.
