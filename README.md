@@ -159,3 +159,20 @@ python sirket_analiz_paneli.py --quality kalite.json --valuation dcf.json --out 
 ```
 
 `--valuation` isteğe bağlıdır. Aynı CIK eşleşmesi, HTML karakter kaçışı, eksik F-Score'un kesin puana dönüşmemesi ve kredi notlarından değerleme üretilmemesi korunur. Kullanım ve sınırlamalar: [docs/SIRKET_ANALIZ_PANELI_V01.md](docs/SIRKET_ANALIZ_PANELI_V01.md). Testler `tests/test_sirket_analiz_paneli.py` içindedir. Yeni yerel geliştirme test seti **58/58** başarılıdır; bu sayı GitHub CI veya gerçek yatırım başarısı garantisi değildir.
+
+
+## İlk gerçek SEC şirket pilotu — Apple (FY2025)
+
+Çevrimdışı kaynak izi korunmuş **gerçek şirket** pilotu eklendi: `gercek_sirket_pilotu.py`, `tests/test_gercek_sirket_pilotu.py`, [Apple teknik raporu](docs/APPLE_GERCEK_SEC_PILOTU.md), [Apple sonuç JSON](reports/Apple_SEC_Piotroski_2026-10-21.json) ve [Apple HTML paneli](reports/Apple_SEC_Piotroski_2026-10-21.html).
+
+21 Ekim 2026 bilgi kesme tarihinde 18 Ekim tarihli **yerel SEC arşivinden** alınan Apple FY2025 10-K verilerinde Piotroski'nin 9 göstergesinden **8'i hesaplanabildi**: 7 olumlu, 1 olumsuz, sermaye ihracı kanıtı eksik. Sonuç **kesin puan değil, 7–8 aralığıdır**. Gerçek veri 31 Ekim 2025 tarihli 10-K ile dönem/tutar düzeyinde çapraz kontrol edilmiştir: [SEC resmî 10-K](https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm).
+
+Örnek kullanım:
+
+```bash
+python gercek_sirket_pilotu.py --companyfacts CIK0000320193_AAPL.json --expected-cik 0000320193 --sector non_financial --as-of 2026-10-21 --expected-fiscal-end 2025-09-27 --out-json apple.json --out-html apple.html
+```
+
+Ham SEC JSON depoya eklenmedi; veri kaynağı [SEC Company Facts](https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json). Yerel arşiv SHA-256 özeti, kullanılan finansal olguların accession/kavram/dosyalama tarihleri JSON raporunda saklı. **Bu canlı fiyat takibi, güncel 2026 tam yıl bilançosu, doğrulanmış kredi notu veya DCF hedef fiyatı değildir.** Kaynaklı ileriye dönük varsayımlar olmadan DCF üretilmez.
+
+`python -m unittest discover -s tests -v` yeni pilota ait çevrimdışı regresyon testlerini de keşfeder. Yerel kalite bileşenleriyle **31 test** geçti. **GitHub'daki birebir sürüm üzerinde CI durumu henüz teyit edilmedi**; test sayısını tüm depo onayı gibi değerlendirmeyin.
