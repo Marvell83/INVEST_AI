@@ -9,7 +9,7 @@ import datetime as dt
 import math
 from sec_companyfacts import METRICS, _date, _validate_cik, SEC_DATA, FORMS
 
-VERSION = "piotroski-sec-0.1.0"
+VERSION = "piotroski-sec-0.2.0"
 FLOW = {
     "revenue": METRICS["revenue"],
     "ni": ("NetIncomeLoss",),
@@ -63,6 +63,67 @@ def _pick(data, tags, as_of, end, instant):
     if peak and (max(values)-min(values))/peak > .05:
         return None, "CONFLICTING_ALIASES"
     return facts[0], None
+
+
+def _derived_gross_profit(data, as_of, end, revenue):
+    """Derived revenue less cost only for the same SEC fiscal period and filing."""
+    if revenue is None:
+        return None, "REVENUE_REQUIRED_FOR_GROSS_PROFIT"
+    costs = []
+    for tag in ("CostOfGoodsAndServicesSold", "CostOfRevenue", "CostOfGoodsSold"):
+        f = _series(data, tag, as_of, False).get(end)
+        if f and f["start"] == revenue["start"] and f["accession"] == revenue["accession"]:
+            costs.append(f)
+    if not costs:
+        return None, "MATCHED_COST_OF_REVENUE_MISSING"
+    amounts = [f["value_usd"] for f in costs]
+    scale = max(abs(v) for v in amounts)
+    if scale and (max(amounts) - min(amounts)) / scale > .05:
+        return None, "CONFLICTING_COST_OF_REVENUE_ALIASES"
+    cost = costs[0]
+    if cost["value_usd"] < 0 or revenue["value_usd"] <= 0:
+        return None, "NONPOSITIVE_REVENUE_OR_NEGATIVE_COST"
+    result = dict(revenue)
+    result.update(concept="DERIVED_GROSS_PROFIT",
+                  value_usd=revenue["value_usd"] - cost["value_usd"],
+                  method="REVENUE_MINUS_MATCHED_COST",
+                  derivation={"revenue": revenue, "cost": cost})
+    return result, None
+
+
+def _noncurrent_debt(data, as_of, end):
+    """Never substitute total long-term debt for noncurrent debt.
+
+    If direct noncurrent debt is absent, derive total debt less current maturities
+    only when both components refer to the same SEC accession and FY end.
+    """
+    direct = _series(data, "LongTermDebtNoncurrent", as_of, True).get(end)
+    total = _series(data, "LongTermDebt", as_of, True).get(end)
+    current = _series(data, "LongTermDebtCurrent", as_of, True).get(end)
+    derived = None
+    if total and current and total["accession"] == current["accession"]:
+        if 0 <= current["value_usd"] <= total["value_usd"]:
+            derived = dict(total)
+            derived.update(concept="DERIVED_LONG_TERM_DEBT_NONCURRENT",
+                           value_usd=total["value_usd"]-current["value_usd"],
+                           method="TOTAL_LONG_TERM_DEBT_MINUS_CURRENT_PORTION",
+                           derivation={"total": total, "current": current})
+    if direct:
+        if direct["value_usd"] < 0:
+            return None, "NEGATIVE_NONCURRENT_DEBT"
+        if derived and direct["accession"] == derived["accession"]:
+            a, b = direct["value_usd"], derived["value_usd"]
+            if max(abs(a), abs(b)) and abs(a-b)/max(abs(a), abs(b)) > .05:
+                return None, "NONCURRENT_DEBT_RECONCILIATION_CONFLICT"
+        return direct, None
+    if derived:
+        return derived, None
+    if total is not None and current is None:
+        return None, "LONG_TERM_DEBT_TOTAL_WITHOUT_CURRENT_COMPONENT"
+    if total is not None and current is not None:
+        return None, "DEBT_COMPONENTS_INCONSISTENT_OR_FILING_MISMATCH"
+    return None, "NONCURRENT_DEBT_MISSING"
+
 
 def _previous(dates, anchor):
     if not anchor: return None
@@ -132,7 +193,15 @@ def compute_piotroski(companyfacts, *, as_of, sector="unknown", equity_offering_
         if end is None:
             values[key]=None;issues[key]="PRIOR_ASSET_PERIOD_MISSING"
             continue
-        fact,reason=_pick(companyfacts,(INSTANT if instant else FLOW)[kind],cutoff,end,instant)
+        if kind == "debt":
+            fact,reason = _noncurrent_debt(companyfacts,cutoff,end)
+        else:
+            fact,reason = _pick(companyfacts,(INSTANT if instant else FLOW)[kind],cutoff,end,instant)
+        if kind == "gp" and fact is None and reason == "MISSING":
+            revenue_key = "rev_t" if key == "gp_t" else "rev_p"
+            revenue_fact = result["provenance"].get(revenue_key)
+            if revenue_fact is not None:
+                fact,reason = _derived_gross_profit(companyfacts,cutoff,end,revenue_fact)
         values[key]=fact["value_usd"] if fact else None
         if reason: issues[key]=reason
         if fact: result["provenance"][key]=fact
