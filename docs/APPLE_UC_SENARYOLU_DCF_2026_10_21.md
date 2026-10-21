@@ -51,7 +51,7 @@ Diğer varsayımlar: dönem sayısı beş, sabit yıllık büyüme, yıllık faa
 Python 3.11+; ek paket yok. Repo kökünde:
 
 ```bash
-python ornekler/apple_dcf_stres_pilotu_2026_10.py --out apple_stres_sonuclari.json
+python -m ornekler.apple_dcf_stres_pilotu_2026_10 --out apple_stres_sonuclari.json
 python -m unittest discover -s tests -v
 ```
 
