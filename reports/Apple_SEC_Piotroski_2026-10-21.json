@@ -1,0 +1,340 @@
+{
+  "pipeline_version": "invest-ai-real-sec-pilot-0.1.0",
+  "company": "Apple Inc.",
+  "cik": "0000320193",
+  "knowledge_cutoff": "2026-10-21",
+  "latest_fiscal_end": "2025-09-27",
+  "source_snapshot_sha256": "057f527aaef52cf6e3da7b3c1582fbd46c69695f5e27b75b9a1c3e27c2cfecd7",
+  "source_snapshot_note": "SEC archive from local zip",
+  "source_limitations": "Offline raw SEC Company Facts snapshot. A knowledge cutoff is not evidence that the archive captures every filing available on that day.",
+  "official_issuer_credit_rating_verified": false,
+  "real_company_report": true,
+  "actual_stock_price": null,
+  "dcf_result": null,
+  "not_retroactive_forecast": true,
+  "quality": {
+    "company": "Apple Inc.",
+    "cik": "0000320193",
+    "as_of": "2026-10-21",
+    "piotroski": {
+      "version": "piotroski-sec-0.1.0",
+      "company": "Apple Inc.",
+      "cik": "0000320193",
+      "as_of": "2026-10-21",
+      "sector": "non_financial",
+      "signals": {
+        "ROA_POSITIVE": 1,
+        "CFO_POSITIVE": 1,
+        "DELTA_ROA": 1,
+        "QUALITY_OF_EARNINGS": 0,
+        "DELTA_LEVERAGE": 1,
+        "DELTA_LIQUIDITY": 1,
+        "NO_EQUITY_OFFERING": null,
+        "DELTA_GROSS_MARGIN": 1,
+        "DELTA_ASSET_TURNOVER": 1
+      },
+      "known_count": 8,
+      "missing_count": 1,
+      "score": null,
+      "score_range": [
+        7,
+        8
+      ],
+      "status": "partial",
+      "missing_reasons": {
+        "NO_EQUITY_OFFERING": "Manual dated evidence for issuance/no issuance required; share-count delta is not reliable"
+      },
+      "periods": {
+        "current_fy_end": "2025-09-27",
+        "prior_fy_end": "2024-09-28",
+        "opening_assets_end": "2023-09-30"
+      },
+      "provenance": {
+        "net_income_t": {
+          "value_usd": 112010000000.0,
+          "end": "2025-09-27",
+          "start": "2024-09-29",
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "NetIncomeLoss",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "net_income_prev": {
+          "value_usd": 93736000000.0,
+          "end": "2024-09-28",
+          "start": "2023-10-01",
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "NetIncomeLoss",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "cfo_t": {
+          "value_usd": 111482000000.0,
+          "end": "2025-09-27",
+          "start": "2024-09-29",
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "revenue_t": {
+          "value_usd": 416161000000.0,
+          "end": "2025-09-27",
+          "start": "2024-09-29",
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "revenue_prev": {
+          "value_usd": 391035000000.0,
+          "end": "2024-09-28",
+          "start": "2023-10-01",
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "gross_profit_t": {
+          "value_usd": 195201000000.0,
+          "end": "2025-09-27",
+          "start": "2024-09-29",
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "GrossProfit",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "gross_profit_prev": {
+          "value_usd": 180683000000.0,
+          "end": "2024-09-28",
+          "start": "2023-10-01",
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "GrossProfit",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "assets_t": {
+          "value_usd": 359241000000.0,
+          "end": "2025-09-27",
+          "start": null,
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "Assets",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "assets_prev": {
+          "value_usd": 364980000000.0,
+          "end": "2024-09-28",
+          "start": null,
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "Assets",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "assets_open": {
+          "value_usd": 352583000000.0,
+          "end": "2023-09-30",
+          "start": null,
+          "filed": "2024-11-01",
+          "accession": "0000320193-24-000123",
+          "concept": "Assets",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "debt_t": {
+          "value_usd": 78328000000.0,
+          "end": "2025-09-27",
+          "start": null,
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "LongTermDebtNoncurrent",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "debt_prev": {
+          "value_usd": 85750000000.0,
+          "end": "2024-09-28",
+          "start": null,
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "LongTermDebtNoncurrent",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "ca_t": {
+          "value_usd": 147957000000.0,
+          "end": "2025-09-27",
+          "start": null,
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "AssetsCurrent",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "ca_prev": {
+          "value_usd": 152987000000.0,
+          "end": "2024-09-28",
+          "start": null,
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "AssetsCurrent",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "cl_t": {
+          "value_usd": 165631000000.0,
+          "end": "2025-09-27",
+          "start": null,
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "LiabilitiesCurrent",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        },
+        "cl_prev": {
+          "value_usd": 176392000000.0,
+          "end": "2024-09-28",
+          "start": null,
+          "filed": "2025-10-31",
+          "accession": "0000320193-25-000079",
+          "concept": "LiabilitiesCurrent",
+          "form": "10-K",
+          "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
+        }
+      },
+      "warnings": [
+        "US-GAAP 10-K/10-K/A only, USD; no investment recommendation",
+        "Piotroski is a screening signal, not a market valuation or forecast"
+      ],
+      "diagnostics": {
+        "roa": 0.30689352841251577,
+        "prior_roa": 0.2658551319831075,
+        "asset_turnover": 1.149265210481331,
+        "prior_asset_turnover": 1.0898973330564703,
+        "gross_margin": 0.4690516410716045,
+        "prior_gross_margin": 0.4620634981523393,
+        "long_term_debt_to_average_assets": 0.21630966238206292,
+        "prior_long_term_debt_to_average_assets": 0.23900340457911012,
+        "current_ratio": 0.8932929222186667,
+        "prior_current_ratio": 0.8673125765340832
+      }
+    },
+    "credit": null,
+    "combined_score": null,
+    "warning": "Do not add Piotroski F-Score to issuer credit rating or infer equity value"
+  },
+  "key_facts": [
+    {
+      "key": "ni_t",
+      "label": "Net income",
+      "concept": "NetIncomeLoss",
+      "usd": 112010000000.0,
+      "period_end": "2025-09-27",
+      "filed": "2025-10-31",
+      "accession": "0000320193-25-000079",
+      "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "method": "DIRECT_XBRL",
+      "derivation": null
+    },
+    {
+      "key": "cfo_t",
+      "label": "Operating cash flow",
+      "concept": "NetCashProvidedByUsedInOperatingActivities",
+      "usd": 111482000000.0,
+      "period_end": "2025-09-27",
+      "filed": "2025-10-31",
+      "accession": "0000320193-25-000079",
+      "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "method": "DIRECT_XBRL",
+      "derivation": null
+    },
+    {
+      "key": "rev_t",
+      "label": "Revenue",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "usd": 416161000000.0,
+      "period_end": "2025-09-27",
+      "filed": "2025-10-31",
+      "accession": "0000320193-25-000079",
+      "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "method": "DIRECT_XBRL",
+      "derivation": null
+    },
+    {
+      "key": "gp_t",
+      "label": "Gross profit",
+      "concept": "GrossProfit",
+      "usd": 195201000000.0,
+      "period_end": "2025-09-27",
+      "filed": "2025-10-31",
+      "accession": "0000320193-25-000079",
+      "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "method": "DIRECT_XBRL",
+      "derivation": null
+    },
+    {
+      "key": "a_t",
+      "label": "Total assets",
+      "concept": "Assets",
+      "usd": 359241000000.0,
+      "period_end": "2025-09-27",
+      "filed": "2025-10-31",
+      "accession": "0000320193-25-000079",
+      "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "method": "DIRECT_XBRL",
+      "derivation": null
+    },
+    {
+      "key": "d_t",
+      "label": "Long-term noncurrent debt",
+      "concept": "LongTermDebtNoncurrent",
+      "usd": 78328000000.0,
+      "period_end": "2025-09-27",
+      "filed": "2025-10-31",
+      "accession": "0000320193-25-000079",
+      "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "method": "DIRECT_XBRL",
+      "derivation": null
+    },
+    {
+      "key": "ca_t",
+      "label": "Current assets",
+      "concept": "AssetsCurrent",
+      "usd": 147957000000.0,
+      "period_end": "2025-09-27",
+      "filed": "2025-10-31",
+      "accession": "0000320193-25-000079",
+      "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "method": "DIRECT_XBRL",
+      "derivation": null
+    },
+    {
+      "key": "cl_t",
+      "label": "Current liabilities",
+      "concept": "LiabilitiesCurrent",
+      "usd": 165631000000.0,
+      "period_end": "2025-09-27",
+      "filed": "2025-10-31",
+      "accession": "0000320193-25-000079",
+      "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "method": "DIRECT_XBRL",
+      "derivation": null
+    }
+  ],
+  "methodology_warnings": [
+    "Nonfinancial industry assumption must be checked against SEC industry registration.",
+    "Equity issuance requires a dated human-reviewed source, not raw share-count changes.",
+    "An unknown F-Score component must not be treated as zero.",
+    "No DCF fair value, reverse DCF implied growth, stock return, or credit rating is inferred.",
+    "This report is generated from a frozen SEC archive, not a live SEC reconciliation."
+  ]
+}
