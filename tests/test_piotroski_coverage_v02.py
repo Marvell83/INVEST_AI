@@ -96,6 +96,17 @@ class EvidenceTests(unittest.TestCase):
         data["facts"]["us-gaap"]["LongTermDebtCurrent"]["units"]["USD"][1]["accn"]="unrelated"
         self.assertIsNone(score(data)["signals"]["DELTA_LEVERAGE"])
 
+    def test_small_cost_difference_blocks_ambiguous_aliases(self):
+        data=sample()
+        data["facts"]["us-gaap"]["CostOfRevenue"]={"units":{"USD":[fact(906,2024)]}}
+        self.assertIsNone(score(data)["signals"]["DELTA_GROSS_MARGIN"])
+
+    def test_one_percent_noncurrent_debt_disagreement_blocks(self):
+        data=sample()
+        data["facts"]["us-gaap"]["LongTermDebtNoncurrent"]={
+            "units":{"USD":[fact(130,2023,True),fact(101,2024,True)]}}
+        self.assertIsNone(score(data)["signals"]["DELTA_LEVERAGE"])
+
     def test_no_equity_offering_evidence_stays_unknown(self):
         result=score(sample())
         self.assertIsNone(result["signals"]["NO_EQUITY_OFFERING"])
