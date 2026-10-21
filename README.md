@@ -137,3 +137,14 @@ python sirket_kalite_cli.py report --companyfacts companyfacts.json --as-of 2026
 Ayrıntılı sözleşme, 9 gösterge, kredi notu girişi, veri sınırlamaları ve testler: [Piotroski + kredi modülü rehberi](docs/PIOTROSKI_KREDI_KATMANI_V01.md).
 
 **Doğrulama:** Geliştirme ortamında 23 sentetik birim testi başarılıdır. GitHub Actions sonuçları ayrıca kontrol edilmelidir. Bu muhasebe testi geçmiş fiyat performansı/gelecek getirisi doğrulaması değildir.
+
+
+## Piotroski SEC veri kalitesi v0.2 (21 Ekim 2026)
+
+- `piotroski_fscore.py` artık `GrossProfit` doğrudan bildirilmediğinde, **aynı SEC accession ve mali dönemdeki** gelir eksi `CostOfGoodsAndServicesSold` / `CostOfRevenue` / `CostOfGoodsSold` üzerinden kaynaklı brüt kâr türetebilir.
+- `LongTermDebt` (kısa vadeli kısmı da içerebilir) doğrudan `LongTermDebtNoncurrent` ile eşit sayılmaz. Sadece aynı belgede `LongTermDebtCurrent` de bulunuyorsa çıkarım yapılır. Eksik borç sıfır kabul edilmez.
+- Alternatif maliyet veya borç mutabakatları %0,5 üzerinde farklıysa ilgili Piotroski sinyali bilinmeyen kalır.
+- Yerel 117 SEC şirket örnekleminde brüt kâr marjı sinyalindeki eksik sayısı **61→40**, borç kaldıraç sinyalindeki eksik sayısı **66→60** olarak değişti. Borçta 20 yeniden hesaplanabilir, 14 önceki güvensiz hesap ise reddedildi. **Bu bir veri kapsama raporudur, hisse başarı testi değildir.**
+- Kaynak ve test yöntemleri: [docs/PIOTROSKI_SEC_VERI_ESLEME_V02.md](docs/PIOTROSKI_SEC_VERI_ESLEME_V02.md). Yeni doğrulama testleri: `tests/test_piotroski_coverage_v02.py`. Eski kuralların hesapları değişebildiği için önceki F-Score raporları yeniden üretilmelidir.
+
+Yerel geliştirme sürümünde toplam 50 birim testi başarılıdır; GitHub Actions sonucunu ayrıca teyit edin. Özellikle TSMC gibi IFRS/20-F şirketler bu modülün mevcut kapsamı dışındadır.
