@@ -148,3 +148,14 @@ Ayrıntılı sözleşme, 9 gösterge, kredi notu girişi, veri sınırlamaları 
 - Kaynak ve test yöntemleri: [docs/PIOTROSKI_SEC_VERI_ESLEME_V02.md](docs/PIOTROSKI_SEC_VERI_ESLEME_V02.md). Yeni doğrulama testleri: `tests/test_piotroski_coverage_v02.py`. Eski kuralların hesapları değişebildiği için önceki F-Score raporları yeniden üretilmelidir.
 
 Yerel geliştirme sürümünde toplam 50 birim testi başarılıdır; GitHub Actions sonucunu ayrıca teyit edin. Özellikle TSMC gibi IFRS/20-F şirketler bu modülün mevcut kapsamı dışındadır.
+
+
+## Şirket araştırma paneli v0.1
+
+Yeni `sirket_analiz_paneli.py` statik ve internet gerektirmeyen **HTML şirket raporu** üretir. Piotroski'nin 9 ayrı koşulu, manuel kaynaklı Moody's / S&P / Fitch ihraççı notları ve opsiyonel deneysel SEC DCF çıktısı birbirinden ayrılır; **birleşik yatırım puanı yoktur**.
+
+```bash
+python sirket_analiz_paneli.py --quality kalite.json --valuation dcf.json --out rapor.html
+```
+
+`--valuation` isteğe bağlıdır. Aynı CIK eşleşmesi, HTML karakter kaçışı, eksik F-Score'un kesin puana dönüşmemesi ve kredi notlarından değerleme üretilmemesi korunur. Kullanım ve sınırlamalar: [docs/SIRKET_ANALIZ_PANELI_V01.md](docs/SIRKET_ANALIZ_PANELI_V01.md). Testler `tests/test_sirket_analiz_paneli.py` içindedir. Yeni yerel geliştirme test seti **58/58** başarılıdır; bu sayı GitHub CI veya gerçek yatırım başarısı garantisi değildir.
