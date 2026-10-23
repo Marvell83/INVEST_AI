@@ -193,3 +193,14 @@ python -m unittest discover -s tests -v
 ```
 
 Yeni kod için GitHub Actions sonucu henüz doğrulanmamıştır; canlı fiyat kaynağına otomatik bağlanmaz. Gelişmiş, bağımsız yerel HTML örneği ve daha sıkı tarih/doğrulama kontrolleri ayrıca indirilebilir ZIP paketi olarak hazırlanmıştır.
+
+
+## TTM Finansal Motoru — 23 Ekim 2026
+
+`ttm_finansallar.py`: US-GAAP 10-K yıllık FY + 10-Q Q3 dokuz aylık YTD − karşılaştırmalı önceki dokuz aylık YTD üzerinden kaynaklı son 12 ay (TTM) hesaplar. `filed` kesme tarihi, SEC accession, mali yıl başlangıcı/bitişi, birim ve çelişkili gelir etiketleri koruma altındadır. CFO−CapEx **FCFF olarak kullanılmaz**.
+
+`ttm_dcf_bridge.py`: TTM gelir/EBIT tabanını v0.2 deneysel DCF'ye bağlar; yıllık/ara dönem bildirimleri, CIK, bilanço, hisse adedi ve varsayımların tarih/kaynak mutabakatını zorunlu tutar. `ttm_raporu.py`: internetsiz HTML rapor üretir. **Gerçek Apple SEC toplamlarından elle hazırlanmış (ham SEC API dosyası olmayan) demonstrasyon:** `ornekler/apple_ttm_evidence_2026-10-21.json`.
+
+Apple'ın 21 Ekim 2026 bilgi kesitinde TTM: **466,823 milyar USD gelir**, **154,859 milyar USD EBIT**, **146,724 milyar USD CFO**, **10,041 milyar USD CapEx**. Aynı eski varsayımlar korunarak yapılan stres testindeki hisse başı değerler: **80,88 / 149,46 / 273,18 USD**. Bunlar yatırım tavsiyesi veya güvenilir hedef fiyat değildir.
+
+Kullanım, kaynak ve sınırlamalar: [docs/TTM_FINANSAL_MOTORU_V01.md](docs/TTM_FINANSAL_MOTORU_V01.md). Yeni TTM, DCF köprüsü ve HTML testleri: `tests/test_ttm_finansallar.py`, `tests/test_ttm_dcf_bridge.py`, `tests/test_ttm_raporu.py`. Yerelde **39/39 TTM paketi testi başarılı**; GitHub Actions sonucu ayrı doğrulama gerektirir.
