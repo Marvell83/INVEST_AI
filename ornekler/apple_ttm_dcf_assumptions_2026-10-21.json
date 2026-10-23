@@ -1,0 +1,105 @@
+{
+  "schema_version": "invest-ai-scenarios-0.1",
+  "issuer": {
+    "cik": "0000320193",
+    "name": "Apple Inc.",
+    "ticker": "AAPL"
+  },
+  "research_as_of": "2026-10-21",
+  "historical": {
+    "fiscal_end": "2025-09-27",
+    "filed_at": "2025-10-31",
+    "revenue_usd": 416161000000,
+    "ebit_usd": 133050000000,
+    "net_income_usd": 112010000000,
+    "operating_cash_flow_usd": 111482000000,
+    "fiscal_2025_capex_usd": 12715000000,
+    "source": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm",
+    "accession": "0000320193-25-000079",
+    "form": "10-K"
+  },
+  "most_recent_interim_known": {
+    "fiscal_end": "2026-06-27",
+    "filed_at": "2026-07-31",
+    "source": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000020/aapl-20260627.htm",
+    "accession": "0000320193-26-000020",
+    "form": "10-Q"
+  },
+  "balance_sheet": {
+    "date": "2026-06-27",
+    "source": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000020/aapl-20260627.htm",
+    "cash_usd": 39544000000,
+    "marketable_current_usd": 22855000000,
+    "marketable_noncurrent_usd": 84118000000,
+    "commercial_paper_usd": 1997000000,
+    "term_debt_current_usd": 11007000000,
+    "term_debt_noncurrent_usd": 71340000000,
+    "treat_all_marketable_securities_as_excess_cash": true
+  },
+  "share_count": {
+    "date": "2026-07-17",
+    "shares": 14594180000,
+    "source": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000020/aapl-20260627.htm",
+    "kind": "common stock issued and outstanding"
+  },
+  "market_price": {
+    "date": "2026-10-20",
+    "close_usd": 339.5,
+    "source": "https://www.investing.com/equities/apple-computer-inc-historical-data",
+    "kind": "previous_session_closing_price_not_live_quote"
+  },
+  "fiscal_2025_share_reconciliation": {
+    "beginning_shares_thousands": 15116786,
+    "repurchased_shares_thousands": 401672,
+    "issued_net_of_employee_tax_withheld_shares_thousands": 58146,
+    "ending_shares_thousands": 14773260,
+    "source": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm",
+    "note": "2025 10-K Note 10 common stock roll-forward. Employee-plan share issuance != public capital raising."
+  },
+  "common_assumptions": {
+    "forecast_years": 5,
+    "tax_rate": 0.21,
+    "margin_convergence": 0.3,
+    "discount_timing": "yil_sonu",
+    "sbc_is_already_expensed_in_operating_margin": true,
+    "zero_opening_tax_loss": true,
+    "reviewed_2026_10_21_annual_baseline_stale": true,
+    "note": "Analyst-designed stress assumptions, not Street consensus, management guidance or audited facts."
+  },
+  "scenarios": {
+    "temkinli": {
+      "annual_revenue_growth": 0.02,
+      "target_ebit_margin": 0.28,
+      "sales_to_capital_ratio": 2.5,
+      "discount_rate": 0.105,
+      "terminal_growth": 0.02,
+      "terminal_ronic": 0.105,
+      "rationale": "Low growth and weaker long-run profitability; illustration only."
+    },
+    "baz": {
+      "annual_revenue_growth": 0.08,
+      "target_ebit_margin": 0.34,
+      "sales_to_capital_ratio": 3,
+      "discount_rate": 0.085,
+      "terminal_growth": 0.025,
+      "terminal_ronic": 0.1,
+      "rationale": "Mid-level illustrative growth and margins; not externally forecast."
+    },
+    "iyimser": {
+      "annual_revenue_growth": 0.15,
+      "target_ebit_margin": 0.37,
+      "sales_to_capital_ratio": 3.5,
+      "discount_rate": 0.075,
+      "terminal_growth": 0.03,
+      "terminal_ronic": 0.12,
+      "rationale": "Faster scale and persistent returns to incremental capital; speculative."
+    }
+  },
+  "reverse": {
+    "scenario": "baz",
+    "lower_annual_growth": -0.15,
+    "upper_annual_growth": 0.7,
+    "grid_steps": 2048,
+    "interpretation": "Other assumptions held fixed; a diagnostic, not market's unique expectation."
+  }
+}
