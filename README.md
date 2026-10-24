@@ -283,3 +283,19 @@ Kişisel portföy adetleri, alış fiyatları veya al/sat önerileri kullanılma
 
 **[Kurulum, Windows komutları, SEC verisi ve erişim sınırları](docs/SEC_TOPLU_TARAMA_V01.md).**
 
+
+## SEC Finansal Değişim ve Düzeltme Gözlem Motoru v0.1
+
+**Yeni** `sec_finansal_degisim.py`, aynı SEC CIK şirketinin **iki farklı zamanda alınmış ham SEC Company Facts arşivini**, aynı bilgi kesme tarihinde (as-of) karşılaştırır. SEC accession, form, mali dönem başı/sonu, yayımlanma tarihi ve XBRL kavramını koruyarak eklenen/kaybolan/değişen kayıtları kaynaklarıyla listeler. Bir 10-Q/A kaydını otomatik kesinleşmiş finansal restatement olarak adlandırmaz; manuel inceleme işareti verir.
+
+Ayrıca mevcut `sec_ttm_crosscheck.py` mutabakatını kullanarak, **aynı mali dönem** için TTM değer revizyonunu gerçek dönem büyümesinden ayırır. Son SEC dosyasının karşılaştırılabilir **9 aylık YTD** verileri üzerinde gelir, EBIT, CFO, CapEx yıllık nominal USD değişimini ve faaliyet marjındaki yüzde puan farkını hesaplar. Bu sonuçlar üçüncü çeyrek tek başına büyüme veya otomatik gelecek tahmini değildir.
+
+`sec_degisim_raporu.py`, JSON'u tamamen çevrimdışı **Türkçe HTML değişim raporuna** dönüştürür. Harici JS/CSS, ücretli hizmet veya canlı fiyat yoktur.
+
+~~~powershell
+python sec_finansal_degisim.py --old eski_companyfacts.json --new yeni_companyfacts.json --cik 320193 --as-of 2026-10-24 --out reports/degisim.json
+python sec_degisim_raporu.py --report reports/degisim.json --out reports/degisim.html
+~~~
+
+**[Teknik kılavuz: olay tanımları, SEC kaynakları, dönem eşlemesi ve sınırlamalar](docs/SEC_FINANSAL_DEGISIM_V01.md).**
+
