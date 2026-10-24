@@ -84,6 +84,33 @@ class InvestAISiteTests(unittest.TestCase):
         self.assertNotIn("eval(", src)
         self.assertNotIn("document.write(", src)
 
+    def test_report_browser_separates_legacy_from_web_sources(self):
+        src = INDEX.read_text(encoding="utf-8")
+        # Existing 2026-10-21 Piotroski HTML stays in the legacy reports folder.
+        self.assertTrue((ROOT / "reports/Apple_SEC_Piotroski_2026-10-21.html").is_file())
+        self.assertIn('id="report-kind-filter"', src)
+        self.assertIn('value="web">Web analizleri (v0.2)', src)
+        self.assertIn('value="previous">Önceki / terminal raporları', src)
+        self.assertIn('path.startsWith("reports/research/")', src)
+        self.assertIn('kind:"previous"', src)
+        self.assertIn('kind:"web"', src)
+        self.assertIn("Örnek / manuel aktarım", src)
+        self.assertIn("SEC üzerinden indirme", src)
+        self.assertIn("Yerel SEC arşivi", src)
+        self.assertIn("Bilgi kesme tarihi:", src)
+        self.assertIn("Tarih tek başına verinin güncelliğini kanıtlamaz", src)
+        self.assertIn('a.meta.kind === "web" ? -1 : 1', src)
+        self.assertIn("kindFilter.addEventListener", src)
+
+    def test_site_shows_web_version_and_new_reports_from_api(self):
+        src = INDEX.read_text(encoding="utf-8")
+        self.assertIn("Araştırma Merkezi · v0.2", src)
+        self.assertIn('filename:data.report_url.split("/").pop()', src)
+        self.assertIn("meta:reportMeta(data.report_url.slice(1)", src)
+        self.assertIn('document.getElementById("viewer-provenance")', src)
+        self.assertIn('document.createElement("span")', src)
+        self.assertIn('heading.textContent = isError ?', src)
+
     def test_demo_command_has_existing_source_and_modules(self):
         src = INDEX.read_text(encoding="utf-8")
         for required in (
