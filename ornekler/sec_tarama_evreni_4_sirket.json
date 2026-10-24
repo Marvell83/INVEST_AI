@@ -1,0 +1,22 @@
+[
+  {
+    "ticker": "AAPL",
+    "cik": 320193,
+    "sector": "non_financial"
+  },
+  {
+    "ticker": "MSFT",
+    "cik": 789019,
+    "sector": "non_financial"
+  },
+  {
+    "ticker": "NVDA",
+    "cik": 1045810,
+    "sector": "non_financial"
+  },
+  {
+    "ticker": "JPM",
+    "cik": 19617,
+    "sector": "financial"
+  }
+]
