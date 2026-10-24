@@ -227,3 +227,26 @@ python sec_ttm_crosscheck.py --cik 320193 --as-of 2026-10-24 --download --snapsh
 ```
 
 Sözleşme, çevrimdışı çalışma, hata durumları ve testler: [SEC TTM çift motor rehberi](docs/SEC_TTM_CROSSCHECK_V01.md).
+
+
+## Portföy Risk Motoru v0.1 — kesirli hisseler ve AI yoğunlaşması
+
+`portfoy_risk.py` artık **kullanıcıdan gelen hisse adedi (kesirli olabilir), tarihli USD fiyat, alış maliyeti, nakit, sektör ve temaları** kullanarak portföy ağırlıkları, USD gerçekleşmemiş kâr/zarar, HHI, en büyük üç pozisyon, tematik maruziyet ve elle tanımlanan stres senaryoları hesaplar.
+
+- Özellikle NVDA/TSM/ASML/VRT/STRL/VST benzeri örtüşen AI temalarında **aynı hisse bir birleşik tema içinde iki kez sayılmaz**.
+- Hisse adedi, maliyet veya fiyat eksikse otomatik tahmin üretmez; eksik maliyetin etkisini `null` olarak korur. Fiyat kaynağı sistem tarafından doğrulanmaz.
+- Bir ETF girildiğinde altındaki hisseler otomatik ayrıştırılmaz; gerçek çeşitlendirme ayrıca incelenmelidir.
+- Senaryo için **her hissenin şoku** analist tarafından verilmelidir; otomatik tahmin, hedef portföy ağırlığı veya sat/al sinyali üretilmez.
+- İsteğe bağlı USD/TRY dönüşümü yalnız **bugünkü TL karşılık** üretir; geçmiş TL maliyet/kâr değildir.
+- `portfoy_raporu.py` bu JSON'u HTML kaçışlı, bağımsız ve internet gerektirmeyen **Türkçe portföy risk raporuna** dönüştürür.
+
+**Tamamen sentetik demonstrasyon:**
+
+```powershell
+python portfoy_risk.py --portfolio ornekler/portfoy_risk_SENTETIK_8_HISSE.json --out portfoy_ornek.json
+python portfoy_raporu.py --report portfoy_ornek.json --out portfoy_ornek.html
+python -m unittest discover -s tests -v
+```
+
+İçerik, örnek matematik, sınırlamalar ve Midas'tan manuel veri şablonu: [Portföy Risk Motoru v0.1](docs/PORTFOY_RISK_MOTORU_V01.md).
+
