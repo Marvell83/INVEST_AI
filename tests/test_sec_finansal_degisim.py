@@ -120,6 +120,17 @@ class ChangeTests(unittest.TestCase):
         self.assertTrue(r["requires_manual_review"])
         self.assertEqual(r["new_snapshot_9m_yoy"]["status"], "UNAVAILABLE_TTM_NOT_RECONCILED")
 
+    def test_manual_transcription_is_not_labeled_original_sec(self):
+        raw = fixture()
+        raw["evidence_notes"] = {
+            "status": "MANUAL_TRANSCRIPTION_FROM_OFFICIAL_SEC_FILINGS_NOT_RAW_SEC_COMPANYFACTS"
+        }
+        r = compare(before=raw, after=raw)
+        self.assertTrue(r["old_source_manual_transcription"])
+        self.assertTrue(r["new_source_manual_transcription"])
+        self.assertTrue(r["requires_manual_review"])
+        self.assertIn("MANUALLY_TRANSCRIBED_NOT_RAW_SEC_API", r["review_reasons"])
+
     def test_wrong_issuer_blocked(self):
         raw = fixture()
         raw["cik"] = 123
