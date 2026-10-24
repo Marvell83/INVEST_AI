@@ -167,6 +167,8 @@ def analyze_portfolio(raw):
             raise ValueError(f"{label}: unique nonempty tag list required")
         for tag in member_tags:
             _ensure_name(tag, f"{label}.member_tag")
+            if tag not in by_theme:
+                raise ValueError(f"{label}: unknown theme tag {tag}; check classification")
         included = [p for p in saved if set(p["themes"]).intersection(member_tags)]
         value = sum((p["market_value_exact"] for p in included), Decimal(0))
         union_reports.append({
@@ -201,7 +203,11 @@ def analyze_portfolio(raw):
         impact = Decimal(0)
         for p in saved:
             ticker = p["ticker"]
-            shock_pct = Decimal(str(shocks[ticker])) if not isinstance(shocks[ticker], bool) else Decimal("NaN")
+            try:
+                shock_pct = (Decimal(str(shocks[ticker]))
+                             if not isinstance(shocks[ticker], bool) else Decimal("NaN"))
+            except (InvalidOperation, ValueError, TypeError) as exc:
+                raise ValueError(f"{name}.{ticker}: invalid scenario shock") from exc
             if not shock_pct.is_finite() or shock_pct < -100:
                 raise ValueError(f"{name}.{ticker}: shock must be >= -100% and finite")
             delta = p["market_value_exact"] * shock_pct / 100
