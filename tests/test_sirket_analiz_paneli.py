@@ -16,6 +16,14 @@ def quality():
             "piotroski":result,"credit":None,"combined_score":None}
 
 
+def missing_annual_history():
+    data=quality();p=data["piotroski"]
+    p.update(signals=dict.fromkeys(p["signals"]),known_count=0,missing_count=9,
+             score=None,score_range=[0,9],status="partial",
+             missing_reasons=dict.fromkeys(p["signals"],"TWO_COMPARABLE_ANNUAL_INCOME_PERIODS_REQUIRED"))
+    return data
+
+
 def dcf():
     return {"cik":"0000000042","status":"recorded_experimental",
             "historical_as_of":"2025-03-01",
@@ -64,6 +72,19 @@ class PanelTests(unittest.TestCase):
     def test_invalid_piotroski_signal_rejected(self):
         data=quality();data["piotroski"]["signals"]["ROA_POSITIVE"]=7
         with self.assertRaises(ValueError):render_dashboard(data)
+
+    def test_missing_annual_history_is_explained_for_any_issuer(self):
+        result=render_dashboard(missing_annual_history())
+        self.assertIn("iki karşılaştırılabilir yıllık 10-K net kâr dönemi bulunmuyor",result)
+        self.assertIn("Karşılaştırılabilir iki yıllık 10-K net kâr dönemi bulunamadı",result)
+        self.assertIn("şirketin finansal kalite puanı değildir",result)
+        self.assertNotIn("TWO_COMPARABLE_ANNUAL_INCOME_PERIODS_REQUIRED",result)
+        self.assertNotIn("Apple",result)
+
+    def test_annual_history_note_requires_every_signal_blocked(self):
+        self.assertNotIn("10-K net kâr dönemi bulunmuyor",render_dashboard(quality()))
+        data=missing_annual_history();data["piotroski"]["sector"]="unknown"
+        self.assertNotIn("10-K net kâr dönemi bulunmuyor",render_dashboard(data))
 
     def test_cli_renders_html_without_network(self):
         with tempfile.TemporaryDirectory() as directory:

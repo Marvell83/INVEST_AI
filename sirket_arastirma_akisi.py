@@ -174,7 +174,10 @@ def render_company_research(report):
         "<p>Girdi: " + _safe(report["source"]["mode"]) + "</p>"
         "<p>JSON içerik SHA-256: <code>" +
         _safe(report["source"]["canonical_json_sha256"]) + "</code></p>"
-        "<p class='muted'>Bu hash veri bütünlüğü karşılaştırmasına yarar, SEC dijital imzası değildir.</p></section>"
+        "<p class='muted'>Bu hash veri bütünlüğü karşılaştırmasına yarar, SEC dijital imzası değildir.</p>"
+        "<p class='muted'>Bu yıllık inceleme durumu gelir ve faaliyet kârı kaydının kontrolüdür; "
+        "Piotroski için iki karşılaştırılabilir yıllık dönem ve ilgili bilanço geçmişi "
+        "ayrıca gerekir. TTM mutabakatı tek başına Piotroski'yi tamamlamaz.</p></section>"
     )
     if ttm["status"] == "RECONCILED_CALCULATIONS":
         primary = ttm["primary"]

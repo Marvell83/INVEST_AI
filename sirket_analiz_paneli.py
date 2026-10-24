@@ -61,6 +61,9 @@ def render_dashboard(quality, valuation=None):
         why = {
             "SECTOR_NOT_CONFIRMED": "Şirketin finans dışı sektörde olduğu doğrulanmadı; puanlama başlatılmadı.",
             "FINANCIAL_SECTOR_METHOD_UNAVAILABLE": "Finans kuruluşları için bu Piotroski yöntemi uygulanmıyor.",
+            "TWO_COMPARABLE_ANNUAL_INCOME_PERIODS_REQUIRED": (
+                "Karşılaştırılabilir iki yıllık 10-K net kâr dönemi bulunamadı; hesaplama yapılmadı."
+            ),
         }.get(why, why)
         rows.append(f"<tr><td>{_safe(description)}</td><td class='{css}'>{tag}</td><td>{_safe(why)}</td></tr>")
     complete = p.get("known_count") == 9 and isinstance(p.get("score"), int)
@@ -95,6 +98,23 @@ def render_dashboard(quality, valuation=None):
     }.get(sector)
     if sector_caution:
         warnings.append(sector_caution)
+    reasons = p.get("missing_reasons", {})
+    annual_history_missing = (
+        sector == "non_financial"
+        and p.get("known_count") == 0
+        and len(reasons) == len(SIGNALS)
+        and set(reasons.values()) == {"TWO_COMPARABLE_ANNUAL_INCOME_PERIODS_REQUIRED"}
+    )
+    annual_caution = (
+        "Piotroski hesaplanamadı: bu veri arşivinde iki karşılaştırılabilir yıllık "
+        "10-K net kâr dönemi bulunmuyor. TTM için 10-K ve 10-Q verilerinin yeterli "
+        "olması Piotroski için yeterli değildir. 0/9 hesaplanan gösterge sayısıdır, "
+        "şirketin finansal kalite puanı değildir. Güncel tam SEC Company Facts "
+        "verisiyle analizi yeniden çalıştırın."
+        if annual_history_missing else None
+    )
+    if annual_caution:
+        warnings.append(annual_caution)
     if not complete:
         warnings.append("Eksik Piotroski verileri 0 puan sayılmaz; sonuç kesin bir skor değildir.")
     if credit:
@@ -151,7 +171,8 @@ def render_dashboard(quality, valuation=None):
 · Tek bileşik puan yok</p></header>
 <div class="grid"><section class="card"><h2>Piotroski F-Score</h2>
 <strong class="big">{_safe(score)}</strong><p>{_safe(detail)}</p>
-{("<div class='note'>" + _safe(sector_caution) + "</div>") if sector_caution else ""}</section>
+{("<div class='note'>" + _safe(sector_caution) + "</div>") if sector_caution else ""}
+{("<div class='note'>" + _safe(annual_caution) + "</div>") if annual_caution else ""}</section>
 <section class="card"><h2>Veri kapsamı</h2>
 <p>Sektör: {_safe(p.get('sector', 'Bilinmiyor'))}</p>
 <p>Son mali dönem: {_safe(p.get('periods', {}).get('current_fy_end', 'Bilinmiyor'))}</p>
