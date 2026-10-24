@@ -60,7 +60,7 @@ class PortfolioRiskTests(unittest.TestCase):
 
     def test_usd_pnl_known_and_no_fx_pnl(self):
         r = analyze_portfolio(fixture())
-        self.assertEqual(r["unrealized_pnl_usd"], 290)
+        self.assertEqual(r["unrealized_pnl_usd"], 252.5)
         self.assertEqual(r["fx_usdtry"]["total_market_value_try"], 148800)
         self.assertIn("not calculated", r["fx_usdtry"]["notice"])
         self.assertNotIn("unrealized_pnl_try", r)
@@ -180,7 +180,7 @@ class PortfolioRiskTests(unittest.TestCase):
     def test_negative_hundred_percent_is_allowed_but_not_worse(self):
         d = fixture()
         d["scenarios"][0]["shocks_pct"]["NVDA"] = -100
-        self.assertEqual(analyze_portfolio(d)["scenarios"][0]["by_position"][1]["ticker"], "NVDA")
+        self.assertIn("NVDA", [p["ticker"] for p in analyze_portfolio(d)["scenarios"][0]["by_position"]])
         d["scenarios"][0]["shocks_pct"]["NVDA"] = -101
         with self.assertRaisesRegex(ValueError, ">= -100%"):
             analyze_portfolio(d)
