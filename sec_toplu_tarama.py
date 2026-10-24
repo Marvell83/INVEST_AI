@@ -402,7 +402,13 @@ def _export(summary, json_path, csv_path):
     writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
     writer.writeheader()
     for entry in summary["records"]:
-        writer.writerow({**entry, "fscore_range": json.dumps(entry["fscore_range"])})
+        line = {**entry, "fscore_range": json.dumps(entry["fscore_range"])}
+        # SEC issuer names/error text can contain spreadsheet formulas.
+        # Prefix dangerous leading characters when opened in Excel.
+        for field, value in line.items():
+            if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+                line[field] = "'" + value
+        writer.writerow(line)
     _atomic_write(csv_path, buf.getvalue().encode("utf-8-sig"))
 
 
