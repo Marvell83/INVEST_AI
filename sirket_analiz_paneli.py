@@ -12,6 +12,9 @@ import math
 import pathlib
 import re
 
+from finansal_oranlar import RATIOS
+from finansal_tablolar import DERIVED_ITEMS, LINE_ITEMS, STATEMENTS, line_item_label
+
 VERSION = "quality-panel-0.1.0"
 SIGNALS = {
     "ROA_POSITIVE": "Pozitif aktif kârlılığı",
@@ -35,6 +38,87 @@ def _money(value, unit="USD"):
         (1e9, "milyar") if abs(value) >= 1e9 else (
             (1e6, "milyon") if abs(value) >= 1e6 else (1, "")))
     return f"{value / scale:.2f} {label} {unit}".replace("  ", " ").strip()
+
+STATEMENT_TITLES = {"income": "Gelir tablosu", "cash_flow": "Nakit akışı", "balance": "Bilanço"}
+
+
+def _statement_cell(cell):
+    status = cell.get("status")
+    if status in ("REPORTED", "DERIVED"):
+        scale = 1e6
+        text = f"{cell['value'] / scale:,.0f}" + ("†" if status == "DERIVED" else "")
+        title = (cell.get("method", "") if status == "DERIVED" else
+                 f"{cell.get('concept', '')} · {cell.get('accession', '')} · {cell.get('filed', '')}")
+        if cell.get("revised"):
+            title += " · sonradan revize edildi"
+        return f"<td class='num' title='{_safe(title)}'>{_safe(text)}</td>"
+    if status == "CONFLICT":
+        concepts = ", ".join(a["concept"] for a in cell.get("alternatives", []))
+        return f"<td class='num no' title='{_safe(concepts)}'>çelişki</td>"
+    return f"<td class='num muted' title='{_safe(cell.get('reason', ''))}'>—</td>"
+
+
+def _ratio_text(key, value):
+    kind = RATIOS[key][2]
+    if kind == "percent":
+        return f"{value * 100:.1f}%"
+    if kind == "multiple":
+        return f"{value:.2f}x"
+    return f"{value / 1e6:,.0f}"
+
+
+def render_financial_sections(statements, ratios):
+    """Annual statements and ratios tables; values in millions as reported to SEC."""
+    years = statements.get("years", [])
+    if not years:
+        return ("<section class='card'><h2>Finansal tablolar</h2>"
+                "<p>Bilgi tarihine kadar uygun yıllık 10-K verisi bulunamadı; tablo üretilmedi.</p></section>")
+    if ratios.get("cik") != statements.get("cik") or len(ratios.get("years", [])) != len(years):
+        raise ValueError("ratios do not belong to these statements")
+    head = "".join(f"<th class='num'>{_safe(y['fiscal_year_end'])}</th>" for y in years)
+    rows = []
+    for statement in STATEMENTS:
+        rows.append(f"<tr><td class='group' colspan='{len(years) + 1}'>{_safe(STATEMENT_TITLES[statement])}</td></tr>")
+        keys = [k for k, spec in LINE_ITEMS.items() if spec[0] == statement]
+        keys += [k for k, spec in DERIVED_ITEMS.items() if spec[0] == statement]
+        for key in keys:
+            unit = " (milyon adet)" if LINE_ITEMS.get(key, ("", "", "USD"))[2] == "shares" else ""
+            cells = "".join(_statement_cell(y[statement][key]) for y in years)
+            rows.append(f"<tr><td>{_safe(line_item_label(key) + unit)}</td>{cells}</tr>")
+    conflicts = statements.get("conflicts", [])
+    conflict_note = (f"<div class='note'>{len(conflicts)} kalemde XBRL etiketleri birbirini tutmuyor; "
+                     "bu hücrelere değer yazılmadı ve manuel inceleme gerekir.</div>") if conflicts else ""
+    table = (
+        "<section class='card'><h2>Finansal tablolar — yıllık 10-K (milyon USD)</h2>" + conflict_note +
+        "<div class='scroll'><table><thead><tr><th>Kalem</th>" + head + "</tr></thead><tbody>" +
+        "".join(rows) + "</tbody></table></div>"
+        "<p class='muted'>— bildirilmedi (sıfır sayılmaz) · † aynı SEC dosyasından türetildi · "
+        "hücrenin üzerine gelince XBRL kavramı, accession ve dosyalama tarihi görünür. "
+        "Serbest nakit akışı CFO − CapEx'tir, FCFF değildir.</p></section>")
+
+    ratio_rows = []
+    group = None
+    for key, (label, ratio_group, _, formula) in RATIOS.items():
+        if ratio_group != group:
+            group = ratio_group
+            ratio_rows.append(f"<tr><td class='group' colspan='{len(years) + 1}'>{_safe(group)}</td></tr>")
+        cells = []
+        for item in ratios["years"]:
+            r = item["ratios"][key]
+            if r["value"] is None:
+                cells.append(f"<td class='num muted' title='{_safe(r.get('reason', ''))}'>—</td>")
+            else:
+                cells.append(f"<td class='num'>{_safe(_ratio_text(key, r['value']))}</td>")
+        ratio_rows.append(f"<tr><td title='{_safe(formula)}'>{_safe(label)}</td>{''.join(cells)}</tr>")
+    ratio_table = (
+        "<section class='card'><h2>Finansal oranlar</h2>"
+        "<div class='scroll'><table><thead><tr><th>Oran</th>" + head + "</tr></thead><tbody>" +
+        "".join(ratio_rows) + "</tbody></table></div>"
+        "<p class='muted'>Oran adının üzerine gelince formül, — işaretinin üzerine gelince hesaplanamama "
+        "nedeni görünür. Net borç milyon USD'dir; menkul kıymetler ve kira yükümlülükleri dahil değildir. "
+        "Geçmiş oranlar tahmin, puan veya yatırım tavsiyesi değildir.</p></section>")
+    return table + ratio_table
+
 
 def render_dashboard(quality, valuation=None):
     """Return self-contained, HTML-escaped, Turkish investor research layout."""
@@ -161,6 +245,7 @@ def render_dashboard(quality, valuation=None):
       .no{color:#b73b3b;font-weight:bold}.unknown{color:#ab851f;font-weight:bold}
       .metric{background:#f3f7fc;border-radius:8px;padding:13px}.metric strong{display:block;font-size:19px}
       .note{border-left:4px solid #bb8d24;padding:10px 16px;background:#fff9eb}
+      td.num,th.num{text-align:right;white-space:nowrap}td.group{font-weight:bold;background:#f8fafd}
       a{color:#23508e}@media(max-width:640px){.grid,.metrics{grid-template-columns:1fr}}
     """
     return f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">

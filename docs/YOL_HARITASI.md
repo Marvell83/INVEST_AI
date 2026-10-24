@@ -1,0 +1,61 @@
+# INVEST_AI Yol Haritası — 10 ders, tek mimari
+
+"Yapay Zekâ ile Finansal Analiz" eğitiminin 10 dersi, INVEST_AI'nin geliştirme sırasına dönüştürüldü. Her aşama bir öncekinin verisini kullanır, böylece yeni özellikler ayrı ayrı eklenmez, aynı mimari tamamlanır.
+
+```
+SEC Company Facts (10-K / 10-Q, XBRL)  ── sec_arsiv · sec_companyfacts · sec_gap_audit
+        │
+        ▼
+Ortak finansal tablolar  ── finansal_tablolar  (gelir · nakit akışı · bilanço)
+        │
+        ├─► Oranlar ve finansal kalite ── finansal_oranlar · piotroski_fscore · kredi_notlari
+        ├─► TTM ──────────────────────── sec_ttm · ttm_finansallar · sec_ttm_crosscheck
+        ▼
+Tahmin motoru  (taban senaryo + analist varsayımları, Tahmin Defteri'ne kayıt)
+        │
+        ▼
+Senaryo ve değerleme  ── degerleme_v02 · ters DCF · duyarlılık
+        │
+        ▼
+Araştırma asistanı  (yalnız rapordaki kaynaklı verilere dayanan yorum)
+```
+
+## Ders → modül → durum (24 Ekim 2026)
+
+| Ders | Konu | INVEST_AI karşılığı | Durum |
+|---|---|---|---|
+| 1 | Yapay zekâyı doğru konumlandırmak | Kaynak/tarih kuralları, eksik ≠ 0, birleşik puan yok, araştırma asistanı | İlkeler kodda var; asistan yok |
+| 2 | Gelir tablosu ve kârlılık | `finansal_tablolar` gelir tablosu; marjlar, büyüme | **v0.1 tamam** (yıllık) |
+| 3 | Nakit akışı | CFO, CapEx, serbest nakit akışı, nakit dönüşümü; TTM motorları | **v0.1 tamam** (yıllık + TTM) |
+| 4 | Bilanço ve sağlamlık | bilanço kalemleri, toplam borç, cari oran, borç / özkaynak, faiz karşılama | **v0.1 tamam** (yıllık) |
+| 5 | Oranlarla karar | `finansal_oranlar` (ROA, ROE, ROIC …), Piotroski 9 gösterge | **v0.1 tamam**; Piotroski henüz ortak katmana bağlı değil |
+| 6 | Tahminleme | gelir / marj / nakit projeksiyonu | Yok (sıradaki büyük iş) |
+| 7 | Senaryo / what-if | `degerleme_v02`, ters DCF, Apple üç senaryo örneği | Motor var; duyarlılık tablosu ve rapora bağlantı yok |
+| 8 | Bütçe ve sapma | `tahmin_defteri` (değiştirilemez kayıt, mutlak / imzalı hata) | Altyapı var; gerçekleşenin SEC'ten otomatik eşlenmesi yok |
+| 9 | Yönetim için içgörü | şirket araştırma raporu (HTML) | Veri bölümleri var; güçlü/zayıf yön özeti yok |
+| 10 | Yapay zekâ çalışma seti | SEC toplama, toplu tarama, web formu, CI | Temel altyapı var |
+
+## Sıradaki adımlar
+
+1. **Ortak katmanı genişlet:**
+   - çeyreklik tablolar ve çeyrek türetme (Q4 = FY − 9 ay),
+   - hisse sayısı (dei kapak sayfası),
+   - menkul kıymetler ve kira yükümlülükleri.
+2. **Motorları ortak katmana taşı:** Piotroski ve TTM motorları, sonuçları değişmediği regresyon testleriyle gösterilerek tek okuyucuya geçirilir.
+3. **Tahmin motoru (Ders 6):**
+   - Sistem varsayım uydurmama ilkesini korur. "Taban" projeksiyon yalnız açık bir yöntemle üretilir (ör. geçmiş büyümenin sönümlenmesi, marjın tarihsel ortalamaya dönmesi) ve öyle etiketlenir.
+   - Analist varsayımları ayrı ve kaynaklı tutulur.
+   - Her projeksiyon Tahmin Defteri'ne yazılır.
+4. **Sapma analizi (Ders 8):** Yeni 10-K / 10-Q geldiğinde gerçekleşen değerler ortak katmandan otomatik bulunur, Tahmin Defteri'ndeki tahminlerle eşlenir ve puanlanır.
+5. **Senaryo ve duyarlılık (Ders 7):** Temkinli / baz / iyimser senaryolar ve iskonto × büyüme duyarlılık tablosu araştırma raporuna eklenir. Net borç ve hisse sayısı ortak katmandan önerilir, analist onaylar.
+6. **Araştırma asistanı (Ders 1, 9):**
+   - Rapordaki JSON'dan yalnız kaynaklı rakamlarla güçlü/zayıf yön ve risk özeti yazar.
+   - Her cümle bir veri hücresine bağlanır.
+   - Bir dil modeli API'si gerektirir. Bu adım ücretsiz değildir ve API anahtarı ister; diğer bütün adımlar standart Python ile çalışır.
+
+## Değişmeyen ilkeler
+
+- Eksik veri 0 değildir; çelişen kaynak çözülmüş gibi gösterilmez.
+- Her rakam SEC accession ve dosyalama tarihine kadar izlenebilir; `as_of` sonrası bilgi kullanılmaz.
+- Piotroski, oranlar, kredi notları ve DCF ayrı kanıt katmanlarıdır; tek bir "yatırım puanı"na dönüştürülmez.
+- Al/sat sinyali ve hedef fiyat üretilmez.

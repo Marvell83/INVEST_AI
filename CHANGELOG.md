@@ -5,6 +5,23 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-24 — Finansal tablolar ve oranlar v0.1 (yol haritası 1. aşama)
+
+- **`finansal_tablolar.py` (yeni):** SEC Company Facts verisini tek bir kurallar setiyle okuyan, tarihli ve
+  kaynağı izlenen yıllık gelir tablosu, nakit akışı ve bilanço. 27 raporlanan kalem; brüt kâr, serbest nakit
+  akışı (CFO − CapEx, FCFF değildir) ve toplam borç yalnız aynı SEC dosyasından türetilir. Mali yıllar
+  SEC `fy`/`fp` alanlarından değil, kaydın kendi tarihlerinden belirlenir. Revizyonlarda ilk değer saklanır.
+  XBRL eşanlamlıları %0,5'ten fazla ayrışırsa değer yazılmaz (`CONFLICT`).
+- **`finansal_oranlar.py` (yeni):** 18 oran: marjlar, büyüme, nakit dönüşümü, ROA / ROE / ROIC, cari oran,
+  borç / özkaynak, net borç, faiz karşılama. Her oranda formül, girdiler ve hesaplanamama nedeni var. CLI:
+  `python finansal_oranlar.py --companyfacts ... --as-of ... --out ...`.
+- **Araştırma raporu:** `sirket_arastirma_akisi.py` JSON'a `financial_statements` ve `financial_ratios`
+  ekler. HTML'de iki yeni bölüm var: hücre üzerinde XBRL kavramı, accession ve tarih; oran üzerinde formül
+  görünür. Web arayüzündeki raporlar da bunları içerir. Eski raporlar sorunsuz açılır.
+- **Belgeler:** [docs/FINANSAL_TABLOLAR_V01.md](docs/FINANSAL_TABLOLAR_V01.md),
+  [docs/YOL_HARITASI.md](docs/YOL_HARITASI.md) (10 ders → modül → durum).
+- **Testler:** 36 yeni test. Toplam `tests/` 389/389.
+
 ## 2026-10-24 — Bakım: yapı, CI ve dokümantasyon
 
 - **`sec_arsiv.py` (yeni):** SEC arşiv/istek yardımcıları (`atomic_write`, `canonical_bytes`,
