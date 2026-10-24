@@ -318,6 +318,23 @@ class BatchTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "requires an SEC ticker map"):
                 scan(td, records=[{"ticker": "SYN"}])
 
+    def test_excel_csv_formula_in_issuer_name_is_escaped(self):
+        import csv
+        from sec_toplu_tarama import _export
+        with tempfile.TemporaryDirectory() as td:
+            malicious = issuer(42)
+            malicious["entityName"] = '=HYPERLINK("https://example.test","click")'
+            result = scan(td, records=[firms()[0]],
+                          fetch=lambda cik, *, user_agent: malicious)
+            out = Path(td) / "manifest.json"
+            csv_path = Path(td) / "manifest.csv"
+            _export(result, out, csv_path)
+            with csv_path.open(encoding="utf-8-sig", newline="") as handle:
+                row = next(csv.DictReader(handle))
+            self.assertEqual(row["company"], "'" + malicious["entityName"])
+            self.assertEqual(json.loads(out.read_text())["records"][0]["company"],
+                             malicious["entityName"])
+
     def test_reject_wrong_cache_date_tamper(self):
         with tempfile.TemporaryDirectory() as td:
             first = scan(td, records=[firms()[0]])
