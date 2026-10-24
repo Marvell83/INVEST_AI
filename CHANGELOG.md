@@ -5,6 +5,24 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-24 — Tahmin motoru v0.1 (yol haritası Ders 6)
+
+- **`tahmin_motoru.py` (yeni):**
+  - `historical_baseline()`: şirketin kendi yıllık geçmişinden büyüme, faaliyet marjı, efektif vergi, FCF
+    marjı ve satış / yatırılan sermaye artışı istatistikleri (medyan, çeyrekler, gözlem sayısı) ile gelir
+    CAGR'ı. Kullanılan SEC dosyaları saklanır.
+  - `project_scenarios()`: temkinli / baz / iyimser senaryolar şirketin kendi geçmişinin alt çeyrek / medyan
+    / üst çeyreğinden başlar. Büyüme son yılda analistin **kaynaklı** uzun vadeli oranına, marj senaryo
+    hedefine doğrusal olarak ulaşır. Sistem uzun vadeli oranı kendisi seçmez. Kısa geçmişte yalnız baz
+    senaryo gösterilir; uyarılar ve geçmişe dönük senaryo bayrağı var.
+  - `record_projection()`: gelir ve faaliyet kârını `FY+k_AFTER_<mali yıl sonu>` hedefleriyle Tahmin
+    Defteri'ne tek işlemde yazar; tekrar kayıt engellenir.
+  - CLI: `python tahmin_motoru.py ...`.
+- **Rapor:** Tarihsel baz her araştırma raporunda yer alır. `--long-run-growth` ve `--long-run-source`
+  birlikte verilirse senaryo tablosu da eklenir.
+- **Belgeler:** [docs/TAHMIN_MOTORU_V01.md](docs/TAHMIN_MOTORU_V01.md), yol haritası, README.
+- **Testler:** 20 yeni test. Toplam `tests/` 447/447.
+
 ## 2026-10-24 — Katman mutabakatı v0.1
 
 - **`katman_mutabakati.py` (yeni):** Her araştırma raporunda iki kontrol yapar; hiçbir motorun sonucunu
