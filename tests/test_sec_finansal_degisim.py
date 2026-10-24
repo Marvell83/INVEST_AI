@@ -9,9 +9,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from sec_finansal_degisim import (
-    _canonical_bytes, _load_snapshot, compare_sec_snapshots, main,
-)
+from sec_arsiv import canonical_bytes
+from sec_finansal_degisim import _load_snapshot, compare_sec_snapshots, main
 from test_sec_ttm_crosscheck import fixture, fact, TAGS
 
 
@@ -217,12 +216,12 @@ class ChangeTests(unittest.TestCase):
     def test_hash_named_cache_archive_verified(self):
         with tempfile.TemporaryDirectory() as td:
             raw = fixture()
-            blob = _canonical_bytes(raw)
+            blob = canonical_bytes(raw)
             digest = hashlib.sha256(blob).hexdigest()
             path = Path(td) / (digest + ".json")
             path.write_bytes(blob)
             self.assertEqual(_load_snapshot(path, CIK)["cik"], 320193)
-            path.write_bytes(_canonical_bytes({**raw, "entityName": "different"}))
+            path.write_bytes(canonical_bytes({**raw, "entityName": "different"}))
             with self.assertRaisesRegex(ValueError, "archive filename SHA-256 mismatch"):
                 _load_snapshot(path, CIK)
 

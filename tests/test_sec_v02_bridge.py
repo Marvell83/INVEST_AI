@@ -1,8 +1,9 @@
 """Synthetic tests for SEC v0.2 bridge; no real securities included."""
 import copy
 import unittest
+import warnings
 from sec_companyfacts import normalize_companyfacts
-from sec_v02_bridge import value_sec_snapshot
+from sec_v02_bridge import UnauditedSECBaselineWarning, value_sec_snapshot
 from test_sec_companyfacts import fixture
 
 ASSUMPTIONS = dict(yillar=3, buyume=0.1, marj_hedef=0.2,
@@ -17,6 +18,22 @@ PROPOSAL = {"scenario": "synthetic base", "assumptions": ASSUMPTIONS,
 class SECBridgeTests(unittest.TestCase):
     def setUp(self):
         self.snapshot = normalize_companyfacts(fixture(), as_of="2025-03-01")
+        # The bypass warning has its own tests below; keep other output quiet.
+        self.enterContext(warnings.catch_warnings())
+        warnings.simplefilter("ignore", UnauditedSECBaselineWarning)
+
+    def test_direct_use_warns_and_marks_audit_bypass(self):
+        warnings.simplefilter("always", UnauditedSECBaselineWarning)
+        with self.assertWarns(UnauditedSECBaselineWarning):
+            result = value_sec_snapshot(self.snapshot, PROPOSAL)
+        self.assertEqual(result["source_audit_gate"], "bypassed")
+        self.assertTrue(any("sec_gap_audit" in w for w in result["warnings"]))
+
+    def test_audited_caller_is_not_warned(self):
+        warnings.simplefilter("error", UnauditedSECBaselineWarning)
+        result = value_sec_snapshot(self.snapshot, PROPOSAL, source_audited=True)
+        self.assertEqual(result["source_audit_gate"], "passed")
+        self.assertFalse(any("sec_gap_audit" in w for w in result["warnings"]))
 
     def test_values_with_manually_supplied_assumptions(self):
         result = value_sec_snapshot(self.snapshot, PROPOSAL)

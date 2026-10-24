@@ -21,9 +21,9 @@ import urllib.error
 from urllib.parse import unquote, urlsplit
 
 from sec_companyfacts import download_companyfacts
-from sec_toplu_tarama import (
-    SECThrottle, StopSECRequests, _atomic_write, _cached, _canonical_bytes,
-    _check_doc, _load_json, _mapping, _save_capture, download_ticker_map,
+from sec_arsiv import (
+    SECThrottle, StopSECRequests, atomic_write, cached_capture, canonical_bytes,
+    check_doc, download_ticker_map, load_json, save_capture, ticker_mapping,
 )
 from sirket_arastirma_akisi import build_company_research, render_company_research
 
@@ -68,11 +68,11 @@ class ResearchService:
         if mode == "cache":
             if not path.is_file():
                 raise RequestError("Yerel SEC ticker haritası yok; önce 'Güncel SEC' seç.", 404)
-            return _mapping(_load_json(path, max_bytes=12_000_000)), "SAVED_SEC_MAP"
+            return ticker_mapping(load_json(path, max_bytes=12_000_000)), "SAVED_SEC_MAP"
         if path.is_file():
             age_seconds = self.clock().timestamp() - path.stat().st_mtime
             if mode == "live" and 0 <= age_seconds < 24 * 3600:
-                return _mapping(_load_json(path, max_bytes=12_000_000)), "CACHED_SEC_MAP"
+                return ticker_mapping(load_json(path, max_bytes=12_000_000)), "CACHED_SEC_MAP"
         self._online_ok()
         try:
             source = self.ticker_download(user_agent=self.user_agent, limiter=self.throttle)
@@ -83,8 +83,8 @@ class ResearchService:
         except StopSECRequests as exc:
             self.sec_blocked = True
             raise RequestError(str(exc), 503) from exc
-        table = _mapping(source)
-        _atomic_write(path, _canonical_bytes(source))
+        table = ticker_mapping(source)
+        atomic_write(path, canonical_bytes(source))
         return table, "DOWNLOADED_SEC_MAP"
 
     def analyze(self, request):
@@ -109,8 +109,8 @@ class ResearchService:
                 raise RequestError("Örnek veri yalnız AAPL içindir. Başka şirket için Güncel SEC seç.")
             cik = 320193
             as_of = "2026-10-21"
-            raw = _load_json(self.root / "ornekler/apple_ttm_evidence_2026-10-21.json")
-            _check_doc(raw, cik)
+            raw = load_json(self.root / "ornekler/apple_ttm_evidence_2026-10-21.json")
+            check_doc(raw, cik)
             source = "MANUAL_APPLE_EXAMPLE_NOT_LIVE_SEC"
             archive = None
             mapping_source = "EXAMPLE_FIXED_CIK"
@@ -120,7 +120,7 @@ class ResearchService:
                 raise RequestError("SEC ticker listesinde şirket bulunamadı: " + ticker, 404)
             cik = ticker_map[ticker]
             if mode == "cache":
-                cached = _cached(self.root / "veri/sec_kaynaklari", f"{cik:010d}")
+                cached = cached_capture(self.root / "veri/sec_kaynaklari", f"{cik:010d}")
                 if cached is None:
                     raise RequestError("Bu şirketin yerel SEC arşivi henüz yok.", 404)
                 raw, _, archive, _ = cached
@@ -136,9 +136,9 @@ class ResearchService:
                     raise RequestError(f"SEC Company Facts HTTP {exc.code}", 503) from exc
                 except urllib.error.URLError as exc:
                     raise RequestError("SEC bağlantısı kurulamadı.", 503) from exc
-                _check_doc(raw, cik)
-                _, _, archive = _save_capture(self.root / "veri/sec_kaynaklari",
-                                              f"{cik:010d}", raw, self.clock())
+                check_doc(raw, cik)
+                _, _, archive = save_capture(self.root / "veri/sec_kaynaklari",
+                                             f"{cik:010d}", raw, self.clock())
                 source = "SEC_DIRECT_DOWNLOAD_UNVERIFIED_INDEPENDENTLY"
             as_of = self.clock().date().isoformat()
 
@@ -157,9 +157,9 @@ class ResearchService:
         folder = self.root / "reports" / "research"
         out_json = folder / (basename + ".json")
         out_html = folder / (basename + ".html")
-        _atomic_write(out_json, json.dumps(result, ensure_ascii=False,
-                                           indent=2, allow_nan=False).encode("utf-8"))
-        _atomic_write(out_html, page.encode("utf-8"))
+        atomic_write(out_json, json.dumps(result, ensure_ascii=False,
+                                          indent=2, allow_nan=False).encode("utf-8"))
+        atomic_write(out_html, page.encode("utf-8"))
         p = result["quality"]["piotroski"]
         ttm = result["ttm_crosscheck"]
         return {

@@ -1,7 +1,6 @@
 """Offline presentation regression tests; no browser or network required."""
 from __future__ import annotations
 
-import copy
 import json
 from pathlib import Path
 import tempfile

@@ -24,7 +24,7 @@
 | `DELTA_GROSS_MARGIN` | Brüt kâr / gelir marjı yükseldi |
 | `DELTA_ASSET_TURNOVER` | Gelir / ortalama toplam varlıklar yükseldi |
 
-**Muhasebe sözleşmesi:** ROA paydasında *dönem başı* toplam varlıklar; devir hızı ve kaldıraç paydasında ilgili yılın dönem başı ve sonu toplam varlıklarının aritmetik ortalaması kullanılır. Önceki yıl ROA ve varlık devir hızı için bir ek açılış bilançosu gerekebilir. Aynı gelir etiketi alternatiflerinde >%5 kapsam/tutar ayrışması varsa bunlar otomatik çözülmez. Bu %5 eşik yalnız **veri kalite alarmı**dır.
+**Muhasebe sözleşmesi:** ROA paydasında *dönem başı* toplam varlıklar; devir hızı ve kaldıraç paydasında ilgili yılın dönem başı ve sonu toplam varlıklarının aritmetik ortalaması kullanılır. Not: Piotroski'nin (2000) orijinal tanımı varlık devir hızında *dönem başı* toplam varlıkları kullanır; buradaki ortalama varlık tercihi bilinçli bir sapmadır ve özellikle hızlı büyüyen ya da büyük satın alma yapan şirketlerde sinyalin yönünü değiştirebilir. Önceki yıl ROA ve varlık devir hızı için bir ek açılış bilançosu gerekebilir. Aynı gelir etiketi alternatiflerinde >%5 kapsam/tutar ayrışması varsa bunlar otomatik çözülmez. Bu %5 eşik yalnız **veri kalite alarmı**dır.
 
 **Eksik veri sıfır puan değildir:** Örneğin 8 ölçütü olumlu ama sermaye ihracı kanıtı eksikse sonuç **8/9 değil**, `score=null`, `score_range=[8,9]` ve `status=partial` olur. Eksik bir verinin yanlışlıkla "kötü" kabul edilmesini önler. 9/9 tamamlanmadan sınıflama/otomatik sıralama yapılmamalıdır.
 

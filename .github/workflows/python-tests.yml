@@ -1,18 +1,38 @@
 name: Python tests
+
 on:
   push:
   pull_request:
+
 jobs:
   tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Main test suite (SEC, quality, TTM, DCF, ledger, web)
+        run: python -m unittest discover -s tests -v
+      - name: Frozen v0.1 acceptance cases
+        working-directory: dogrulama
+        run: python kabul_testi.py
+      - name: Acceptance harness and experimental v0.2 module tests
+        working-directory: dogrulama
+        run: python -m unittest test_dogrulama_seti test_moduller_v02 -v
+
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Forecast ledger and integration tests
-        run: python -m unittest discover -s tests -v
-      - name: Frozen 0.1 acceptance tests
-        run: cd dogrulama && python kabul_testi.py
-      - name: Experimental 0.2 module tests
-        run: cd dogrulama && python -m unittest test_moduller_v02.py -v
+          python-version: '3.13'
+      - name: Ruff (syntax errors and unused/undefined names)
+        run: |
+          python -m pip install ruff==0.16.9
+          ruff check .

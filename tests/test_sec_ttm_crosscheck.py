@@ -1,7 +1,6 @@
 """Offline regression tests for the two-engine SEC TTM provenance audit."""
 from __future__ import annotations
 
-import copy
 import json
 import tempfile
 import unittest

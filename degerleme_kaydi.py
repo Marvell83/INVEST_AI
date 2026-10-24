@@ -6,9 +6,7 @@ not a financial-data importer, and it does not validate economic assumptions.
 """
 from __future__ import annotations
 
-import json
 import math
-from pathlib import Path
 
 from dogrulama.uretim_motoru import degerle
 from degerleme_v02 import degerle_v02

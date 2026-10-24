@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from functools import partial
 import http.client
-from http.server import ThreadingHTTPServer
 import json
 from pathlib import Path
 import shutil
@@ -14,7 +12,7 @@ import unittest
 from urllib.error import HTTPError
 
 from invest_ai_web import ROOT, ResearchService, RequestError, build_server
-from sec_toplu_tarama import SECThrottle
+from sec_arsiv import SECThrottle
 from test_sirket_arastirma_akisi import with_ttm
 
 

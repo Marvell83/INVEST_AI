@@ -56,7 +56,7 @@ def analyze_and_record(*, raw_companyfacts, as_of, proposal,
         raise ValueError("SEC baseline requires manual review: " + audit["status"])
     elif revenue_review is not None:
         raise ValueError("revenue review cannot override an uncontested baseline")
-    valued = value_sec_snapshot(snapshot, proposal)
+    valued = value_sec_snapshot(snapshot, proposal, source_audited=True)
     forecasts = valued["valuation"]["tablo"]
     _validate_periods(future_period_ends, baseline_end=valued["historical_period_end"],
                       years=len(forecasts))

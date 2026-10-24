@@ -61,6 +61,8 @@ python sec_companyfacts.py --cik 320193 --as-of 2026-10-20 --download --out sec_
 python sec_v02_bridge.py --sec sec_history.json --assumptions senaryo.json --out sec_dcf_v02.json
 ```
 
+> **Uyarı:** Bu doğrudan köprü `sec_gap_audit.py` kaynak denetimini çalıştırmaz. Çağrıldığında `UnauditedSECBaselineWarning` verir ve çıktıya `"source_audit_gate": "bypassed"` yazar. Yeni araştırmalarda `sec_reviewed_cli.py` / `sec_reviewed_pipeline.analyze_and_record()` kullanın; bu akış köprüyü yalnız denetim geçtikten sonra `source_audited=True` ile çağırır.
+
 Gerçek rakamlar için `hisse` **adet**, `net_borc` **USD**, `gelir_0` **USD** birimindedir. Bu nedenle `hisse_basi_deger` **USD/hisse** üretir. `gelir_0` ve `marj_0` manuel senaryo tarafından değiştirilemez; SEC tarihsel verisinden alınır. Gelir ile EBIT aynı yıllık dönem başı ve bitişine sahip değilse köprü değerlemeyi reddeder.
 
 ## Bilerek kapsanmayan alanlar

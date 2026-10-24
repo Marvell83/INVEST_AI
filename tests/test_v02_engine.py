@@ -1,4 +1,3 @@
-import math
 import unittest
 from degerleme_v02 import degerle_v02, ters_dcf_v02
 

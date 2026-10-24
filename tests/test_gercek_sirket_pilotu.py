@@ -1,5 +1,4 @@
 """Tests for issuer pilot; entirely synthetic facts in tests, no network."""
-import copy
 import hashlib
 import json
 import pathlib

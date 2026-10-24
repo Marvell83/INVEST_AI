@@ -68,20 +68,20 @@ def render_ttm(ttm, dcf=None):
              ("TTM faaliyet kâr marjı",
               f"{ttm['operating_margin'] * 100:.2f}%" if ttm.get("operating_margin") is not None else "—"),
              ("CFO - CapEx (FCFF değildir)", amount(ttm.get("cfo_less_capex_usd")))]
-    cards = "".join("<div class='stat'><small>" + esc(title) + "</small><strong>" + esc(value) + "</strong></div>" for title,value in stats)
+    cards = "".join("<div class='stat'><small>" + esc(title) + "</small><strong>" + esc(value) + "</strong></div>" for title, value in stats)
     dcf_sec = "<p class='muted'>Kaynaklı bir DCF senaryo analizi eklenmedi.</p>"
     if dcf:
-        sections=[]
-        for code,title in (("temkinli","Temkinli"),("baz","Baz"),("iyimser","İyimser")):
-            row=dcf["scenarios"][code]
-            val=row["valuation"]["hisse_basi_deger"]
-            rate=row["assumptions"]["annual_revenue_growth"]
-            sections.append(f"<div class='stat'><small>{title} · yıllık ciro büyümesi %{rate*100:g}</small>"+
-                            f"<strong>{val:.2f} USD/hisse</strong>"+
+        sections = []
+        for code, title in (("temkinli", "Temkinli"), ("baz", "Baz"), ("iyimser", "İyimser")):
+            row = dcf["scenarios"][code]
+            val = row["valuation"]["hisse_basi_deger"]
+            rate = row["assumptions"]["annual_revenue_growth"]
+            sections.append(f"<div class='stat'><small>{title} · yıllık ciro büyümesi %{rate * 100:g}</small>" +
+                            f"<strong>{val:.2f} USD/hisse</strong>" +
                             "<small>Deneysel model; hedef fiyat değil</small></div>")
-        reverse=dcf["reverse_dcf"]
-        root=reverse.get("ima_edilen_buyume")
-        reverse_text=f"%{root*100:.2f}" if root is not None else "Belirlenemedi"
+        reverse = dcf["reverse_dcf"]
+        root = reverse.get("ima_edilen_buyume")
+        reverse_text = f"%{root * 100:.2f}" if root is not None else "Belirlenemedi"
         dcf_sec = (
             "<div class='grid'>" + "".join(sections) + "</div>"
             + "<p>Karşılaştırma fiyatı: <strong>" + esc(dcf["price_usd"]) + " USD</strong>"
@@ -91,8 +91,8 @@ def render_ttm(ttm, dcf=None):
             + "Kök araması tüm çözümleri bulmayı garanti etmez.</p>"
         )
     warnings = list(ttm.get("warnings", [])) + list(dcf.get("warnings", []) if dcf else [])
-    cautions="".join("<li>"+esc(w)+"</li>" for w in warnings)
-    style="""
+    cautions = "".join("<li>" + esc(w) + "</li>" for w in warnings)
+    style = """
     :root{--bg:#f5f8fc;--paper:#fff;--ink:#172b43;--line:#dae4ef;--sub:#5a7088;--navy:#163f70}
     *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,Arial,sans-serif}
     main{max-width:1200px;margin:auto;padding:32px 20px 70px}
@@ -125,16 +125,17 @@ def render_ttm(ttm, dcf=None):
 
 
 def main(argv=None):
-    parser=argparse.ArgumentParser(description="Offline TTM HTML report")
-    parser.add_argument("--ttm",required=True)
-    parser.add_argument("--dcf",help="optional dated DCF scenario JSON")
-    parser.add_argument("--out",required=True)
-    o=parser.parse_args(argv)
-    ttm=json.loads(Path(o.ttm).read_text(encoding="utf-8"))
-    dcf=json.loads(Path(o.dcf).read_text(encoding="utf-8")) if o.dcf else None
-    output=Path(o.out); output.parent.mkdir(parents=True,exist_ok=True)
-    output.write_text(render_ttm(ttm,dcf),encoding="utf-8")
-    print("HTML:",output)
+    parser = argparse.ArgumentParser(description="Offline TTM HTML report")
+    parser.add_argument("--ttm", required=True)
+    parser.add_argument("--dcf", help="optional dated DCF scenario JSON")
+    parser.add_argument("--out", required=True)
+    o = parser.parse_args(argv)
+    ttm = json.loads(Path(o.ttm).read_text(encoding="utf-8"))
+    dcf = json.loads(Path(o.dcf).read_text(encoding="utf-8")) if o.dcf else None
+    output = Path(o.out)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(render_ttm(ttm, dcf), encoding="utf-8")
+    print("HTML:", output)
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
