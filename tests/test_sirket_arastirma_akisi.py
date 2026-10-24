@@ -222,6 +222,20 @@ class CompanyResearchPipelineTests(unittest.TestCase):
         self.assertNotEqual(r["ttm_crosscheck"]["status"], "RECONCILED_CALCULATIONS")
         self.assertIn("mutabakat bekliyor", render_company_research(r))
 
+    def test_documented_apple_transcription_stays_explicitly_manual(self):
+        sample = (Path(__file__).resolve().parent.parent /
+                  "ornekler/apple_ttm_evidence_2026-10-21.json")
+        raw = json.loads(sample.read_text(encoding="utf-8"))
+        r = build_company_research(
+            raw, expected_cik=320193, as_of="2026-10-21",
+            sector="non_financial")
+        self.assertEqual(r["ttm_crosscheck"]["status"], "RECONCILED_CALCULATIONS")
+        self.assertEqual(r["ttm_crosscheck"]["primary"]["metrics"]["revenue"]["value_usd"],
+                         466_823_000_000)
+        self.assertTrue(r["source"]["manually_transcribed_source"])
+        self.assertIn("INPUT_IS_MANUAL_TRANSCRIPTION_NOT_RAW_SEC_DOWNLOAD", r["research_gaps"])
+        self.assertIsNone(r["dcf"])
+
     def test_invalid_input_shape_rejected(self):
         with self.assertRaisesRegex(ValueError, "raw SEC"):
             run({"cik": 42, "facts": None})
