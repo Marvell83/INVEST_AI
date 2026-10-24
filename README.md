@@ -40,7 +40,7 @@ SEC Company Facts (ham JSON, SHA-256 ile arşiv: sec_arsiv)
 | | `degerleme_v02.py` | Deneysel v0.2: NOL, marj yakınsaması, RONIC'li uç değer, ters DCF |
 | | `dogrulama/moduller_v02.py` | v0.2 yardımcıları (kök bulucu vb.) |
 | | `degerleme_kaydi.py`, `tahmin_defteri.py` | Değerleme tahminlerini kaynaklı SQLite kaydına yazma ve puanlama |
-| **Finansal tablolar** | `finansal_tablolar.py` | Ortak, tarihli ve kaynaklı yıllık gelir tablosu / nakit akışı / bilanço (27 kalem) |
+| **Finansal tablolar** | `finansal_tablolar.py` | Ortak, tarihli ve kaynaklı yıllık ve çeyreklik gelir tablosu / nakit akışı / bilanço (27 kalem); kapak sayfası hisse sayısı |
 | | `finansal_oranlar.py` | Marj, büyüme, nakit kalitesi, ROA / ROE / ROIC, borçluluk; her oranın formülü ve hesaplanamama nedeni |
 | **SEC verisi** | `sec_companyfacts.py` | Company Facts indirme / normalize etme |
 | | `sec_arsiv.py` | Ortak arşiv yardımcıları: SHA-256 arşiv, atomik yazma, ticker–CIK haritası, istek hızı sınırı |
@@ -90,7 +90,7 @@ Ayrıntılı kullanım: [web analizi](docs/WEB_SIRKET_ANALIZI_V02.md) · [şirke
 
 | Paket | Komut | Sonuç |
 |---|---|---|
-| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **389/389** |
+| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **412/412** |
 | Dondurulmuş v0.1 kabul | `dogrulama/kabul_testi.py` | **17/17** |
 | Kabul altyapısı + v0.2 modülleri | `unittest test_dogrulama_seti test_moduller_v02` | **9/9** (2 + 7) |
 

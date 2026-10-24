@@ -16,12 +16,12 @@ from pathlib import Path
 import re
 
 from finansal_oranlar import compute_ratios
-from finansal_tablolar import build_annual_statements
+from finansal_tablolar import build_annual_statements, build_quarterly_statements
 from kredi_notlari import company_quality_snapshot
 from sec_companyfacts import SEC_DATA, _validate_cik, download_companyfacts
 from sec_gap_audit import audit_company
 from sec_ttm_crosscheck import audit_ttm
-from sirket_analiz_paneli import render_dashboard, render_financial_sections
+from sirket_analiz_paneli import render_dashboard, render_financial_sections, render_quarterly_section
 
 VERSION = "invest-ai-company-research-0.1.0"
 SECTORS = ("non_financial", "financial", "unknown")
@@ -96,7 +96,8 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
     if ttm.get("cik") not in (None, cik):
         raise ValueError("TTM issuer differs from requested CIK")
     statements = build_annual_statements(raw, as_of=as_of)
-    if statements["cik"] != cik:
+    quarterly = build_quarterly_statements(raw, as_of=as_of)
+    if statements["cik"] != cik or quarterly["cik"] != cik:
         raise ValueError("financial statements issuer differs from requested CIK")
     ratios = compute_ratios(statements)
 
@@ -158,6 +159,7 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         "ttm_crosscheck": ttm,
         "financial_statements": statements,
         "financial_ratios": ratios,
+        "quarterly_statements": quarterly,
         "actual_price": None, "dcf": None, "combined_investment_score": None,
         "forecast_created": False, "investment_recommendation": None,
         "limitations": limitations,
@@ -230,6 +232,8 @@ def render_company_research(report):
     financials = ""
     if "financial_statements" in report:
         financials = render_financial_sections(report["financial_statements"], report["financial_ratios"])
+    if "quarterly_statements" in report:
+        financials += render_quarterly_section(report["quarterly_statements"])
     return base.replace("</main>", intro + financials + ttm_section + notes + "</main>", 1)
 
 
