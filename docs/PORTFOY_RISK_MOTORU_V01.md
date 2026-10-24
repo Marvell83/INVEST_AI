@@ -12,9 +12,12 @@ Windows PowerShell veya komut isteminde depo kökünden:
 
 ```powershell
 python portfoy_risk.py --portfolio ornekler/portfoy_risk_SENTETIK_8_HISSE.json --out raporlar/portfoy_risk_ornek.json
+python portfoy_raporu.py --report raporlar/portfoy_risk_ornek.json --out raporlar/portfoy_risk_ornek.html
 python -m unittest discover -s tests -p test_portfoy_risk.py -v
 python -m unittest discover -s tests -v
 ```
+
+Üretilen HTML, tarayıcıda çevrimdışı açılabilen Türkçe tablo ekranıdır; internet erişimi ve JavaScript gerektirmez. Rapor metinleri HTML karakter kaçışıyla gösterilir.
 
 **Dikkat:** Örnekte gerçek hisse kodları bulunsa bile *adetler, fiyatlar, alış maliyetleri ve stres oranları tamamen sentetiktir*. Çıktı gerçek portföy performansı veya güncel piyasa analizi değildir.
 
@@ -50,7 +53,7 @@ python -m unittest discover -s tests -v
 - `cash_usd`: alım için elde tutulan USD nakit; toplam servet paydasında yer alır. Nakit portföy stresinde değişmez kabul edilir.
 - `instrument_type`: `equity` veya `fund`. ETF'nin içindeki şirketleri **ayrıştırmayız**; bunu raporda açıkça belirtiriz.
 - `sector`, `themes`: **analistin manuel sınıflandırması**dır, kesin ekonomik beta veya nedensel ilişki değildir. Temalar örtüşebilir.
-- `theme_unions`: AI ile ilişkili ayrı temalardan seçilen şirketleri **bir kez** sayar. Tekil tema yüzdelerini toplamayın; örneğin NVDA hem `ai_chips` hem `ai_infrastructure` etiketli olabilir.
+- `theme_unions`: AI ile ilişkili ayrı temalardan seçilen şirketleri **bir kez** sayar. Tanımlı pozisyonlarda bulunmayan tema etiketleri hata oluşturur. Tekil tema yüzdelerini toplamayın; örneğin NVDA hem `ai_chips` hem `ai_infrastructure` etiketli olabilir.
 - `fx_usdtry` (isteğe bağlı): `{"rate": 49.6, "date": "2026-10-23"}`; tek bir tarihte USD cinsinden toplamı TL'ye çevirir. Geçmiş USD alım maliyetlerini bugünkü kurla çarpmak **gerçek TL kârı vermez**; motor TL kârı üretmez.
 - `scenarios` (isteğe bağlı): `name`, `horizon`, `rationale` ve `shocks_pct` içerir. Her senaryoda tüm hisse kodlarına ait ayrı ayrı varsayımsal değişim oranları *zorunludur*. Eksik şirket %0 şok varsayılmaz.
 
