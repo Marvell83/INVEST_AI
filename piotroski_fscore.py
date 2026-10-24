@@ -164,6 +164,10 @@ def compute_piotroski(companyfacts, *, as_of, sector="unknown", equity_offering_
               "warnings":["USD US-GAAP annual 10-K / 10-K/A only; no equity recommendation"]}
     if sector!="non_financial":
         result["status"]="not_applicable_financial_sector" if sector=="financial" else "sector_unconfirmed"
+        reason = "FINANCIAL_SECTOR_METHOD_UNAVAILABLE" if sector=="financial" else "SECTOR_NOT_CONFIRMED"
+        # Explicitly explain all nine '?' rather than leaving the rationale column blank.
+        # Do not attempt to infer the issuer's classification from name or ticker.
+        result["missing_reasons"] = {name: reason for name in NAMES}
         result["warnings"].append("Industry-specific evaluation required; no Piotroski score")
         return result
 
