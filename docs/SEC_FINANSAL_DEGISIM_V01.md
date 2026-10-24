@@ -61,6 +61,8 @@ JSON alanları:
 
 Önceki karşılaştırma bazı dönemlerde 0 ya da negatif ise yüzde büyüme hesaplanmaz (`null`). SEC olgusunun kaybolması, şirketin onu SEC nezdinde geri çektiğini kanıtlamaz. Tarihli bildirim bağlamı olmadan ekonomik sebep yorumlanmaz.
 
+İki arşivden biri daha önce SEC belgelerinden **elle aktarılmış** bir örnekse `old_source_manual_transcription` veya `new_source_manual_transcription` olarak işaretlenir, `requires_manual_review=true` olur. Hesap mutabakatı, bu aktarımın doğrudan SEC API verisi olduğunu kanıtlamaz.
+
 ## Kapsam sınırlamaları
 
 - Yalnız **US-GAAP / USD** için 10-K / 10-K/A **FY** 330–400 günlük ve 10-Q / 10-Q/A **Q3 9A** 240–310 günlük akımlar. Q1/Q2, bağımsız üçüncü çeyrek ve IFRS/20-F henüz desteklenmez.
