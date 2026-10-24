@@ -71,6 +71,19 @@ class ResearchServiceTests(unittest.TestCase):
             s.analyze({"ticker": "AAPL", "mode": "demo", "sector": "non_financial"})
             self.assertEqual(s.throttle.calls, 0)
 
+    def test_api_flags_missing_annual_history_only_when_it_blocks_piotroski(self):
+        cases = (("AAPL", "demo", "non_financial", 0, True),
+                 ("AAPL", "demo", "unknown", 0, False),
+                 ("SYN", "live", "non_financial", 8, False))
+        for ticker, mode, sector, known, missing in cases:
+            with self.subTest(mode=mode, sector=sector), tempfile.TemporaryDirectory() as folder:
+                s = service(folder)
+                response = s.analyze({"ticker": ticker, "mode": mode, "sector": sector})
+                self.assertEqual(response["piotroski_known_count"], known)
+                self.assertIs(response["piotroski_missing_annual_history"], missing)
+                page = (s.root / response["report_url"].lstrip("/")).read_text(encoding="utf-8")
+                self.assertEqual("10-K net kâr dönemi bulunmuyor" in page, missing)
+
     def test_other_demo_company_blocked(self):
         with tempfile.TemporaryDirectory() as folder:
             s = service(folder)

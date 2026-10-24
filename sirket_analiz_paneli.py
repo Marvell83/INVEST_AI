@@ -109,7 +109,7 @@ def render_dashboard(quality, valuation=None):
         "Piotroski hesaplanamadı: bu veri arşivinde iki karşılaştırılabilir yıllık "
         "10-K net kâr dönemi bulunmuyor. TTM için 10-K ve 10-Q verilerinin yeterli "
         "olması Piotroski için yeterli değildir. 0/9 hesaplanan gösterge sayısıdır, "
-        "Apple'ın finansal kalite puanı değildir. Güncel tam SEC Company Facts "
+        "şirketin finansal kalite puanı değildir. Güncel tam SEC Company Facts "
         "verisiyle analizi yeniden çalıştırın."
         if annual_history_missing else None
     )
