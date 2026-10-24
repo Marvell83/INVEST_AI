@@ -14,11 +14,10 @@ from collections import Counter
 from decimal import Decimal, InvalidOperation
 import hashlib
 import json
-import math
 from pathlib import Path
 
 from sec_companyfacts import METRICS, _validate_cik
-from sec_toplu_tarama import _atomic_write, _canonical_bytes, _iso_date, _load_json
+from sec_arsiv import atomic_write, canonical_bytes, iso_date, load_json
 from sec_ttm_crosscheck import audit_ttm
 
 VERSION = "invest-ai-sec-change-0.1.0"
@@ -50,13 +49,13 @@ def _date(value):
     if not isinstance(value, str):
         return None
     try:
-        return _iso_date(value)
+        return iso_date(value)
     except ValueError:
         return None
 
 
 def _digest(raw):
-    return hashlib.sha256(_canonical_bytes(raw)).hexdigest()
+    return hashlib.sha256(canonical_bytes(raw)).hexdigest()
 
 
 def _validated(raw, cik):
@@ -267,7 +266,7 @@ def compare_sec_snapshots(old, new, *, as_of, expected_cik):
     Snapshot order is supplied by caller: timestamps cannot be inferred from
     content hashes or filing years. Stored index.json tracks only latest capture.
     """
-    as_of = _iso_date(as_of)
+    as_of = iso_date(as_of)
     cik = f"{_validate_cik(expected_cik):010d}"
     _validated(old, cik)
     _validated(new, cik)
@@ -327,7 +326,7 @@ def compare_sec_snapshots(old, new, *, as_of, expected_cik):
 
 def _load_snapshot(path, expected_cik):
     """Read 50 MB at most and verify content-addressed batch archive filenames."""
-    data = _load_json(path, max_bytes=50_000_000)
+    data = load_json(path, max_bytes=50_000_000)
     _validated(data, expected_cik)
     name = Path(path).stem
     if len(name) == 64 and all(c in "0123456789abcdef" for c in name):
@@ -349,8 +348,8 @@ def main(argv=None):
         p.error("old, new and output paths must be distinct")
     old, new = (_load_snapshot(path, args.cik) for path in (args.old, args.new))
     report = compare_sec_snapshots(old, new, as_of=args.as_of, expected_cik=args.cik)
-    _atomic_write(args.out, json.dumps(report, indent=2, ensure_ascii=False,
-                                     allow_nan=False).encode("utf-8"))
+    atomic_write(args.out, json.dumps(report, indent=2, ensure_ascii=False,
+                                    allow_nan=False).encode("utf-8"))
     print(f"CIK {report['cik']} | {report['snapshot_record_changes']['total']} SEC fact events"
           f" | 9M YoY {report['new_snapshot_9m_yoy']['status']} | {args.out}")
     return 0

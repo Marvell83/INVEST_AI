@@ -1,10 +1,8 @@
 """Offline SEC batch regression tests. Zero real HTTP requests; synthetic issuers."""
 from __future__ import annotations
 
-import copy
 import datetime as dt
 import hashlib
-import io
 import json
 from pathlib import Path
 import tempfile
@@ -12,9 +10,8 @@ import unittest
 import urllib.error
 from unittest.mock import patch
 
-from sec_toplu_tarama import (
-    SECThrottle, _cached, download_ticker_map, main, resolve_universe, scan_universe,
-)
+from sec_arsiv import SECThrottle, cached_capture, download_ticker_map
+from sec_toplu_tarama import main, resolve_universe, scan_universe
 from test_sirket_arastirma_akisi import with_ttm
 
 
@@ -156,7 +153,7 @@ class BatchTests(unittest.TestCase):
             self.assertNotEqual(first["snapshot_sha256"], second["snapshot_sha256"])
             self.assertTrue(Path(first["snapshot_path"]).is_file())
             self.assertTrue(Path(second["snapshot_path"]).is_file())
-            current = _cached(Path(td) / "archive", "0000000042")
+            current = cached_capture(Path(td) / "archive", "0000000042")
             self.assertEqual(current[1]["sha256"], second["snapshot_sha256"])
 
     def test_corrupt_snapshot_fails_integrity_check_and_no_analysis(self):
@@ -258,10 +255,10 @@ class BatchTests(unittest.TestCase):
     def test_mapping_digest_is_grounded_to_exact_source_snapshot(self):
         with tempfile.TemporaryDirectory() as td:
             r = scan(td, records=[firms()[0]], offline=True, mapping=ticker_data())
-            from sec_toplu_tarama import _canonical_bytes
+            from sec_arsiv import canonical_bytes
             self.assertEqual(
                 r["ticker_map_sha256"],
-                hashlib.sha256(_canonical_bytes(ticker_data())).hexdigest()
+                hashlib.sha256(canonical_bytes(ticker_data())).hexdigest()
             )
 
     def test_cli_requires_persisting_downloaded_ticker_snapshot(self):
@@ -337,7 +334,7 @@ class BatchTests(unittest.TestCase):
 
     def test_reject_wrong_cache_date_tamper(self):
         with tempfile.TemporaryDirectory() as td:
-            first = scan(td, records=[firms()[0]])
+            scan(td, records=[firms()[0]])
             index = Path(td) / "archive" / "CIK0000000042" / "index.json"
             obj = json.loads(index.read_text())
             obj["captured_at_utc"] = "2026-10-25T00:00:00+00:00"

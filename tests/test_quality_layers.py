@@ -1,5 +1,4 @@
 """Synthetic only: no real-company or investment-outcome claims."""
-import copy
 import json
 import pathlib
 import sqlite3

@@ -1,12 +1,14 @@
 """Explicit SEC historical baseline to v0.2 DCF with user-sourced assumptions.
 
 No automatic growth, discount rates, net debt, share count, price, or API.
+Direct use skips the sec_gap_audit source gate; prefer sec_reviewed_pipeline.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import pathlib
+import warnings
 
 from degerleme_v02 import degerle_v02
 from sec_companyfacts import build_dcf_baseline
@@ -17,6 +19,10 @@ REQUIRED_ASSUMPTIONS = frozenset((
 ))
 
 
+class UnauditedSECBaselineWarning(UserWarning):
+    """The SEC baseline was valued without passing the sec_gap_audit gate."""
+
+
 def _as_string_list(value, field):
     if not isinstance(value, list) or not value or not all(
         isinstance(item, str) and item.strip() for item in value
@@ -25,7 +31,7 @@ def _as_string_list(value, field):
     return value
 
 
-def value_sec_snapshot(snapshot, proposal):
+def value_sec_snapshot(snapshot, proposal, *, source_audited=False):
     """Produce an auditable experimental valuation, refusing missing assumptions.
 
     Proposal contains:
@@ -33,6 +39,10 @@ def value_sec_snapshot(snapshot, proposal):
     * assumption_sources: list of evidence or explicit analyst scenario sources
     * share_count_source, net_debt_source: nonempty provenance descriptions
     * scenario: optional user-defined scenario name.
+
+    source_audited=True is reserved for sec_reviewed_pipeline, which calls this
+    only after sec_gap_audit (or an approved revenue review) has passed. Any
+    other caller is warned and the result is marked as bypassing the gate.
     """
     if not isinstance(snapshot, dict) or snapshot.get("schema_version") != "sec-companyfacts-0.1.0":
         raise ValueError("unsupported SEC snapshot version")
@@ -57,6 +67,12 @@ def value_sec_snapshot(snapshot, proposal):
     valuation = degerle_v02(inputs)
     if valuation["durum"] != "gecerli":
         raise ValueError("DCF engine returned invalid valuation")
+    gate_warnings = []
+    if not source_audited:
+        message = ("SEC source audit gate (sec_gap_audit) bypassed; conflicting revenue tags "
+                   "or fiscal-period gaps were not checked. Use sec_reviewed_pipeline.")
+        warnings.warn(message, UnauditedSECBaselineWarning, stacklevel=2)
+        gate_warnings.append(message)
     return {
         "status": "experimental_not_investment_advice",
         "issuer": snapshot["company"], "cik": snapshot["cik"],
@@ -70,8 +86,9 @@ def value_sec_snapshot(snapshot, proposal):
         "net_debt_source": proposal["net_debt_source"],
         "scenario": proposal.get("scenario", "base"),
         "inputs": inputs, "valuation": valuation,
+        "source_audit_gate": "passed" if source_audited else "bypassed",
         "currency": "USD", "currency_per_share": "USD/share",
-        "warnings": list(snapshot.get("warnings", [])) + [
+        "warnings": list(snapshot.get("warnings", [])) + gate_warnings + [
             "Unverified manual assumptions are analyst inputs, not SEC historical facts",
             "No automatic stock split/dilution forecast or share count adjustment",
             "Historical FY ends need not match calendar years; forward row labels are relative years",

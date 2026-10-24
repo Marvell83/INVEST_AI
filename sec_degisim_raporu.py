@@ -12,7 +12,7 @@ import math
 from pathlib import Path
 
 from sec_finansal_degisim import VERSION
-from sec_toplu_tarama import _atomic_write
+from sec_arsiv import atomic_write
 
 
 def e(x):
@@ -148,7 +148,7 @@ def main(argv=None):
         parser.error("report and output must be separate paths")
     src = json.loads(Path(args.report).read_text(encoding="utf-8"))
     content = render_change_report(src)
-    _atomic_write(args.out, content.encode("utf-8"))
+    atomic_write(args.out, content.encode("utf-8"))
     print(f"Financial change HTML: {args.out}")
 
 

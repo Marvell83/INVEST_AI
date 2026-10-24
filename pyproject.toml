@@ -1,0 +1,15 @@
+# Tool configuration only. INVEST_AI is run from the repository root and is not
+# packaged; there are no third-party runtime dependencies (Python stdlib only).
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+# Syntax errors and pyflakes (unused/undefined names). Style is not enforced.
+select = ["E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# Frozen v0.1 contract files are kept byte-for-byte unchanged.
+"dogrulama/uretim_motoru.py" = ["F401"]
+"dogrulama/referans_motor.py" = ["F401"]

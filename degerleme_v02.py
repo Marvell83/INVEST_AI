@@ -35,7 +35,8 @@ def degerle_v02(inputs):
     satis_sermaye, vergi_orani, iskonto, uc_buyume, uc_roic, hisse.
 
     Optional: net_borc, baslangic_zarar, uc_buyume_tavani (default 0.04),
-    iskonto_zamani (yil_sonu or yil_ortasi),
+    iskonto_zamani (yil_sonu or yil_ortasi; with yil_ortasi only the explicit
+    years move to t-0.5, the terminal value is still discounted at year n),
     sbc_marjda_dahil (default True), sbc_ilave_gider_orani (default 0),
     kalici_rekabet_avantaji (default False).
 
@@ -127,6 +128,8 @@ def degerle_v02(inputs):
     terminal_reinvestment = terminal_nopat * (g_terminal / ron)
     terminal_fcff = terminal_nopat - terminal_reinvestment
     tv = terminal_fcff/(r-g_terminal)
+    # Discounted at n even with yil_ortasi (a common, conservative convention).
+    # Shifting it to n-0.5 as well would raise value by a factor of (1+r)**0.5.
     terminal_pv = tv/(1+r)**n
     enterprise = present_operating + terminal_pv
     equity = enterprise - debt

@@ -34,7 +34,7 @@ def _money(value, unit="USD"):
     scale, label = (1e12, "trilyon") if abs(value) >= 1e12 else (
         (1e9, "milyar") if abs(value) >= 1e9 else (
             (1e6, "milyon") if abs(value) >= 1e6 else (1, "")))
-    return f"{value/scale:.2f} {label} {unit}".replace("  ", " ").strip()
+    return f"{value / scale:.2f} {label} {unit}".replace("  ", " ").strip()
 
 def render_dashboard(quality, valuation=None):
     """Return self-contained, HTML-escaped, Turkish investor research layout."""
@@ -66,7 +66,7 @@ def render_dashboard(quality, valuation=None):
     complete = p.get("known_count") == 9 and isinstance(p.get("score"), int)
     score = f"{p['score']} / 9" if complete else "Tamamlanmadı"
     detail = ("9 gösterge hesaplandı" if complete else
-              f"Bilinen {p.get('known_count',0)}/9 · Olası aralık: {score_range[0]}–{score_range[1]}")
+              f"Bilinen {p.get('known_count', 0)}/9 · Olası aralık: {score_range[0]}–{score_range[1]}")
 
     credit = quality.get("credit")
     credit_rows = []
@@ -81,9 +81,9 @@ def render_dashboard(quality, valuation=None):
             status = "Yatırım yapılabilir" if grade is True else (
                 "Spekülatif" if grade is False else "Not yok / geri çekildi")
             credit_rows.append(
-                f"<tr><td>{_safe(agency)}</td><td>{_safe(item.get('rating',''))}</td>"
-                f"<td>{_safe(item.get('outlook',''))}</td><td>{_safe(status)}</td>"
-                f"<td>{_safe(item.get('published_date',''))}</td><td>{source}</td></tr>")
+                f"<tr><td>{_safe(agency)}</td><td>{_safe(item.get('rating', ''))}</td>"
+                f"<td>{_safe(item.get('outlook', ''))}</td><td>{_safe(status)}</td>"
+                f"<td>{_safe(item.get('published_date', ''))}</td><td>{source}</td></tr>")
     if not credit_rows:
         credit_rows = ["<tr><td colspan='6'>Kaynaklı kredi notu kaydı verilmedi.</td></tr>"]
 
@@ -114,10 +114,10 @@ def render_dashboard(quality, valuation=None):
                         f"<strong>{_safe(_money(dcf.get(key), unit))}</strong></div>"
                         for label, key, unit in pairs)
         pct = dcf.get("uc_deger_payi")
-        tv = f"{pct*100:.1f}%" if isinstance(pct, (int,float)) and math.isfinite(pct) else "Bilgi yok"
+        tv = f"{pct * 100:.1f}%" if isinstance(pct, (int, float)) and math.isfinite(pct) else "Bilgi yok"
         cards += f"<div class='metric'><small>Uç dönem payı</small><strong>{_safe(tv)}</strong></div>"
         dcf_section = (f"<div class='metrics'>{cards}</div>"
-                       f"<p>Motor: {_safe(dcf.get('motor_surumu','Bilinmiyor'))}</p>"
+                       f"<p>Motor: {_safe(dcf.get('motor_surumu', 'Bilinmiyor'))}</p>"
                        "<p class='muted'>Deneysel hesap; piyasa fiyatı veya tavsiye değildir.</p>")
         if quality.get("as_of") != valuation.get("historical_as_of"):
             warnings.append("Piotroski raporunun bilgi tarihi ile DCF tarihinin farklı olması sonuçları karşılaştırırken dikkate alınmalıdır.")
@@ -147,15 +147,15 @@ def render_dashboard(quality, valuation=None):
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>INVEST_AI | {_safe(name)}</title><style>{style}</style></head>
 <body><main><header class="head"><div class="brand">INVEST_AI · ARAŞTIRMA</div>
-<h1>{_safe(name)}</h1><p class="muted">CIK {_safe(cik)} · Bilgi tarihi: {_safe(quality.get('as_of',''))}
+<h1>{_safe(name)}</h1><p class="muted">CIK {_safe(cik)} · Bilgi tarihi: {_safe(quality.get('as_of', ''))}
 · Tek bileşik puan yok</p></header>
 <div class="grid"><section class="card"><h2>Piotroski F-Score</h2>
 <strong class="big">{_safe(score)}</strong><p>{_safe(detail)}</p>
 {("<div class='note'>" + _safe(sector_caution) + "</div>") if sector_caution else ""}</section>
 <section class="card"><h2>Veri kapsamı</h2>
-<p>Sektör: {_safe(p.get('sector','Bilinmiyor'))}</p>
-<p>Son mali dönem: {_safe(p.get('periods',{}).get('current_fy_end','Bilinmiyor'))}</p>
-<p>Metot: {_safe(p.get('version','Bilinmiyor'))}</p></section></div>
+<p>Sektör: {_safe(p.get('sector', 'Bilinmiyor'))}</p>
+<p>Son mali dönem: {_safe(p.get('periods', {}).get('current_fy_end', 'Bilinmiyor'))}</p>
+<p>Metot: {_safe(p.get('version', 'Bilinmiyor'))}</p></section></div>
 <section class="card"><h2>9 Piotroski koşulu</h2><div class="scroll">
 <table><thead><tr><th>Ölçüt</th><th>1/0/?</th><th>Gerekçe</th></tr></thead>
 <tbody>{''.join(rows)}</tbody></table></div></section>
@@ -171,18 +171,18 @@ Tek bir yatırım puanına dönüştürülmez.</p></div></section>
 </main></body></html>"""
 
 def main(argv=None):
-    parser=argparse.ArgumentParser(description="Render INVEST_AI offline quality dashboard")
-    parser.add_argument("--quality",required=True)
+    parser = argparse.ArgumentParser(description="Render INVEST_AI offline quality dashboard")
+    parser.add_argument("--quality", required=True)
     parser.add_argument("--valuation")
-    parser.add_argument("--out",required=True)
-    args=parser.parse_args(argv)
+    parser.add_argument("--out", required=True)
+    args = parser.parse_args(argv)
     def load(path):
         return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    rendered=render_dashboard(load(args.quality),load(args.valuation) if args.valuation else None)
-    out=pathlib.Path(args.out)
-    out.parent.mkdir(parents=True,exist_ok=True)
-    out.write_text(rendered,encoding="utf-8")
-    print("Written:",out)
+    rendered = render_dashboard(load(args.quality), load(args.valuation) if args.valuation else None)
+    out = pathlib.Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(rendered, encoding="utf-8")
+    print("Written:", out)
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
