@@ -255,6 +255,45 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(len(requests), 1)
         self.assertEqual(requests[0][0], "https://www.sec.gov/files/company_tickers.json")
 
+    def test_mapping_digest_is_grounded_to_exact_source_snapshot(self):
+        with tempfile.TemporaryDirectory() as td:
+            r = scan(td, records=[firms()[0]], offline=True, mapping=ticker_data())
+            from sec_toplu_tarama import _canonical_bytes
+            self.assertEqual(
+                r["ticker_map_sha256"],
+                hashlib.sha256(_canonical_bytes(ticker_data())).hexdigest()
+            )
+
+    def test_cli_requires_persisting_downloaded_ticker_snapshot(self):
+        with tempfile.TemporaryDirectory() as td:
+            folder = Path(td)
+            source = folder / "universe.json"
+            source.write_text(json.dumps([{"ticker": "SYN"}]))
+            params = [
+                "--universe", str(source), "--as-of", AS_OF,
+                "--online", "--download-ticker-map",
+                "--archive-dir", str(folder / "archive"),
+                "--reports-dir", str(folder / "reports"),
+                "--out-json", str(folder / "summary.json"),
+                "--out-csv", str(folder / "summary.csv"),
+            ]
+            with patch.dict("os.environ", {"SEC_USER_AGENT": "Test test@example.com"}):
+                with self.assertRaises(SystemExit):
+                    main(params)
+                # Once the ticker map is persisted, offline cache misses are
+                # reported but there is no Company Facts download in this mock.
+                with patch("sec_toplu_tarama.download_ticker_map", return_value=ticker_data()):
+                    with patch("sec_toplu_tarama.scan_universe", return_value={
+                        "version": "invest-ai-sec-batch-0.1.0",
+                        "records": [], "counts": {}, "companies_with_errors": 0,
+                        "network_requests": 1}):
+                        code = main(params + [
+                            "--ticker-map-out", str(folder / "mapping.json")])
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads((folder / "mapping.json").read_text()), ticker_data())
+            self.assertEqual(json.loads((folder / "summary.json").read_text())
+                             ["ticker_map_snapshot"], str(folder / "mapping.json"))
+
     def test_offline_cli_export_and_failure_exit(self):
         with tempfile.TemporaryDirectory() as td:
             folder = Path(td)
