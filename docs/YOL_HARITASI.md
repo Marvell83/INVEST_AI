@@ -42,7 +42,12 @@ Araştırma asistanı  (yalnız rapordaki kaynaklı verilere dayanan yorum)
    - ~~hisse sayısı (dei kapak sayfası)~~ tamam (tablolar v0.2),
    - menkul kıymetler ve kira yükümlülükleri,
    - çeyreklik ve TTM oranları.
-2. **Motorları ortak katmana taşı:** Piotroski ve TTM motorları, sonuçları değişmediği regresyon testleriyle gösterilerek tek okuyucuya geçirilir.
+2. **Motorları ortak katmana taşı:**
+   - ~~Önce mutabakat~~ tamam (`katman_mutabakati.py`). Her rapor Piotroski ve TTM girdilerini ortak katmanla karşılaştırır, farkları gösterir.
+   - **Açık karar:** Piotroski gelir etiketlerinde %5'e kadar farkı kabul ediyor, ortak katman %0,5'te duruyor. Taşıma bu eşiklerden birinde birleşmeyi gerektirir:
+     - %0,5'te birleşirse etiketleri %0,5–%5 arası ayrışan şirketlerde Piotroski göstergeleri "bilinmiyor" olur ve 117 şirketlik kapsam raporundaki sayılar değişir.
+     - %5'te birleşirse ortak tablolar daha fazla belirsiz değer kabul eder.
+   - Karar, gerçek SEC verisiyle mutabakat raporlarında kaç şirketin etkilendiği görüldükten sonra verilmeli.
 3. **Tahmin motoru (Ders 6):**
    - Sistem varsayım uydurmama ilkesini korur. "Taban" projeksiyon yalnız açık bir yöntemle üretilir (ör. geçmiş büyümenin sönümlenmesi, marjın tarihsel ortalamaya dönmesi) ve öyle etiketlenir.
    - Analist varsayımları ayrı ve kaynaklı tutulur.

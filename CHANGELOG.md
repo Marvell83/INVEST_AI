@@ -5,6 +5,22 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-24 — Katman mutabakatı v0.1
+
+- **`katman_mutabakati.py` (yeni):** Her araştırma raporunda iki kontrol yapar; hiçbir motorun sonucunu
+  değiştirmez.
+  - Piotroski'nin kullandığı her SEC kaydını aynı yılın ortak tablo hücresiyle karşılaştırır (tutar ve SEC
+    dosyası).
+  - Mutabık TTM'i, TTM bitişinde sona eren art arda dört ortak çeyreğin toplamıyla karşılaştırır (%0,1'e
+    kadarki fark yuvarlama sayılır).
+- **Rapor:** JSON'a `layer_reconciliation` eklendi; HTML'de "Katman mutabakatı" bölümü var. Dikkat gerektiren
+  fark açık eksiklere eklenir: `SHARED_STATEMENTS_DIFFER_FROM_PIOTROSKI_INPUTS`,
+  `SHARED_QUARTERS_DIFFER_FROM_TTM`.
+- **Bulgu:** Piotroski gelir etiketlerinde %5'e kadar farkı kabul ediyor, ortak katman %0,5'te duruyor.
+  Piotroski'nin ortak katmana taşınması bu yüzden bir eşik kararı gerektiriyor
+  ([docs/YOL_HARITASI.md](docs/YOL_HARITASI.md)).
+- **Testler:** 15 yeni test. Toplam `tests/` 427/427.
+
 ## 2026-10-24 — Finansal tablolar v0.2: çeyreklik tablolar ve hisse sayısı
 
 - **`build_quarterly_statements()`:** Son 8 (en çok 40) ayrık mali çeyrek: gelir tablosu, nakit akışı ve
