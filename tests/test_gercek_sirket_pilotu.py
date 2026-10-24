@@ -57,6 +57,32 @@ class PilotTests(unittest.TestCase):
         self.assertNotIn("<script>",page)
         self.assertIn("&lt;script&gt;",page)
 
+    def test_source_section_precedes_report_footer_and_closes_once(self):
+        out, page = self.result()
+        self.assertLess(page.index("Gerçek SEC kanıtları"), page.index("INVEST_AI quality-panel-0.1.0"))
+        self.assertEqual(page.count("</main>"), 1)
+        self.assertEqual(page.count("</body>"), 1)
+        self.assertEqual(page.count("</html>"), 1)
+        self.assertTrue(page.strip().endswith("</html>"))
+        self.assertEqual(out["annual_period_age_days"], 60)
+
+    def test_old_annual_data_has_explicit_stale_scope_warning(self):
+        out, page = build_pilot(
+            fixture(), as_of="2026-10-21", expected_cik=42,
+            expected_fiscal_end="2024-12-31", sector="non_financial")
+        self.assertGreater(out["annual_period_age_days"], 365)
+        self.assertIn("Veri kapsamı uyarısı", page)
+        self.assertIn("10-Q", page)
+        self.assertLess(page.index("Veri kapsamı uyarısı"), page.index("INVEST_AI quality-panel-0.1.0"))
+
+    def test_committed_apple_example_reports_scope_and_valid_footer_position(self):
+        page = (pathlib.Path(__file__).resolve().parent.parent /
+                "reports/Apple_SEC_Piotroski_2026-10-21.html").read_text(encoding="utf-8")
+        self.assertIn("2026'da yayımlanmış ara dönem 10-Q", page)
+        self.assertLess(page.index("Gerçek SEC kanıtları"), page.index("<footer>"))
+        self.assertEqual(page.count("</main>"), 1)
+        self.assertEqual(page.count("</html>"), 1)
+
     def test_cli_roundtrip(self):
         with tempfile.TemporaryDirectory() as d:
             root=pathlib.Path(d)

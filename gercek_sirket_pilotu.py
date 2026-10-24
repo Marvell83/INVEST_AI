@@ -131,9 +131,20 @@ def build_pilot(raw_companyfacts, *, as_of, expected_cik,
     <p>As-of filtresi gelecekte yayımlanmış olguları dışlar; fakat
     eski bir arşivin tüm bilgilere sahip olduğunu kanıtlamaz.</p></section>
     """
-    if "</main>" not in view:
-        raise ValueError("dashboard HTML closing marker not found")
-    view = view.replace("</main>", section + "</main>", 1)
+    # Source tables belong before the document's final summary, not after it.
+    footer_anchor = '<p class="muted">INVEST_AI '
+    if footer_anchor not in view or "</main>" not in view:
+        raise ValueError("dashboard HTML footer or closing marker missing")
+    age_days = (_iso(as_of) - _iso(end)).days
+    report["annual_period_age_days"] = age_days
+    stale_warning = (
+        "<div class='note'><strong>Veri kapsamı uyarısı:</strong> "
+        "Yıllık bilanço dönemi bilgi kesme tarihinden "
+        + str(age_days) +
+        " gün önce sona erdi. Bu pilot yalnızca yıllık finansal kalite verilerini "
+        "inceler; sonraki ara dönem 10-Q kayıtlarını içermez.</div>"
+        if age_days > 365 else "")
+    view = view.replace(footer_anchor, stale_warning + section + footer_anchor, 1)
     return report, view
 
 
