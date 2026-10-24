@@ -162,6 +162,11 @@ class ResearchService:
         _atomic_write(out_html, page.encode("utf-8"))
         p = result["quality"]["piotroski"]
         ttm = result["ttm_crosscheck"]
+        reasons = p.get("missing_reasons", {})
+        annual_history_missing = (
+            p.get("known_count") == 0 and len(reasons) == 9
+            and set(reasons.values()) == {"TWO_COMPARABLE_ANNUAL_INCOME_PERIODS_REQUIRED"}
+        )
         return {
             "ok": True, "company": result["company"], "ticker": ticker,
             "cik": result["cik"], "as_of": as_of, "mode": mode,
@@ -170,6 +175,8 @@ class ResearchService:
             "ttm_end": ttm.get("primary", {}).get("periods", {}).get("current_9m_end"),
             "ttm_status": ttm["status"], "piotroski_score": p["score"],
             "piotroski_status": p["status"], "sector": sector,
+            "piotroski_known_count": p["known_count"],
+            "piotroski_missing_annual_history": annual_history_missing,
             "piotroski_range": p["score_range"], "research_gaps": result["research_gaps"],
             "report_url": "/" + out_html.relative_to(self.root).as_posix(),
             "no_investment_advice": True,
