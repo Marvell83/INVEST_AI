@@ -106,6 +106,19 @@
     .viewer iframe { display:block; border:0; background:white; width:100%; min-height:680px; height:76vh; }
     .notice { border-left:3px solid var(--warn); border-radius:8px;
       padding:12px 15px; color:#e0cda5; background:#30261e; font-size:12px; margin-top:20px; }
+    .web-form{background:var(--surface);border:1px solid #3d5879;border-radius:16px;padding:23px;margin:20px 0;}
+    .field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;}
+    .form-field{display:grid;gap:7px;}
+    .form-field label{font-size:13px;color:#b8cae2;}
+    .web-input{width:100%;border:1px solid #496381;background:#0c1728;color:var(--text);
+      border-radius:10px;padding:12px 13px;outline-offset:2px;}
+    .web-input:focus{border-color:#76b6fa;}
+    .web-help{font-size:12px;color:var(--muted);margin-top:11px;}
+    .web-result{background:#102941;border:1px solid #467aab;border-radius:13px;
+      padding:15px;margin-top:16px;overflow-wrap:anywhere;}
+    .web-result.error{background:#322025;border-color:#8d4353;color:#ffd9df;}
+    .web-result strong{display:block;margin-bottom:7px;}
+    .web-result p{margin:4px 0 12px;font-size:13px;color:#c1d4e8;}
     .hidden { display:none !important; }
     .screen { margin-top:22px; }
     .footer { margin:35px 0 0; color:#8398b4; font-size:12px; }
@@ -121,7 +134,7 @@
       .main { padding:24px 17px 40px; }
     }
     @media (max-width:650px) {
-      .report-grid,.feature-grid { grid-template-columns:1fr; }
+      .field-grid,.report-grid,.feature-grid { grid-template-columns:1fr; }
       .metrics { grid-template-columns:1fr 1fr; }
       .top-note { display:none; }
       .viewer iframe { min-height:500px; }
@@ -196,8 +209,48 @@
     </section>
 
     <section id="screen-araclar" class="screen hidden">
-      <h1>Analiz çalıştır</h1>
-      <p class="muted">Bu merkez raporları görüntüler. Yeni rapor üretmek için Codespaces terminaline aşağıdaki komutlardan birini yapıştır.</p>
+      <h1>Şirket analiz merkezi</h1>
+      <p class="muted">Hisse kodunu girip SEC kaynaklı finansal araştırmayı doğrudan başlat. İlk test için Apple örnek verisini seçebilirsin.</p>
+      <form id="web-analysis-form" class="web-form" autocomplete="off">
+        <h2>Yeni şirket araştırması</h2>
+        <p id="server-status" class="web-help" role="status">Python analiz sunucusu kontrol ediliyor…</p>
+        <div class="field-grid">
+          <div class="form-field">
+            <label for="analysis-ticker">Hisse kodu</label>
+            <input id="analysis-ticker" class="web-input" name="ticker" value="AAPL"
+              maxlength="15" required pattern="[A-Za-z][A-Za-z0-9.\\-]{0,14}"
+              placeholder="AAPL, MSFT, NVDA..." autocapitalize="characters">
+          </div>
+          <div class="form-field">
+            <label for="analysis-mode">Veri kaynağı</label>
+            <select id="analysis-mode" class="web-input">
+              <option value="demo">Apple örneği (internetsiz)</option>
+              <option value="live">Güncel SEC Company Facts</option>
+              <option value="cache">Önceden kaydedilmiş SEC verisi</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="analysis-sector">Şirketin muhasebe sektörü (analist seçimi)</label>
+            <select id="analysis-sector" class="web-input">
+              <option value="unknown">Bilinmiyor — Piotroski kesin puanlanmaz</option>
+              <option value="non_financial">Finans dışı şirket (doğrulandı)</option>
+              <option value="financial">Finans kuruluşu — ayrı yöntem gerekli</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="analysis-key">Web analiz anahtarı</label>
+            <input id="analysis-key" class="web-input" type="password"
+              placeholder="Sunucu terminalinde gösterilen anahtar" autocomplete="off" required>
+          </div>
+        </div>
+        <p class="web-help">Örnek mod yalnız AAPL ile çalışır ve 2026-10-21 tarihli manuel aktarımı kullanır.
+          Güncel SEC modu internete ve gerçek iletişim adresiyle yapılandırılmış SEC_USER_AGENT'a ihtiyaç duyar.
+          Sektör seçimini otomatik tahmin etmiyoruz. Anahtar tarayıcıda kaydedilmez.</p>
+        <button id="analyze-submit" type="submit" class="btn primary" style="margin-top:16px">Şirketi analiz et →</button>
+        <div id="web-analysis-result" aria-live="polite" role="status"></div>
+      </form>
+      <div class="section-top"><div><h2>Geliştirici komutları</h2>
+        <p>İleri düzey kullanım ve test için terminal alternatifleri.</p></div></div>
       <div class="tools">
         <div class="tool">
           <h3>Apple — hazır örnek şirket araştırması</h3>
@@ -219,7 +272,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
           <div class="tool-actions"><button type="button" class="btn" data-copy="command-tests">Komutu kopyala</button></div>
         </div>
       </div>
-      <div class="notice">Komutu terminalde çalıştırdıktan sonra <strong>Raporlarım → Listeyi yenile</strong> ile yeni HTML raporunu bulabilirsin. Bu ana sayfa yatırım analizi hesaplamalarını tarayıcı içinde çalıştırmaz.</div>
+      <div class="notice">Web analiz formu için <strong>python3 invest_ai_web.py</strong> komutuyla yeni sunucuyu başlatmalısın. Eski <code>python3 -m http.server 8000</code> yalnız statik rapor gösterir. Codespaces bağlantı noktasını PRIVATE tut.</div>
     </section>
 
     <section id="screen-hakkinda" class="screen hidden">
@@ -227,7 +280,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       <div class="tools">
         <div class="tool"><h3>INVEST_AI nedir?</h3>
           <p>Şirketlerin SEC kaynaklı finansal açıklamalarını araştırmak, muhasebe verilerindeki boşlukları ve tarihli değişimleri görünür kılmak için geliştirilmekte olan ücretsiz Python araştırma altyapısıdır.</p>
-          <p>Bu sayfa yalnız HTML raporlarına erişim sağlar. SEC verilerinin bağımsız doğrulandığını, otomatik hisse keşif sıralamasının hazır olduğunu veya hedef fiyatların güvenilir olduğunu iddia etmez.</p></div>
+          <p>Python araştırma sunucusu etkinse siteden şirket analizi başlatılabilir; SEC'nin bağımsız doğrulandığını, otomatik hisse keşif sıralamasının hazır olduğunu veya hedef fiyatların güvenilir olduğunu iddia etmez.</p></div>
         <div class="tool"><h3>Kaynaklar</h3>
           <p><a href="https://github.com/Marvell83/INVEST_AI" target="_blank" rel="noopener noreferrer">GitHub deposu ↗</a></p>
           <p><a href="https://github.com/Marvell83/INVEST_AI/blob/main/docs/SIRKET_ARASTIRMA_AKISI_V01.md" target="_blank" rel="noopener noreferrer">Şirket analizi kullanım rehberi ↗</a></p>
@@ -416,6 +469,86 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       busy = false;
     }
   }
+
+
+  async function checkResearchServer() {
+    const status = document.getElementById("server-status");
+    try {
+      const response = await fetch("/api/health", { cache: "no-store" });
+      if (!response.ok) throw new Error("offline");
+      const data = await response.json();
+      if (!data.api_available) throw new Error("offline");
+      status.textContent = data.online_configured
+        ? "● Analiz sunucusu hazır · Güncel SEC erişimi yapılandırılmış."
+        : "● Analiz sunucusu hazır · Güncel SEC için SEC_USER_AGENT gerekli.";
+    } catch (_) {
+      status.textContent = "Analiz API'si kapalı. Terminalde eski sunucuyu Ctrl+C ile durdur; python3 invest_ai_web.py çalıştır.";
+    }
+  }
+
+  function showAnalysisResult(data, isError) {
+    const host = document.getElementById("web-analysis-result");
+    host.replaceChildren();
+    const container = document.createElement("div");
+    container.className = "web-result" + (isError ? " error" : "");
+    const heading = document.createElement("strong");
+    heading.textContent = isError ? "Analiz tamamlanamadı" : ((data.company || data.ticker) + " · Araştırma oluşturuldu");
+    container.append(heading);
+    const description = document.createElement("p");
+    description.textContent = isError ? (data.error || "Bilinmeyen hata") :
+      ("Kaynak: " + data.source + " | Bilgi tarihi: " + data.as_of +
+       " | Yıllık dönem: " + (data.annual_end || "Eksik") +
+       " | TTM: " + data.ttm_status +
+       " | Piotroski: " + (data.piotroski_score === null ? "Eksik" : data.piotroski_score));
+    container.append(description);
+    if (!isError && typeof data.report_url === "string" &&
+        /^\/reports\/[A-Za-z0-9_./-]+\.html$/.test(data.report_url)) {
+      const url = new URL(data.report_url, document.baseURI);
+      if (insideReports(url)) {
+        const report = {name: data.company + " " + data.mode + " " + data.as_of,
+          path: data.report_url.slice(1), category:"Şirket araştırması", url:url.href};
+        const open = document.createElement("button");
+        open.className = "btn primary";
+        open.type = "button";
+        open.textContent = "Raporu sitede aç →";
+        open.addEventListener("click", () => reportCard(report).click());
+        container.append(open);
+      }
+    }
+    host.append(container);
+  }
+
+  const analysisForm = document.getElementById("web-analysis-form");
+  analysisForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const submit = document.getElementById("analyze-submit");
+    const ticker = document.getElementById("analysis-ticker").value.trim().toUpperCase();
+    const mode = document.getElementById("analysis-mode").value;
+    const sector = document.getElementById("analysis-sector").value;
+    const key = document.getElementById("analysis-key").value;
+    if (!/^[A-Z][A-Z0-9.\-]{0,14}$/.test(ticker) || !key) {
+      showAnalysisResult({error:"Geçerli bir hisse kodu ve terminalden alınmış anahtar gerekli."}, true);
+      return;
+    }
+    submit.disabled = true;
+    submit.textContent = "Finansallar inceleniyor…";
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST", credentials: "same-origin",
+        headers: {"Content-Type":"application/json", "X-Invest-AI-Key":key},
+        body: JSON.stringify({ticker,mode,sector}),
+      });
+      const data = await response.json();
+      showAnalysisResult(data, !response.ok);
+      if (response.ok) await refresh();
+    } catch (_) {
+      showAnalysisResult({error:"Python analiz API'sine bağlanılamadı. Sunucu terminalini kontrol et."}, true);
+    } finally {
+      submit.disabled = false;
+      submit.textContent = "Şirketi analiz et →";
+    }
+  });
+  checkResearchServer();
 
   for (const button of document.querySelectorAll("[data-screen], [data-go]")) {
     button.addEventListener("click", () => show(button.dataset.screen || button.dataset.go));
