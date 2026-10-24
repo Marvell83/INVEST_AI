@@ -15,11 +15,13 @@ import os
 from pathlib import Path
 import re
 
+from finansal_oranlar import compute_ratios
+from finansal_tablolar import build_annual_statements
 from kredi_notlari import company_quality_snapshot
 from sec_companyfacts import SEC_DATA, _validate_cik, download_companyfacts
 from sec_gap_audit import audit_company
 from sec_ttm_crosscheck import audit_ttm
-from sirket_analiz_paneli import render_dashboard
+from sirket_analiz_paneli import render_dashboard, render_financial_sections
 
 VERSION = "invest-ai-company-research-0.1.0"
 SECTORS = ("non_financial", "financial", "unknown")
@@ -93,6 +95,10 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         }
     if ttm.get("cik") not in (None, cik):
         raise ValueError("TTM issuer differs from requested CIK")
+    statements = build_annual_statements(raw, as_of=as_of)
+    if statements["cik"] != cik:
+        raise ValueError("financial statements issuer differs from requested CIK")
+    ratios = compute_ratios(statements)
 
     p = quality["piotroski"]
     gaps = []
@@ -129,6 +135,8 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         "TTM flow arithmetic is not a future cash-flow forecast; CFO minus CapEx is not unlevered FCFF.",
         "No automatic DCF, discount rate, market price, price target, stock ranking or buy/sell recommendation.",
         "IFRS/20-F, finance-sector-specific scoring and Q1/Q2 TTM need dedicated methodologies.",
+        "Annual statements cover selected US-GAAP line items; lease liabilities, marketable securities "
+        "and segment data are not included, and historical ratios are not forecasts.",
     ]
     complete = not gaps
     return {
@@ -148,6 +156,8 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         "annual_source_audit": annual,
         "quality": quality,
         "ttm_crosscheck": ttm,
+        "financial_statements": statements,
+        "financial_ratios": ratios,
         "actual_price": None, "dcf": None, "combined_investment_score": None,
         "forecast_created": False, "investment_recommendation": None,
         "limitations": limitations,
@@ -217,7 +227,10 @@ def render_company_research(report):
     )
     if "</main>" not in base:
         raise ValueError("dashboard closing marker missing")
-    return base.replace("</main>", intro + ttm_section + notes + "</main>", 1)
+    financials = ""
+    if "financial_statements" in report:
+        financials = render_financial_sections(report["financial_statements"], report["financial_ratios"])
+    return base.replace("</main>", intro + financials + ttm_section + notes + "</main>", 1)
 
 
 def main(argv=None):
