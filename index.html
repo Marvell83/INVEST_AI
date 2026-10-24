@@ -501,6 +501,15 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
        " | TTM: " + data.ttm_status +
        " | Piotroski: " + (data.piotroski_score === null ? "Eksik" : data.piotroski_score));
     container.append(description);
+    if (!isError && data.piotroski_status === "sector_unconfirmed") {
+      const reason = document.createElement("p");
+      reason.textContent = "Piotroski hesaplanmadı: şirketin finans dışı sektörde olduğu doğrulanmadı. Bu 0 puan değildir. Sektörü doğrulayıp yeniden analiz et.";
+      container.append(reason);
+    } else if (!isError && data.piotroski_status === "not_applicable_financial_sector") {
+      const reason = document.createElement("p");
+      reason.textContent = "Piotroski hesaplanmadı: finans kuruluşları için ayrı değerlendirme yöntemi gerekli.";
+      container.append(reason);
+    }
     if (!isError && typeof data.report_url === "string" &&
         /^\/reports\/[A-Za-z0-9_./-]+\.html$/.test(data.report_url)) {
       const url = new URL(data.report_url, document.baseURI);
