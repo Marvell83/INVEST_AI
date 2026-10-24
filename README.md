@@ -322,3 +322,29 @@ Ardından zaten çalışan 8000 bağlantı noktasındaki sayfayı yenile. Yerel 
 
 **[Ana sayfa rehberi ve kullanım adımları](docs/ANA_SAYFA_V01.md).**
 
+
+## Web üzerinden doğrudan şirket araştırması — v0.2
+
+Yeni `invest_ai_web.py` sunucusu, Codespaces veya bilgisayarda çalışan mevcut INVEST_AI araştırma motorlarını **web formundan** başlatır. Böylece site artık yalnız statik HTML rapor görüntüleyici değildir. `index.html` menüsünde şirket kodu, SEC kaynak modu ve kullanıcı tarafından doğrulanacak sektör seçilir; sonuçlar `reports/research/` içinde JSON+HTML olarak saklanır ve sitede açılır.
+
+**Codespaces'te eski sunucuyu durdur** (çalışan terminalde `Ctrl+C`). Proje kökünde `git pull --ff-only origin main` ile güncelle, sonra:
+
+~~~bash
+python3 invest_ai_web.py
+~~~
+
+Terminalde basılan **WEB ANALİZ ANAHTARI** değerini yalnız sitedeki parola kutusuna gir. Codespaces `8000` portunu **Private** tut.
+
+İlk kullanımda kaynak olarak **Apple örneği (internetsiz)** seç; `AAPL`, sektörü bilinmiyor veya analist tarafından teyit edilmiş `non_financial` olarak belirle. Hesaplama raporu üretir. Bu örnek 2026-10-21 tarihli manuel SEC aktarımıdır, canlı veri değildir.
+
+Canlı SEC için gerçek iletişim e-postanla:
+
+~~~bash
+export SEC_USER_AGENT="INVEST_AI Research REAL_CONTACT@example.com"
+python3 invest_ai_web.py
+~~~
+
+Web sitesinde veri kaynağı **Güncel SEC Company Facts** seç, sembol ve sektör girdilerini doldur. Sunucu resmî SEC ticker haritasından CIK çözer, ham Company Facts dosyasını SHA-256 sürümüyle arşivler ve mevcut yıllık kaynak denetimi/Piotroski/TTM motorunu çalıştırır. `cache` seçeneği önceden indirilen arşivleri ağ isteği olmadan kullanır. Eksik/çelişkili veri, tamamlanmış puan gibi gösterilmez. DCF, canlı fiyat, yeni abonelik veya al/sat önerisi üretilmez.
+
+**[Web analiz rehberi: adım adım kurulum, güvenlik ve test](docs/WEB_SIRKET_ANALIZI_V02.md).**
+
