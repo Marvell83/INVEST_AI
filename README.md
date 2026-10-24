@@ -213,3 +213,17 @@ Kullanım, kaynak ve sınırlamalar: [docs/TTM_FINANSAL_MOTORU_V01.md](docs/TTM_
 Apple'ın Haziran 2026 sonunda biten TTM kontrolü: **466,823 milyar USD gelir**, **154,859 milyar USD EBIT**, **146,724 milyar USD faaliyet nakit akışı**, **10,041 milyar USD CapEx**. Bunlar 18 Ekim tarihli yerel arşivdeki kayıtlarla hesaplanmıştır; daha yeni bildirimin yokluğu kanıtlanmış değildir. `CFO - CapEx` otomatik olarak FCFF değildir. Bağımsız testlerde 12/12 başarı; GitHub Actions sonucu ayrıca teyit edilmeli.
 
 Komutlar ve kaynak mutabakatı: [docs/SEC_TTM_V01_APPLE.md](docs/SEC_TTM_V01_APPLE.md). TTM'nin tek başına DCF'yi otomatik ve güvenilir hedef fiyata dönüştürmediğine dikkat edin.
+
+
+## SEC TTM çift motor mutabakatı (24 Ekim 2026)
+
+`sec_ttm_crosscheck.py`, aynı ham SEC Company Facts JSON'u üzerinde `ttm_finansallar.py` ve `sec_ttm.py` hesaplarını karşılaştırır. Gelir, EBIT, CFO, CapEx tutarlarının yanı sıra dönem başlangıcı/bitişi, filing tarihi, SEC accession ve XBRL kavramı eşleşmelidir. Fark varsa otomatik mutabakat engellenir. Resmî SEC indirme isteğe bağlıdır; internet gerektirmeyen dosya modu ve indirilen ham JSON'u saklama seçeneği vardır. **Bu kontrol, ham dosyanın gerçekliğini bağımsız doğrulamaz; CFO-CapEx FCFF değildir; otomatik DCF üretmez.**
+
+Windows PowerShell'de (iletişim adresinizi değiştirin):
+
+```powershell
+$env:SEC_USER_AGENT = "INVEST_AI Research your-real-email@example.com"
+python sec_ttm_crosscheck.py --cik 320193 --as-of 2026-10-24 --download --snapshot-out apple_companyfacts_raw.json --out apple_ttm_audit.json
+```
+
+Sözleşme, çevrimdışı çalışma, hata durumları ve testler: [SEC TTM çift motor rehberi](docs/SEC_TTM_CROSSCHECK_V01.md).
