@@ -5,6 +5,25 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-24 — Finansal tablolar v0.2: çeyreklik tablolar ve hisse sayısı
+
+- **`build_quarterly_statements()`:** Son 8 (en çok 40) ayrık mali çeyrek: gelir tablosu, nakit akışı ve
+  çeyrek sonu bilançosu.
+  - Bildirilmiş 3 aylık değer yoksa aynı XBRL kavramının iki YTD değerinin farkı alınır.
+  - 4. çeyrek = yıllık 10-K − 9 aylık 10-Q.
+  - Türetilen hücreler iki SEC dosyasını da `sources` alanında taşır.
+  - Ortalama hisse sayısının farkı alınmaz.
+  - Devam eden mali yıl listelenir; sınırları bilinmeyen çeyrek listelenmez.
+  - Son 4 çeyreğin toplamı mevcut `sec_ttm` TTM sonucuyla birebir eşleşir (testle sınanır).
+- **`shares_outstanding()`:** Kapak sayfası `dei:EntityCommonStockSharesOutstanding`; birden fazla hisse
+  sınıfı değeri toplanmaz, `CONFLICT` olarak işaretlenir. Yıllık ve çeyreklik çıktılarda yer alır.
+- **Okuyucu:** Form ve süre kuralı parametreli, önbellekli tek okuyucu. Yıllık çıktı değişmedi; yalnız
+  `shares_outstanding` alanı eklendi ve çelişki listesi `start`/`end` alanlarıyla verilir. Sürüm
+  `finansal-tablolar-0.2.0`.
+- **Rapor:** Araştırma JSON'una `quarterly_statements` eklendi. HTML'de "Çeyreklik tablolar" bölümü ve yıllık
+  tablonun altında dolaşımdaki hisse satırı var.
+- **Testler:** 23 yeni test (`tests/test_finansal_ceyrekler.py`). Toplam `tests/` 412/412.
+
 ## 2026-10-24 — Finansal tablolar ve oranlar v0.1 (yol haritası 1. aşama)
 
 - **`finansal_tablolar.py` (yeni):** SEC Company Facts verisini tek bir kurallar setiyle okuyan, tarihli ve

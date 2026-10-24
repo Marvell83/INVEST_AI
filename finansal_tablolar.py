@@ -1,26 +1,31 @@
-"""INVEST_AI — point-in-time, source-traced annual financial statements.
+"""INVEST_AI — point-in-time, source-traced annual and quarterly financial statements.
 
-One shared layer that reads SEC Company Facts (US-GAAP, annual 10-K / 10-K/A)
-with uniform rules, so that ratio, quality, forecast and valuation engines do
-not each pick XBRL tags on their own. Every value keeps its concept, accession,
+One shared layer that reads SEC Company Facts (US-GAAP, 10-K / 10-Q) with
+uniform rules, so that ratio, quality, forecast and valuation engines do not
+each pick XBRL tags on their own. Every value keeps its concept, accession,
 form, filed date and period. Missing is never zero; conflicting aliases are
 reported, not resolved. Facts filed after `as_of` are invisible.
 
-SEC `fy` / `fp` fields describe the FILING, not the fact, so fiscal years are
-identified only from each fact's own start/end dates.
+SEC `fy` / `fp` fields describe the FILING, not the fact, so fiscal years and
+quarters are identified only from each fact's own start/end dates.
 """
 from __future__ import annotations
 
+from collections import Counter
 import datetime as dt
 import math
 
 from sec_companyfacts import METRICS, SEC_DATA, _date, _validate_cik
 
-VERSION = "finansal-tablolar-0.1.0"
+VERSION = "finansal-tablolar-0.2.0"
 ANNUAL_FORMS = frozenset(("10-K", "10-K/A"))
+QUARTERLY_FORMS = frozenset(("10-Q", "10-Q/A", "10-K", "10-K/A"))
 ALIAS_TOLERANCE = 0.005  # ambiguity guard between XBRL aliases, not an accounting standard
 MAX_YEARS = 10
+MAX_QUARTERS = 40
 STATEMENTS = ("income", "cash_flow", "balance")
+# Fiscal year-to-date lengths in days for Q1, Q2 and Q3 (52/53-week years included).
+YTD_DAYS = {1: (80, 110), 2: (170, 200), 3: (240, 310)}
 
 # key: (statement, flow/instant, unit, Turkish label, aliases in priority order)
 LINE_ITEMS = {
@@ -76,6 +81,9 @@ DERIVED_ITEMS = {
     "total_debt": ("balance", "USD", "Toplam finansal borç (kira yükümlülükleri hariç)"),
 }
 ANCHOR_ITEMS = ("revenue", "net_income", "operating_income", "cfo")
+# Weighted-average share counts are not additive: a YTD difference is meaningless.
+NON_ADDITIVE = frozenset(("diluted_shares",))
+SHARES_OUTSTANDING_CONCEPT = "EntityCommonStockSharesOutstanding"
 
 
 def _number(value):
@@ -83,12 +91,15 @@ def _number(value):
             and math.isfinite(value) and abs(value) < 1e30)
 
 
-def _facts(raw, tag, unit, cutoff, instant):
-    """All time-eligible annual-filing facts of one concept, keyed by period."""
+def _facts(raw, tag, unit, cutoff, instant, forms, days):
+    """All time-eligible facts of one concept from `forms`, keyed by period.
+
+    `days` bounds flow durations; None keeps every duration for exact-period lookups.
+    """
     rows = raw["facts"].get("us-gaap", {}).get(tag, {}).get("units", {}).get(unit, [])
     by_period = {}
     for row in rows:
-        if not isinstance(row, dict) or row.get("form") not in ANNUAL_FORMS:
+        if not isinstance(row, dict) or row.get("form") not in forms:
             continue
         if not isinstance(row.get("accn"), str) or not row["accn"] or not _number(row.get("val")):
             continue
@@ -99,7 +110,7 @@ def _facts(raw, tag, unit, cutoff, instant):
             continue
         if end > cutoff or filed > cutoff:
             continue
-        if not instant and not 330 <= (end - start).days + 1 <= 400:
+        if not instant and (start > end or (days and not days[0] <= (end - start).days + 1 <= days[1])):
             continue
         fact = {"value": float(row["val"]), "unit": unit, "concept": tag,
                 "start": None if instant else start.isoformat(), "end": end.isoformat(),
@@ -108,9 +119,21 @@ def _facts(raw, tag, unit, cutoff, instant):
     return by_period
 
 
+def _reader(raw, cutoff, forms, days):
+    """Memoised `read(tag, unit, instant)` for one form set and duration rule."""
+    cache = {}
+
+    def read(tag, unit, instant):
+        key = (tag, unit, instant)
+        if key not in cache:
+            cache[key] = _facts(raw, tag, unit, cutoff, instant, forms, days)
+        return cache[key]
+    return read
+
+
 def _latest(versions):
     """Latest filing wins (restatements); keep the first-reported value visible."""
-    ordered = sorted(versions, key=lambda f: (f["filed"], f["form"] == "10-K/A", f["accession"]))
+    ordered = sorted(versions, key=lambda f: (f["filed"], f["form"].endswith("/A"), f["accession"]))
     chosen = dict(ordered[-1])
     first = ordered[0]
     chosen["revised"] = any(f["value"] != chosen["value"] for f in ordered)
@@ -120,12 +143,12 @@ def _latest(versions):
     return chosen
 
 
-def _fiscal_years(raw, cutoff):
+def _fiscal_years(read):
     """Annual (start, end) periods seen on anchor items, most recent first."""
     starts_by_end = {}
     for key in ANCHOR_ITEMS:
         for tag in LINE_ITEMS[key][4]:
-            for start, end in _facts(raw, tag, "USD", cutoff, False):
+            for start, end in read(tag, "USD", False):
                 starts_by_end.setdefault(end, {}).setdefault(start, 0)
                 starts_by_end[end][start] += 1
     years = []
@@ -135,13 +158,14 @@ def _fiscal_years(raw, cutoff):
     return sorted(years, key=lambda y: y["end"], reverse=True)
 
 
-def _cell(raw, key, year, cutoff):
+def _cell(read, key, start, end):
+    """One line item for one exact period; `start` is ignored for balance items."""
     statement, kind, unit, label, tags = LINE_ITEMS[key]
     instant = kind == "instant"
-    period = (None if instant else year["start"], year["end"])
+    period = (None if instant else start, end)
     found = []
     for tag in tags:
-        versions = _facts(raw, tag, unit, cutoff, instant).get(period)
+        versions = read(tag, unit, instant).get(period)
         if versions:
             found.append(_latest(versions))
     if not found:
@@ -157,30 +181,40 @@ def _cell(raw, key, year, cutoff):
     return cell
 
 
+def _known(cell):
+    return cell["status"] in ("REPORTED", "DERIVED")
+
+
+def _sources(cell):
+    """SEC filings behind a value: one for a reported fact, two for a YTD difference."""
+    return tuple(sorted(cell.get("sources") or (cell["accession"],)))
+
+
 def _same_filing(*cells):
-    return len({c["accession"] for c in cells}) == 1
+    return len({_sources(c) for c in cells}) == 1
 
 
 def _derive(year):
     income, cash_flow, balance = year["income"], year["cash_flow"], year["balance"]
     revenue, cost = income["revenue"], income["cost_of_revenue"]
     if income["gross_profit"]["status"] == "MISSING":
-        if revenue["status"] == "REPORTED" and cost["status"] == "REPORTED" and _same_filing(revenue, cost):
+        if _known(revenue) and _known(cost) and _same_filing(revenue, cost):
             income["gross_profit"] = {
                 "status": "DERIVED", "value": revenue["value"] - cost["value"], "unit": "USD",
                 "method": "REVENUE_MINUS_COST_OF_REVENUE_SAME_FILING",
                 "accession": revenue["accession"], "filed": revenue["filed"],
+                "sources": list(_sources(revenue)),
                 "derivation": {"revenue": revenue["concept"], "cost_of_revenue": cost["concept"]}}
 
     cfo, capex = cash_flow["cfo"], cash_flow["capex"]
-    if cfo["status"] == "REPORTED" and capex["status"] == "REPORTED" and _same_filing(cfo, capex):
+    if _known(cfo) and _known(capex) and _same_filing(cfo, capex):
         cash_flow["free_cash_flow"] = {
             "status": "DERIVED", "value": cfo["value"] - capex["value"], "unit": "USD",
             "method": "CFO_MINUS_CAPEX_SAME_FILING", "is_fcff": False,
-            "accession": cfo["accession"], "filed": cfo["filed"]}
+            "accession": cfo["accession"], "filed": cfo["filed"], "sources": list(_sources(cfo))}
     else:
         reason = ("CFO_AND_CAPEX_FROM_DIFFERENT_FILINGS"
-                  if cfo["status"] == capex["status"] == "REPORTED" else "CFO_OR_CAPEX_UNAVAILABLE")
+                  if _known(cfo) and _known(capex) else "CFO_OR_CAPEX_UNAVAILABLE")
         cash_flow["free_cash_flow"] = {"status": "MISSING", "value": None, "unit": "USD",
                                        "reason": reason}
 
@@ -223,19 +257,14 @@ def build_annual_statements(raw, *, as_of, years=5):
     A company with no eligible annual 10-K data returns status NO_ANNUAL_PERIODS
     rather than raising, so a research report can still show the gap.
     """
-    cutoff = _date(as_of)
-    if isinstance(years, bool) or not isinstance(years, int) or not 1 <= years <= MAX_YEARS:
-        raise ValueError(f"years must be an integer in 1..{MAX_YEARS}")
-    if not isinstance(raw, dict) or not isinstance(raw.get("facts"), dict):
-        raise ValueError("raw SEC Company Facts object required")
-    cik = _validate_cik(raw.get("cik"))
-    periods = _fiscal_years(raw, cutoff)[:years]
+    cutoff, cik = _validate(raw, as_of, years, MAX_YEARS, "years")
+    read = _reader(raw, cutoff, ANNUAL_FORMS, (330, 400))
     rows = []
-    for period in periods:
+    for period in _fiscal_years(read)[:years]:
         year = {"fiscal_year_start": period["start"], "fiscal_year_end": period["end"],
                 "start_ambiguous": period["start_ambiguous"]}
         for statement in STATEMENTS:
-            year[statement] = {key: _cell(raw, key, period, cutoff)
+            year[statement] = {key: _cell(read, key, period["start"], period["end"])
                                for key, spec in LINE_ITEMS.items() if spec[0] == statement}
         _derive(year)
         rows.append(year)
@@ -246,21 +275,175 @@ def build_annual_statements(raw, *, as_of, years=5):
         statuses = [row[statement][key]["status"] for row in rows]
         coverage[key] = {"available": sum(s in ("REPORTED", "DERIVED") for s in statuses),
                          "conflicts": statuses.count("CONFLICT")}
-    conflicts = [{"fiscal_year_end": row["fiscal_year_end"], "item": key,
-                  "concepts": [a["concept"] for a in cell["alternatives"]]}
-                 for row in rows for statement in STATEMENTS
-                 for key, cell in row[statement].items() if cell["status"] == "CONFLICT"]
     return {
         "version": VERSION, "cik": f"{cik:010d}", "company": raw.get("entityName", ""),
         "as_of": as_of, "source_url": SEC_DATA.format(cik=cik),
         "status": "OK" if rows else "NO_ANNUAL_PERIODS",
-        "years": rows, "coverage": coverage, "conflicts": conflicts,
+        "years": rows, "coverage": coverage, "conflicts": _conflicts(rows),
+        "shares_outstanding": shares_outstanding(raw, as_of=as_of),
         "rules": [
             "Only 10-K / 10-K/A facts filed on or before as_of; fiscal years from fact dates, not SEC fy/fp",
             "Latest filing wins for a period; earlier differing values are kept as first_reported",
             f"XBRL aliases differing by more than {ALIAS_TOLERANCE:.1%} are a CONFLICT with no value",
             "Missing values are null, never zero; derived values require one SEC filing",
             "Outflows (CapEx, dividends, repurchases) are positive payments as reported",
+        ],
+    }
+
+
+def _validate(raw, as_of, count, maximum, name):
+    cutoff = _date(as_of)
+    if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= maximum:
+        raise ValueError(f"{name} must be an integer in 1..{maximum}")
+    if not isinstance(raw, dict) or not isinstance(raw.get("facts"), dict):
+        raise ValueError("raw SEC Company Facts object required")
+    return cutoff, _validate_cik(raw.get("cik"))
+
+
+def _conflicts(rows):
+    return [{"start": row.get("start", row.get("fiscal_year_start")),
+             "end": row.get("end", row.get("fiscal_year_end")), "item": key,
+             "concepts": [a["concept"] for a in cell.get("alternatives", [])]}
+            for row in rows for statement in STATEMENTS
+            for key, cell in row[statement].items() if cell["status"] == "CONFLICT"]
+
+
+def shares_outstanding(raw, *, as_of):
+    """Latest cover-page share count (dei) filed on or before `as_of`.
+
+    Multi-class issuers may report one value per class in the same filing; those
+    are not summed or picked from, they are reported as a CONFLICT.
+    """
+    cutoff = _date(as_of)
+    rows = raw["facts"].get("dei", {}).get(SHARES_OUTSTANDING_CONCEPT, {}).get("units", {}).get("shares", [])
+    eligible = []
+    for row in rows:
+        if not isinstance(row, dict) or row.get("form") not in QUARTERLY_FORMS:
+            continue
+        if not isinstance(row.get("accn"), str) or not row["accn"] or not _number(row.get("val")):
+            continue
+        try:
+            end, filed = _date(row.get("end")), _date(row.get("filed"))
+        except ValueError:
+            continue
+        if end <= cutoff and filed <= cutoff:
+            eligible.append({"value": float(row["val"]), "unit": "shares",
+                             "concept": "dei:" + SHARES_OUTSTANDING_CONCEPT, "date": end.isoformat(),
+                             "filed": filed.isoformat(), "accession": row["accn"], "form": row["form"]})
+    if not eligible:
+        return {"status": "MISSING", "value": None, "unit": "shares", "reason": "NOT_REPORTED"}
+    latest = max(eligible, key=lambda f: (f["filed"], f["date"], f["accession"]))
+    same = [f for f in eligible if f["accession"] == latest["accession"] and f["date"] == latest["date"]]
+    if len({f["value"] for f in same}) > 1:
+        return {"status": "CONFLICT", "value": None, "unit": "shares",
+                "reason": "MULTIPLE_VALUES_POSSIBLY_SHARE_CLASSES", "alternatives": same}
+    return dict(latest, status="REPORTED")
+
+
+def _quarter_calendar(read, annual_read):
+    """Fiscal quarters from YTD facts that begin on a fiscal-year start, newest first.
+
+    Fiscal years come from 10-K annual periods (`annual_read`), plus the year in
+    progress after the latest 10-K. A quarter is listed only when both of its
+    boundaries are known.
+    """
+    ytd_ends = {}
+    for key in ANCHOR_ITEMS:
+        for tag in LINE_ITEMS[key][4]:
+            for start, end in read(tag, "USD", False):
+                days = (_date(end) - _date(start)).days + 1
+                for quarter, (low, high) in YTD_DAYS.items():
+                    if low <= days <= high:
+                        ytd_ends.setdefault(start, {}).setdefault(quarter, Counter())[end] += 1
+    annual = _fiscal_years(annual_read)
+    years = [{"start": y["start"], "end": y["end"]} for y in annual]
+    if annual:
+        following = (_date(annual[0]["end"]) + dt.timedelta(days=1)).isoformat()
+        if following in ytd_ends:
+            years.insert(0, {"start": following, "end": None})
+    quarters = []
+    for year in years:
+        found = ytd_ends.get(year["start"], {})
+        bounds = [found[q].most_common(1)[0][0] if q in found else None for q in (1, 2, 3)]
+        bounds.append(year["end"])
+        # A fiscal year is named after the calendar year in which it ends.
+        expected_end = _date(year["end"]) if year["end"] else _date(year["start"]) + dt.timedelta(days=364)
+        label_year = expected_end.year
+        for index, end in enumerate(bounds, start=1):
+            previous_end = bounds[index - 2] if index > 1 else None
+            if end is None or (index > 1 and previous_end is None):
+                continue
+            start = year["start"] if index == 1 else (_date(previous_end) + dt.timedelta(days=1)).isoformat()
+            if start >= end or (year["end"] and end > year["end"]):
+                continue
+            quarters.append({"fiscal_year_start": year["start"], "fiscal_year_end": year["end"],
+                             "fiscal_year_label": f"MY{label_year}", "fiscal_quarter": index,
+                             "start": start, "end": end, "previous_ytd_end": previous_end})
+    return sorted(quarters, key=lambda q: q["end"], reverse=True)
+
+
+def _brief(cell):
+    return {k: cell[k] for k in ("value", "concept", "start", "end", "filed", "accession")}
+
+
+def _quarter_cell(read, key, quarter):
+    """A discrete quarter: reported 3-month fact, else a YTD difference of one concept."""
+    kind, unit = LINE_ITEMS[key][1], LINE_ITEMS[key][2]
+    if kind == "instant":
+        return _cell(read, key, None, quarter["end"])
+    direct = _cell(read, key, quarter["start"], quarter["end"])
+    if direct["status"] != "MISSING" or quarter["fiscal_quarter"] == 1:
+        return direct
+    if key in NON_ADDITIVE:
+        return {"status": "MISSING", "value": None, "unit": unit, "reason": "NON_ADDITIVE_NOT_DERIVED"}
+    current = _cell(read, key, quarter["fiscal_year_start"], quarter["end"])
+    previous = _cell(read, key, quarter["fiscal_year_start"], quarter["previous_ytd_end"])
+    for cell in (current, previous):
+        if cell["status"] == "CONFLICT":
+            return dict(cell, reason="YTD_" + cell["reason"])
+    if current["status"] != "REPORTED" or previous["status"] != "REPORTED":
+        return {"status": "MISSING", "value": None, "unit": unit, "reason": "NO_QUARTER_OR_YTD_PAIR"}
+    if current["concept"] != previous["concept"]:
+        return {"status": "MISSING", "value": None, "unit": unit, "reason": "YTD_CONCEPTS_DIFFER"}
+    return {"status": "DERIVED", "value": current["value"] - previous["value"], "unit": unit,
+            "concept": current["concept"], "start": quarter["start"], "end": quarter["end"],
+            "method": "ANNUAL_MINUS_NINE_MONTHS" if quarter["fiscal_quarter"] == 4 else "YTD_DIFFERENCE",
+            "accession": current["accession"], "filed": current["filed"],
+            "sources": [current["accession"], previous["accession"]],
+            "revised": current["revised"] or previous["revised"],
+            "derivation": {"ytd_current": _brief(current), "ytd_previous": _brief(previous)}}
+
+
+def build_quarterly_statements(raw, *, as_of, quarters=8):
+    """Return up to `quarters` most recent discrete fiscal quarters.
+
+    Flow items use a reported 3-month fact when one exists; otherwise the
+    difference of two year-to-date facts of the same concept (Q4 = annual 10-K
+    minus nine months). Balance items are the reported quarter-end values.
+    """
+    cutoff, cik = _validate(raw, as_of, quarters, MAX_QUARTERS, "quarters")
+    read = _reader(raw, cutoff, QUARTERLY_FORMS, None)
+    annual_read = _reader(raw, cutoff, ANNUAL_FORMS, (330, 400))
+    rows = []
+    for quarter in _quarter_calendar(read, annual_read)[:quarters]:
+        row = {k: v for k, v in quarter.items() if k != "previous_ytd_end"}
+        for statement in STATEMENTS:
+            row[statement] = {key: _quarter_cell(read, key, quarter)
+                              for key, spec in LINE_ITEMS.items() if spec[0] == statement}
+        _derive(row)
+        rows.append(row)
+    return {
+        "version": VERSION, "cik": f"{cik:010d}", "company": raw.get("entityName", ""),
+        "as_of": as_of, "source_url": SEC_DATA.format(cik=cik),
+        "status": "OK" if rows else "NO_QUARTERLY_PERIODS",
+        "quarters": rows, "conflicts": _conflicts(rows),
+        "shares_outstanding": shares_outstanding(raw, as_of=as_of),
+        "rules": [
+            "10-Q and 10-K facts filed on or before as_of; quarters from fact dates, not SEC fy/fp",
+            "A reported 3-month value is used first; otherwise a YTD difference of one XBRL concept",
+            "Q4 is the annual 10-K value minus the nine-month 10-Q value",
+            "Weighted-average share counts are never derived from YTD differences",
+            "Derived gross profit and free cash flow require the same SEC filings for both inputs",
         ],
     }
 

@@ -47,7 +47,7 @@ def _statement_cell(cell):
     if status in ("REPORTED", "DERIVED"):
         scale = 1e6
         text = f"{cell['value'] / scale:,.0f}" + ("†" if status == "DERIVED" else "")
-        title = (cell.get("method", "") if status == "DERIVED" else
+        title = (f"{cell.get('method', '')} · {', '.join(cell.get('sources', []))}" if status == "DERIVED" else
                  f"{cell.get('concept', '')} · {cell.get('accession', '')} · {cell.get('filed', '')}")
         if cell.get("revised"):
             title += " · sonradan revize edildi"
@@ -85,13 +85,11 @@ def render_financial_sections(statements, ratios):
             unit = " (milyon adet)" if LINE_ITEMS.get(key, ("", "", "USD"))[2] == "shares" else ""
             cells = "".join(_statement_cell(y[statement][key]) for y in years)
             rows.append(f"<tr><td>{_safe(line_item_label(key) + unit)}</td>{cells}</tr>")
-    conflicts = statements.get("conflicts", [])
-    conflict_note = (f"<div class='note'>{len(conflicts)} kalemde XBRL etiketleri birbirini tutmuyor; "
-                     "bu hücrelere değer yazılmadı ve manuel inceleme gerekir.</div>") if conflicts else ""
     table = (
-        "<section class='card'><h2>Finansal tablolar — yıllık 10-K (milyon USD)</h2>" + conflict_note +
+        "<section class='card'><h2>Finansal tablolar — yıllık 10-K (milyon USD)</h2>" +
+        _conflict_note(statements) +
         "<div class='scroll'><table><thead><tr><th>Kalem</th>" + head + "</tr></thead><tbody>" +
-        "".join(rows) + "</tbody></table></div>"
+        "".join(rows) + "</tbody></table></div>" + _shares_note(statements.get("shares_outstanding")) +
         "<p class='muted'>— bildirilmedi (sıfır sayılmaz) · † aynı SEC dosyasından türetildi · "
         "hücrenin üzerine gelince XBRL kavramı, accession ve dosyalama tarihi görünür. "
         "Serbest nakit akışı CFO − CapEx'tir, FCFF değildir.</p></section>")
@@ -118,6 +116,55 @@ def render_financial_sections(statements, ratios):
         "nedeni görünür. Net borç milyon USD'dir; menkul kıymetler ve kira yükümlülükleri dahil değildir. "
         "Geçmiş oranlar tahmin, puan veya yatırım tavsiyesi değildir.</p></section>")
     return table + ratio_table
+
+
+QUARTER_ROWS = (("income", "revenue"), ("income", "gross_profit"), ("income", "operating_income"),
+                ("income", "net_income"), ("cash_flow", "cfo"), ("cash_flow", "capex"),
+                ("cash_flow", "free_cash_flow"), ("balance", "cash"), ("balance", "total_debt"),
+                ("balance", "stockholders_equity"))
+
+
+def _conflict_note(statements):
+    conflicts = statements.get("conflicts", [])
+    return (f"<div class='note'>{len(conflicts)} kalemde XBRL etiketleri birbirini tutmuyor; "
+            "bu hücrelere değer yazılmadı ve manuel inceleme gerekir.</div>") if conflicts else ""
+
+
+def _shares_note(shares):
+    if not isinstance(shares, dict):
+        return ""
+    if shares.get("status") == "REPORTED":
+        millions = f"{shares['value'] / 1e6:,.1f}"
+        return (f"<p>Dolaşımdaki hisse (kapak sayfası, {_safe(shares['date'])}): "
+                f"<strong>{_safe(millions)} milyon adet</strong> · "
+                f"{_safe(shares['form'])} {_safe(shares['accession'])}</p>")
+    reason = {"MULTIPLE_VALUES_POSSIBLY_SHARE_CLASSES":
+              "birden fazla hisse sınıfı değeri var; toplanmadı, manuel inceleme gerekir",
+              "NOT_REPORTED": "kapak sayfasında bildirilmedi"}.get(shares.get("reason"), shares.get("reason", ""))
+    return f"<p class='muted'>Dolaşımdaki hisse: {_safe(reason)}.</p>"
+
+
+def render_quarterly_section(quarterly):
+    """Discrete fiscal quarters (newest first); values in millions as reported to SEC."""
+    quarters = quarterly.get("quarters", [])
+    if not quarters:
+        return ("<section class='card'><h2>Çeyreklik tablolar</h2>"
+                "<p>Bilgi tarihine kadar çeyrek sınırları belirlenebilen 10-Q verisi bulunamadı.</p></section>")
+    head = "".join(f"<th class='num'>{_safe(q['fiscal_year_label'])} Ç{_safe(q['fiscal_quarter'])}"
+                   f"<br><small>{_safe(q['end'])}</small></th>" for q in quarters)
+    rows = []
+    for statement, key in QUARTER_ROWS:
+        cells = "".join(_statement_cell(q[statement][key]) for q in quarters)
+        rows.append(f"<tr><td>{_safe(line_item_label(key))}</td>{cells}</tr>")
+    return (
+        "<section class='card'><h2>Çeyreklik tablolar — 10-Q / 10-K (milyon USD)</h2>" +
+        _conflict_note(quarterly) +
+        "<div class='scroll'><table><thead><tr><th>Kalem</th>" + head + "</tr></thead><tbody>" +
+        "".join(rows) + "</tbody></table></div>"
+        "<p class='muted'>Çeyrekler mali yıla göredir (MY = mali yılın bittiği takvim yılı). "
+        "† bildirilmiş 3 aylık değer yoksa mali yıl başından itibaren birikimli (YTD) iki değerin farkıdır; "
+        "4. çeyrek yıllık 10-K eksi 9 aylık 10-Q'dur. Nakit akışı kalemleri SEC'e çoğunlukla yalnız "
+        "YTD olarak bildirildiği için genellikle türetilmiştir.</p></section>")
 
 
 def render_dashboard(quality, valuation=None):

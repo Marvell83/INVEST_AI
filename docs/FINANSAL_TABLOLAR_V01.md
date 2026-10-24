@@ -1,6 +1,6 @@
-# Finansal Tablolar ve Oranlar v0.1
+# Finansal Tablolar ve Oranlar (tablolar v0.2 · oranlar v0.1)
 
-`finansal_tablolar.py` ve `finansal_oranlar.py`, SEC Company Facts verisini **tek bir ortak kurallar setiyle** okuyup yıllık gelir tablosu, nakit akışı ve bilanço üretir; bunlardan kârlılık, büyüme, nakit kalitesi, getiri ve borçluluk oranlarını hesaplar. Yol haritasındaki 2., 3., 4. ve 5. derslerin veri temelidir ([YOL_HARITASI.md](YOL_HARITASI.md)).
+`finansal_tablolar.py` ve `finansal_oranlar.py`, SEC Company Facts verisini **tek bir ortak kurallar setiyle** okuyup yıllık ve çeyreklik gelir tablosu, nakit akışı ve bilanço üretir; yıllık tablolardan kârlılık, büyüme, nakit kalitesi, getiri ve borçluluk oranlarını hesaplar. Yol haritasındaki 2., 3., 4. ve 5. derslerin veri temelidir ([YOL_HARITASI.md](YOL_HARITASI.md)).
 
 ## Neden ayrı bir katman?
 
@@ -12,7 +12,7 @@ Bu sürüm 27 raporlanan kalemi (brüt kâr bildirilmemişse türetilir) ve 2 t�
 
 | Kural | Açıklama |
 |---|---|
-| Kaynak | Yalnız `10-K` / `10-K/A`, yalnız `USD` (hisse adedinde `shares`) |
+| Kaynak | Yıllık tablolar `10-K` / `10-K/A`; çeyreklik tablolar `10-Q` / `10-Q/A` ve 4. çeyrek için `10-K`. Yalnız `USD` (hisse adedinde `shares`) |
 | Bilgi tarihi | `filed` ve dönem sonu `as_of` tarihinden sonra olan kayıtlar görünmez |
 | Mali yıl | Kaydın kendi `start`/`end` tarihlerinden belirlenir (330–400 gün). SEC'in `fy`/`fp` alanları **dosyaya** aittir, kayda değil; bu yüzden kullanılmaz |
 | Revizyon | Aynı dönem için en son dosyalanan değer seçilir; farklı ilk değer `first_reported` alanında saklanır (`revised: true`) |
@@ -32,6 +32,29 @@ Her hücre şunları taşır: `status` (`REPORTED` / `DERIVED` / `MISSING` / `CO
 
 **Toplam borç:** raporlanan bileşenlerin toplamıdır. `LongTermDebt` kısa vadeli kısmı zaten içerdiği için yalnız `LongTermDebtNoncurrent` yoksa kullanılır, çift sayım yapılmaz. Toplanan ve bildirilmeyen bileşenler `components` / `components_not_reported` alanlarında listelenir. Kira yükümlülükleri dahil değildir.
 
+## Çeyreklik tablolar (v0.2)
+
+`build_quarterly_statements(raw, as_of=..., quarters=8)` en son çeyrekten geriye doğru ayrık mali çeyrekleri döndürür.
+
+- **Çeyrek takvimi:** Mali yıllar 10-K'lardan, çeyrek sınırları mali yıl başında başlayan 3, 6 ve 9 aylık birikimli (YTD) kayıtlardan bulunur. Son 10-K'dan sonra devam eden mali yıl da listelenir; `fiscal_year_end` alanı `null` olur. Başlangıcı veya bitişi bilinmeyen çeyrek listelenmez.
+- **Etiket:** `MY2025 Ç2` biçimindedir. MY, mali yılın bittiği takvim yılıdır; Apple'ın Ekim 2025'te başlayan yılı MY2026'dır.
+- **Gelir tablosu ve nakit akışı kalemleri:**
+  - Bildirilmiş 3 aylık değer varsa o kullanılır (`REPORTED`).
+  - Yoksa aynı XBRL kavramının iki YTD değerinin farkı alınır (`DERIVED`, `YTD_DIFFERENCE`). 4. çeyrek = yıllık 10-K − 9 aylık 10-Q (`ANNUAL_MINUS_NINE_MONTHS`).
+  - Türetilen hücre her iki SEC dosyasını `sources` alanında taşır. İki YTD değeri farklı kavramlarla bildirilmişse fark alınmaz (`YTD_CONCEPTS_DIFFER`).
+  - Şirketler nakit akışını 10-Q'larda çoğunlukla yalnız YTD olarak bildirdiği için bu kalemler genellikle türetilmiştir.
+- **Ortalama hisse sayısı:** Ağırlıklı ortalama olduğu için toplanamaz; YTD farkı alınmaz (`NON_ADDITIVE_NOT_DERIVED`).
+- **Bilanço:** Çeyrek sonundaki bildirilmiş değerdir.
+- **Brüt kâr ve serbest nakit akışı:** Yalnız iki girdi aynı SEC dosya(lar)ına dayanıyorsa türetilir.
+
+**Doğrulama:** Son dört çeyreğin toplamı, mevcut `sec_ttm.py` motorunun "FY + güncel YTD − önceki YTD" TTM sonucuyla birebir eşleşir. Bu eşleşme testlerle sınanır ve ileride TTM motorlarının ortak katmana taşınmasının temelini oluşturur.
+
+## Dolaşımdaki hisse sayısı
+
+`shares_outstanding(raw, as_of=...)`, 10-K / 10-Q kapak sayfasındaki `dei:EntityCommonStockSharesOutstanding` değerini döndürür. Bilgi tarihine kadar en son dosyalanan değer seçilir ve kapak sayfasındaki tarihi taşır; bu tarih genellikle dönem sonundan birkaç hafta sonradır.
+
+Birden fazla hisse sınıfı olan şirketler (ör. A/B/C sınıfı) aynı dosyada birden fazla değer bildirebilir. Bu durumda değerler toplanmaz ve aralarından seçim yapılmaz; sonuç `CONFLICT` olur. Yıllık ve çeyreklik çıktıların ikisinde de `shares_outstanding` alanı bulunur.
+
 ## Oranlar
 
 | Grup | Oranlar |
@@ -50,22 +73,24 @@ Her oran `formula`, kullanılan `inputs` ve hesaplanamadığında `reason` taş�
 
 ## Kullanım
 
-Tek komutluk şirket araştırması (`sirket_arastirma_akisi.py`) ve web arayüzü raporlara bu iki bölümü kendiliğinden ekler. Bağımsız kullanım:
+Tek komutluk şirket araştırması (`sirket_arastirma_akisi.py`) ve web arayüzü raporlara yıllık tablolar, oranlar ve son 8 çeyrek bölümlerini kendiliğinden ekler. Bağımsız kullanım:
 
 ```bash
 python finansal_oranlar.py --companyfacts CIK0000320193.json --as-of 2026-10-24 --years 5 --out reports/apple_tablolar.json
 ```
 
 ```python
-from finansal_tablolar import build_annual_statements
+from finansal_tablolar import build_annual_statements, build_quarterly_statements
 from finansal_oranlar import compute_ratios
 statements = build_annual_statements(raw_companyfacts, as_of="2026-10-24", years=5)
 ratios = compute_ratios(statements)
+quarters = build_quarterly_statements(raw_companyfacts, as_of="2026-10-24", quarters=8)
 ```
 
 ## Sınırlar
 
-- Yalnız yıllık 10-K. Çeyreklik tablolar ve çeyrek türetme (Q4 = FY − 9 ay) sonraki sürümdedir.
+- Oranlar şimdilik yalnız yıllık tablolardan hesaplanır; çeyreklik ve TTM oranları sonraki adımdadır.
+- Ara dönemde mali yıl değiştiren şirketlerde çeyrek takvimi kurulamayabilir; o çeyrekler listelenmez.
 - Seçili US-GAAP kalemleri: segment verisi, kira yükümlülükleri, menkul kıymetler, azınlık payları ve şirkete özel (extension) etiketler yoktur. IFRS / 20-F desteklenmez.
 - Bankalar ve sigorta şirketlerinde bu kalemler ve oranlar anlamlı olmayabilir.
 - Etiket eşanlamlıları otomatik eşleşmeyi kolaylaştırır ama konsolide tablonun insan tarafından okunmasının yerini tutmaz.
@@ -73,7 +98,14 @@ ratios = compute_ratios(statements)
 
 ## Testler
 
-`tests/test_finansal_tablolar.py` ve `tests/test_finansal_oranlar.py` (36 test). Kapsadıkları durumlar:
+`tests/test_finansal_tablolar.py`, `tests/test_finansal_oranlar.py` (36 test) ve `tests/test_finansal_ceyrekler.py` (23 test). Çeyrek testleri şunları kapsar:
+- çeyrek takvimi ve devam eden mali yıl,
+- doğrudan 3 aylık değer önceliği, YTD farkı ve 4. çeyrek,
+- farklı kavramların ve ortalama hisse sayısının farkının alınmaması,
+- `sec_ttm` ile TTM eşleşmesi, hisse sınıfı çelişkisi,
+- HTML karakter kaçışı.
+
+Yıllık katman testlerinin kapsadığı durumlar:
 - bilgi tarihi koruması, revizyon ve etiket çelişkisi,
 - eksik verinin 0 sayılmaması, aynı dosya şartı, borçta çift sayım,
 - 10-K içindeki çeyreklik kayıtların mali yıl sayılmaması,

@@ -25,9 +25,9 @@ Araştırma asistanı  (yalnız rapordaki kaynaklı verilere dayanan yorum)
 | Ders | Konu | INVEST_AI karşılığı | Durum |
 |---|---|---|---|
 | 1 | Yapay zekâyı doğru konumlandırmak | Kaynak/tarih kuralları, eksik ≠ 0, birleşik puan yok, araştırma asistanı | İlkeler kodda var; asistan yok |
-| 2 | Gelir tablosu ve kârlılık | `finansal_tablolar` gelir tablosu; marjlar, büyüme | **v0.1 tamam** (yıllık) |
-| 3 | Nakit akışı | CFO, CapEx, serbest nakit akışı, nakit dönüşümü; TTM motorları | **v0.1 tamam** (yıllık + TTM) |
-| 4 | Bilanço ve sağlamlık | bilanço kalemleri, toplam borç, cari oran, borç / özkaynak, faiz karşılama | **v0.1 tamam** (yıllık) |
+| 2 | Gelir tablosu ve kârlılık | `finansal_tablolar` gelir tablosu; marjlar, büyüme | **Tamam** (yıllık + çeyreklik); çeyreklik oranlar yok |
+| 3 | Nakit akışı | CFO, CapEx, serbest nakit akışı, nakit dönüşümü; TTM motorları | **Tamam** (yıllık + çeyreklik + TTM) |
+| 4 | Bilanço ve sağlamlık | bilanço kalemleri, toplam borç, cari oran, borç / özkaynak, faiz karşılama, hisse sayısı | **Tamam** (yıllık + çeyrek sonu) |
 | 5 | Oranlarla karar | `finansal_oranlar` (ROA, ROE, ROIC …), Piotroski 9 gösterge | **v0.1 tamam**; Piotroski henüz ortak katmana bağlı değil |
 | 6 | Tahminleme | gelir / marj / nakit projeksiyonu | Yok (sıradaki büyük iş) |
 | 7 | Senaryo / what-if | `degerleme_v02`, ters DCF, Apple üç senaryo örneği | Motor var; duyarlılık tablosu ve rapora bağlantı yok |
@@ -38,9 +38,10 @@ Araştırma asistanı  (yalnız rapordaki kaynaklı verilere dayanan yorum)
 ## Sıradaki adımlar
 
 1. **Ortak katmanı genişlet:**
-   - çeyreklik tablolar ve çeyrek türetme (Q4 = FY − 9 ay),
-   - hisse sayısı (dei kapak sayfası),
-   - menkul kıymetler ve kira yükümlülükleri.
+   - ~~çeyreklik tablolar ve çeyrek türetme (Q4 = FY − 9 ay)~~ tamam (tablolar v0.2),
+   - ~~hisse sayısı (dei kapak sayfası)~~ tamam (tablolar v0.2),
+   - menkul kıymetler ve kira yükümlülükleri,
+   - çeyreklik ve TTM oranları.
 2. **Motorları ortak katmana taşı:** Piotroski ve TTM motorları, sonuçları değişmediği regresyon testleriyle gösterilerek tek okuyucuya geçirilir.
 3. **Tahmin motoru (Ders 6):**
    - Sistem varsayım uydurmama ilkesini korur. "Taban" projeksiyon yalnız açık bir yöntemle üretilir (ör. geçmiş büyümenin sönümlenmesi, marjın tarihsel ortalamaya dönmesi) ve öyle etiketlenir.
