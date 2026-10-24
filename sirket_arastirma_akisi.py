@@ -23,8 +23,10 @@ from sec_companyfacts import SEC_DATA, _validate_cik, download_companyfacts
 from sec_gap_audit import audit_company
 from sec_ttm_crosscheck import audit_ttm
 from sirket_analiz_paneli import (
-    render_dashboard, render_financial_sections, render_layer_reconciliation, render_quarterly_section,
+    render_dashboard, render_financial_sections, render_forecast_section, render_layer_reconciliation,
+    render_quarterly_section,
 )
+from tahmin_motoru import historical_baseline, project_scenarios
 
 VERSION = "invest-ai-company-research-0.1.0"
 SECTORS = ("non_financial", "financial", "unknown")
@@ -54,13 +56,18 @@ def _canonical_digest(raw):
 
 def build_company_research(raw, *, as_of, expected_cik, sector,
                            credit_db=None, equity_offering_evidence=None,
-                           expected_fiscal_end=None, input_mode="offline_file"):
+                           expected_fiscal_end=None, input_mode="offline_file",
+                           long_run_growth=None, long_run_growth_source=None):
     """Return one issuer's dated annual, Piotroski and TTM evidence.
 
     Sector and CIK are explicit analyst inputs, not inferred from the ticker.
     A complete component means its *math and eligibility checks* passed, not
     that its SEC values or issuer sector were independently authenticated.
+    Scenario projections are added only when the analyst supplies a sourced
+    long-run growth rate; the historical baseline is always included.
     """
+    if (long_run_growth is None) != (long_run_growth_source is None):
+        raise ValueError("long_run_growth and long_run_growth_source must be given together")
     _date(as_of, "as_of")
     if input_mode not in INPUT_MODES:
         raise ValueError("invalid input_mode")
@@ -104,6 +111,11 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         raise ValueError("financial statements issuer differs from requested CIK")
     ratios = compute_ratios(statements)
     layers = reconcile_layers(quality["piotroski"], statements, ttm, quarterly)
+    baseline = historical_baseline(statements, ratios)
+    projection = None
+    if long_run_growth is not None:
+        projection = project_scenarios(baseline, long_run_growth=long_run_growth,
+                                       long_run_growth_source=long_run_growth_source)
 
     p = quality["piotroski"]
     gaps = []
@@ -169,7 +181,10 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         "financial_ratios": ratios,
         "quarterly_statements": quarterly,
         "layer_reconciliation": layers,
+        "historical_baseline": baseline,
+        "projection": projection,
         "actual_price": None, "dcf": None, "combined_investment_score": None,
+        # A scenario projection is not recorded in the forecast ledger by this report.
         "forecast_created": False, "investment_recommendation": None,
         "limitations": limitations,
     }
@@ -245,6 +260,8 @@ def render_company_research(report):
         financials += render_quarterly_section(report["quarterly_statements"])
     if "layer_reconciliation" in report:
         financials += render_layer_reconciliation(report["layer_reconciliation"])
+    if "historical_baseline" in report:
+        financials += render_forecast_section(report["historical_baseline"], report.get("projection"))
     return base.replace("</main>", intro + financials + ttm_section + notes + "</main>", 1)
 
 
@@ -263,6 +280,9 @@ def main(argv=None):
     parser.add_argument("--ratings-db", help="existing manual issuer-rating SQLite database")
     parser.add_argument("--equity-evidence", help="human reviewed equity issuance JSON")
     parser.add_argument("--expected-fiscal-end", help="optional hard guard against stale annual period")
+    parser.add_argument("--long-run-growth", type=float,
+                        help="optional analyst long-run nominal growth (e.g. 0.03) to add scenario projections")
+    parser.add_argument("--long-run-source", help="citation for --long-run-growth (required with it)")
     parser.add_argument("--out-json", required=True)
     parser.add_argument("--out-html", required=True)
     args = parser.parse_args(argv)
@@ -294,7 +314,8 @@ def main(argv=None):
     report = build_company_research(
         raw, as_of=args.as_of, expected_cik=cik, sector=args.sector,
         expected_fiscal_end=args.expected_fiscal_end, credit_db=args.ratings_db,
-        equity_offering_evidence=evidence, input_mode=mode)
+        equity_offering_evidence=evidence, input_mode=mode,
+        long_run_growth=args.long_run_growth, long_run_growth_source=args.long_run_source)
     page = render_company_research(report)
     if args.snapshot_out:
         snapshot = Path(args.snapshot_out)

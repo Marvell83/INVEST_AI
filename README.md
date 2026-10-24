@@ -43,6 +43,7 @@ SEC Company Facts (ham JSON, SHA-256 ile arşiv: sec_arsiv)
 | **Finansal tablolar** | `finansal_tablolar.py` | Ortak, tarihli ve kaynaklı yıllık ve çeyreklik gelir tablosu / nakit akışı / bilanço (27 kalem); kapak sayfası hisse sayısı |
 | | `finansal_oranlar.py` | Marj, büyüme, nakit kalitesi, ROA / ROE / ROIC, borçluluk; her oranın formülü ve hesaplanamama nedeni |
 | | `katman_mutabakati.py` | Piotroski ve TTM girdilerinin ortak tablolarla aynı rakam ve SEC dosyalarını kullanıp kullanmadığı |
+| **Tahmin** | `tahmin_motoru.py` | Şirketin kendi geçmişinden tarihsel baz; analistin kaynaklı uzun vadeli oranıyla temkinli / baz / iyimser senaryolar; Tahmin Defteri kaydı |
 | **SEC verisi** | `sec_companyfacts.py` | Company Facts indirme / normalize etme |
 | | `sec_arsiv.py` | Ortak arşiv yardımcıları: SHA-256 arşiv, atomik yazma, ticker–CIK haritası, istek hızı sınırı |
 | | `sec_gap_audit.py` | Yıllık kaynak / dönem / etiket çelişkisi denetimi |
@@ -75,6 +76,9 @@ python sirket_arastirma_akisi.py --cik 320193 --as-of 2026-10-21 --sector non_fi
   --companyfacts ornekler/apple_ttm_evidence_2026-10-21.json \
   --out-json reports/apple_research.json --out-html reports/apple_research.html
 
+# Senaryo projeksiyonu (uzun vadeli oranı ve kaynağını analist verir; sistem seçmez)
+python tahmin_motoru.py --companyfacts CIK0000320193.json --as-of 2026-10-24 --long-run-growth 0.03 --long-run-source "..." --out reports/senaryo.json
+
 # Yıllık finansal tablolar ve oranlar (ham SEC Company Facts JSON ile)
 python finansal_oranlar.py --companyfacts CIK0000320193.json --as-of 2026-10-24 --years 5 --out reports/tablolar.json
 
@@ -91,7 +95,7 @@ Ayrıntılı kullanım: [web analizi](docs/WEB_SIRKET_ANALIZI_V02.md) · [şirke
 
 | Paket | Komut | Sonuç |
 |---|---|---|
-| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **427/427** |
+| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **447/447** |
 | Dondurulmuş v0.1 kabul | `dogrulama/kabul_testi.py` | **17/17** |
 | Kabul altyapısı + v0.2 modülleri | `unittest test_dogrulama_seti test_moduller_v02` | **9/9** (2 + 7) |
 
@@ -115,7 +119,7 @@ CI (`.github/workflows/python-tests.yml`) bunların hepsini Python 3.11 / 3.12 /
 
 ## Belgeler
 
-**[Yol haritası (10 ders)](docs/YOL_HARITASI.md)** · [Finansal tablolar ve oranlar](docs/FINANSAL_TABLOLAR_V01.md) · [SEC kaynak denetimi](docs/SEC_KAYNAK_DENETIMI_V02.md) · [7 gelir mutabakatı](docs/SEC_7_GELIR_MUTABAKATI.md) · [117 dosya denetimi](docs/SEC_117_DOSYA_DENETIMI.md) · [Piotroski + kredi](docs/PIOTROSKI_KREDI_KATMANI_V01.md) · [Piotroski veri eşleme v0.2](docs/PIOTROSKI_SEC_VERI_ESLEME_V02.md) · [Piotroski 117 kapsam](docs/PIOTROSKI_SEC_117_KAPSAM_DENETIMI.md) · [TTM motoru](docs/TTM_FINANSAL_MOTORU_V01.md) · [SEC TTM](docs/SEC_TTM_V01_APPLE.md) · [TTM çift motor](docs/SEC_TTM_CROSSCHECK_V01.md) · [Finansal değişim](docs/SEC_FINANSAL_DEGISIM_V01.md) · [Şirket paneli](docs/SIRKET_ANALIZ_PANELI_V01.md) · [Apple pilotu](docs/APPLE_GERCEK_SEC_PILOTU.md) · [Apple üç senaryolu DCF](docs/APPLE_UC_SENARYOLU_DCF_2026_10_21.md) · [Ana sayfa](docs/ANA_SAYFA_V01.md)
+**[Yol haritası (10 ders)](docs/YOL_HARITASI.md)** · [Finansal tablolar ve oranlar](docs/FINANSAL_TABLOLAR_V01.md) · [Tahmin motoru](docs/TAHMIN_MOTORU_V01.md) · [SEC kaynak denetimi](docs/SEC_KAYNAK_DENETIMI_V02.md) · [7 gelir mutabakatı](docs/SEC_7_GELIR_MUTABAKATI.md) · [117 dosya denetimi](docs/SEC_117_DOSYA_DENETIMI.md) · [Piotroski + kredi](docs/PIOTROSKI_KREDI_KATMANI_V01.md) · [Piotroski veri eşleme v0.2](docs/PIOTROSKI_SEC_VERI_ESLEME_V02.md) · [Piotroski 117 kapsam](docs/PIOTROSKI_SEC_117_KAPSAM_DENETIMI.md) · [TTM motoru](docs/TTM_FINANSAL_MOTORU_V01.md) · [SEC TTM](docs/SEC_TTM_V01_APPLE.md) · [TTM çift motor](docs/SEC_TTM_CROSSCHECK_V01.md) · [Finansal değişim](docs/SEC_FINANSAL_DEGISIM_V01.md) · [Şirket paneli](docs/SIRKET_ANALIZ_PANELI_V01.md) · [Apple pilotu](docs/APPLE_GERCEK_SEC_PILOTU.md) · [Apple üç senaryolu DCF](docs/APPLE_UC_SENARYOLU_DCF_2026_10_21.md) · [Ana sayfa](docs/ANA_SAYFA_V01.md)
 
 ## Metodolojik referanslar
 
