@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from sec_finansal_degisim import (
     _canonical_bytes, _load_snapshot, compare_sec_snapshots, main,
@@ -162,6 +163,7 @@ class ChangeTests(unittest.TestCase):
             audit = {
                 "status": "RECONCILED_CALCULATIONS",
                 "primary": {
+                    "as_of": CUTOFF,
                     "periods": {"current_9m_end": "2026-06-27", "prior_9m_end": "2025-06-28"},
                     "metrics": {m: {"value_usd": n,
                           "current_ytd9": {"value_usd": n, "end": "2026-06-27",
