@@ -197,6 +197,18 @@ class PortfolioRiskTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unique"):
             analyze_portfolio(d)
 
+    def test_union_with_unknown_tag_fails_closed(self):
+        d = fixture()
+        d["theme_unions"]["ai_connected"].append("ai_typo")
+        with self.assertRaisesRegex(ValueError, "unknown theme tag"):
+            analyze_portfolio(d)
+
+    def test_malformed_scenario_shock_is_cleanly_rejected(self):
+        d = fixture()
+        d["scenarios"][0]["shocks_pct"]["NVDA"] = "not a number"
+        with self.assertRaisesRegex(ValueError, "invalid scenario shock"):
+            analyze_portfolio(d)
+
     def test_no_mutation_of_inputs(self):
         d = fixture()
         original = copy.deepcopy(d)
