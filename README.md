@@ -267,3 +267,19 @@ Bu Apple dosyası gerçek ham API indirmesi değildir, **manuel transkripsiyon**
 
 [Genel şirket araştırma rehberi, durum sözleşmeleri ve sonraki ürün aşamaları](docs/SIRKET_ARASTIRMA_AKISI_V01.md).
 
+
+## SEC Çoklu Şirket Toplama ve Tarama v0.1 (24 Ekim 2026)
+
+Yüzlerce farklı **SEC CIK** için `sec_toplu_tarama.py` ile tarihli ham Company Facts arşivi oluşturma, içerik hash'iyle eski sürümleri koruma, önbellekten yeniden kullanma, SEC ticker–CIK eşlemesini kontrol etme ve `sirket_arastirma_akisi.py` üzerinden her şirket için JSON/HTML araştırması üretme desteği eklendi.
+
+Kişisel portföy adetleri, alış fiyatları veya al/sat önerileri kullanılmaz. Sektör kodu açık analist girdisidir; bilinmiyorsa `unknown` kalır. Puanı oluşturulamayan şirketler yanlışlıkla sıfır skor almaz. Bankalar, IFRS/20-F ve SEC açıklama dipnotlarının manuel mutabakatı ayrıca geliştirilmelidir.
+
+- SEC Fair Access: varsayılan 1 istek/saniye ve en fazla 2 istek/saniye; 403/429 ile erişim engeli görülürse sonraki SEC istekleri durur.
+- Kaynak arşivi: `CIKXXXXXXXXXX/<sha256>.json` ve en son yakalama işaretçisi; ham dosya SHA-256 doğrulanmadan analiz edilmez.
+- Üç çıktı katmanı: ham arşiv, şirket başına SEC araştırma JSON/HTML, tüm şirketler için tarama JSON/CSV özeti.
+- İndirme yapmadan aynı arşivi yeniden analiz eden `--offline` modu vardır.
+
+**Dört genel şirketli örnek evren:** `ornekler/sec_tarama_evreni_4_sirket.json` (AAPL, MSFT, NVDA, JPM). Dosya özel portföy değildir.
+
+**[Kurulum, Windows komutları, SEC verisi ve erişim sınırları](docs/SEC_TOPLU_TARAMA_V01.md).**
+
