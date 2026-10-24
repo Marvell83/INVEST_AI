@@ -204,3 +204,12 @@ Yeni kod için GitHub Actions sonucu henüz doğrulanmamıştır; canlı fiyat k
 Apple'ın 21 Ekim 2026 bilgi kesitinde TTM: **466,823 milyar USD gelir**, **154,859 milyar USD EBIT**, **146,724 milyar USD CFO**, **10,041 milyar USD CapEx**. Aynı eski varsayımlar korunarak yapılan stres testindeki hisse başı değerler: **80,88 / 149,46 / 273,18 USD**. Bunlar yatırım tavsiyesi veya güvenilir hedef fiyat değildir.
 
 Kullanım, kaynak ve sınırlamalar: [docs/TTM_FINANSAL_MOTORU_V01.md](docs/TTM_FINANSAL_MOTORU_V01.md). Yeni TTM, DCF köprüsü ve HTML testleri: `tests/test_ttm_finansallar.py`, `tests/test_ttm_dcf_bridge.py`, `tests/test_ttm_raporu.py`. Yerelde **39/39 TTM paketi testi başarılı**; GitHub Actions sonucu ayrı doğrulama gerektirir.
+
+
+## SEC TTM finansal akış motoru v0.1
+
+`sec_ttm.py`, ham SEC Company Facts verisinden **TTM = FY + güncel mali yıl YTD − önceki mali yılın karşılaştırılabilir YTD'si** formülüyle gelir, EBIT, faaliyet nakit akışı ve CapEx hesaplar. Yalnız US-GAAP / USD / 10-K / 10-Q kapsamındadır; açıklanma tarihini, SEC accession numarasını ve kullanılan üç kaynak olgusunu saklar. Tek çeyrek tutarını dokuz aylık toplam diye kabul etmez.
+
+Apple'ın Haziran 2026 sonunda biten TTM kontrolü: **466,823 milyar USD gelir**, **154,859 milyar USD EBIT**, **146,724 milyar USD faaliyet nakit akışı**, **10,041 milyar USD CapEx**. Bunlar 18 Ekim tarihli yerel arşivdeki kayıtlarla hesaplanmıştır; daha yeni bildirimin yokluğu kanıtlanmış değildir. `CFO - CapEx` otomatik olarak FCFF değildir. Bağımsız testlerde 12/12 başarı; GitHub Actions sonucu ayrıca teyit edilmeli.
+
+Komutlar ve kaynak mutabakatı: [docs/SEC_TTM_V01_APPLE.md](docs/SEC_TTM_V01_APPLE.md). TTM'nin tek başına DCF'yi otomatik ve güvenilir hedef fiyata dönüştürmediğine dikkat edin.
