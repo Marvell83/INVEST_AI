@@ -288,8 +288,17 @@ def compare_sec_snapshots(old, new, *, as_of, expected_cik):
     if new_audit["status"] != "RECONCILED_CALCULATIONS":
         concerns.append("NEW_TTM_UNRECONCILED")
     old_hash, new_hash = _digest(old), _digest(new)
+    def is_transcribed(data):
+        notes = data.get("evidence_notes")
+        status = str(notes.get("status", "")).upper() if isinstance(notes, dict) else ""
+        return "MANUAL" in status or "TRANSCRIPTION" in status
+    manual_old, manual_new = is_transcribed(old), is_transcribed(new)
+    if manual_old or manual_new:
+        concerns.append("MANUALLY_TRANSCRIBED_NOT_RAW_SEC_API")
     return {
         "version": VERSION, "cik": cik, "company": new.get("entityName"),
+        "old_source_manual_transcription": manual_old,
+        "new_source_manual_transcription": manual_new,
         "as_of": as_of,
         "snapshot_order": "CALLER_SUPPLIED_OLD_THEN_NEW_NOT_VERIFIED_BY_THIS_MODULE",
         "old_snapshot_sha256": old_hash, "new_snapshot_sha256": new_hash,
