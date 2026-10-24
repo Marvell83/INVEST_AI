@@ -85,3 +85,14 @@ Sentetik SEC kayıtlarıyla (gerçek SEC internet erişimi olmadan) şu durumlar
 ## Sonraki hedef
 
 Web sunucusunu daha güçlü, yetkilendirilmiş ve üretime uygun yapıya taşıma; şirkete göre doğrulanmış sektör kimliği; ara dönem Q1/Q2 TTM; ROIC; gerçek değerleme varsayımlarının insan onaylı akışı; geçmiş sonuçlarla yeni verilerin kaynaklı kıyaslaması.
+
+
+## Eski raporla yeni web analizini ayırma (v0.2 güncellemesi)
+
+"Raporlarım" bölümünde artık **Web analizleri (v0.2)** ve **Önceki / terminal raporları** şeklinde iki grup vardır. Liste aynı zamanda ilgili gruba göre filtrelenebilir.
+
+- `reports/Apple_SEC_Piotroski_2026-10-21.html` depoda önceden oluşturulmuş, `piotroski-sec-0.1.0` ve `quality-panel-0.1.0` sürümlü **eski örnek rapordur**. Korunur, değiştirilmez. Bu raporu açmak v0.2 çalıştırdığınız anlamına gelmez.
+- Webden oluşturulan raporlar `reports/research/` içinde `AAPL_DEMO_2026-10-21_non_financial_<hash>.html` gibi saklanır. Tarayıcıda **Örnek / manuel aktarım**, **SEC üzerinden indirme**, **Yerel SEC arşivi** olarak ayrı gösterilir.
+- Kartlarda görünen tarih **bilgi kesme (as-of) tarihidir**. Raporun üretildiği, ham SEC dosyasının indirildiği veya en güncel mali dönemi kapsadığı anlamına gelmez. Raporun içindeki **SEC kaynak kapsama denetimi** ve **TTM dönemini** mutlaka kontrol edin.
+- Ana sayfada web araştırmaları, ardından eski raporlar listelenir. Önceki raporlar veri kaybını önlemek için silinmez.
+- Yeni analiz yaptıktan sonra **Raporu sitede aç →** düğmesini kullanın. "Raporlarım" listesinden seçiyorsanız **Web analizleri (v0.2)** filtresini açın.
