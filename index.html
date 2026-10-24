@@ -84,6 +84,15 @@
     .pill { display:inline-block; font-size:11px; border-radius:8px; padding:4px 8px;
       color:#bdeadd; background:#183c3d; border:1px solid #285f5c; }
     .report-card h3 { overflow-wrap:anywhere; margin:0; line-height:1.4; }
+    .pill-legacy{color:#d2daea;background:#283348;border-color:#46536a;}
+    .pill-demo{color:#f3d5a3;background:#3e3326;border-color:#715333;}
+    .report-meta{color:#b8cbe6;font-size:12px;line-height:1.5;}
+    .filter-control{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    .filter-control label{font-size:12px;color:var(--muted);}
+    .filter-control select{color:var(--text);border:1px solid #3a4e69;border-radius:10px;
+      padding:10px;background:#142238;}
+    .report-section-title{grid-column:1/-1;color:#b7cce5;font-size:12px;
+      font-weight:750;letter-spacing:.8px;text-transform:uppercase;margin:6px 0 0;}
     .file-path { color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
     .open-hint { color:var(--accent); font-size:12px; font-weight:650; }
     .feature-card p { font-size:13px; margin:8px 0 0; color:var(--muted); }
@@ -146,7 +155,7 @@
   <aside class="sidebar">
     <a class="brand" href="#ana" aria-label="INVEST AI ana sayfa">
       <span class="brand-mark">IA</span>
-      <span><strong>INVEST_AI</strong><small>Araştırma Merkezi · v0.1</small></span>
+      <span><strong>INVEST_AI</strong><small>Araştırma Merkezi · v0.2</small></span>
     </a>
     <nav class="nav-list" aria-label="Ana menü">
       <button type="button" class="nav-link active" data-screen="ana"><span class="nav-ico">⌂</span> Ana sayfa</button>
@@ -155,9 +164,9 @@
       <button type="button" class="nav-link" data-screen="hakkinda"><span class="nav-ico">ⓘ</span> Sistem hakkında</button>
     </nav>
     <div class="sidebar-info">
-      <b>● Çevrimdışı rapor merkezi</b>
-      Python'un yerel HTTP sunucusuyla çalışır. Raporları yalnız sunucunun erişebildiği klasörden listeler.
-      <p>Bu ekran fiyat veya finansal veri indirmez; raporlar Python analiz modülleriyle oluşturulur.</p>
+      <b>● Yerel araştırma merkezi</b>
+      Python analiz sunucusuyla şirket araştırması başlatır, raporları listeler.
+      <p>Canlı SEC verisi yalnız açıkça seçildiğinde indirilir. Örnek analizde ağ isteği yapılmaz.</p>
     </div>
   </aside>
 
@@ -182,7 +191,7 @@
         <div class="metric"><small>Analiz motorları</small><strong>4</strong><span>Şirket · TTM · SEC değişim · Piotroski</span></div>
         <div class="metric"><small>Dış hizmet maliyeti</small><strong>0 ₺</strong><span>Python standart kütüphanesi</span></div>
       </div>
-      <div class="section-top"><div><h2>Raporlara hızlı erişim</h2><p>Oluşturduğun raporlar aşağıda görünür.</p></div>
+      <div class="section-top"><div><h2>Raporlara hızlı erişim</h2><p>Önce web analizleri, sonra önceki ve terminal raporları listelenir.</p></div>
         <button id="refresh-home" type="button" class="btn">↻ Yenile</button></div>
       <div id="home-reports" class="report-grid" aria-live="polite"><div class="empty">Raporlar aranıyor…</div></div>
       <div class="section-top"><div><h2>Platform modülleri</h2><p>Analiz zincirinin mevcut aşamaları</p></div></div>
@@ -196,12 +205,21 @@
 
     <section id="screen-raporlar" class="screen hidden">
       <div class="section-top">
-        <div><h1>Raporlarım</h1><p id="report-list-status">Raporlar klasörü taranıyor…</p></div>
+        <div><h1>Raporlarım</h1><p id="report-list-status">Raporlar klasörü taranıyor…</p>
+        <p>Web analizleri ve önceki/terminal raporları ayrı etiketlenir. Eski HTML dosyaları silinmez.</p></div>
         <button id="refresh-list" type="button" class="btn">↻ Listeyi yenile</button>
       </div>
       <label for="report-search" class="muted">Rapor adı veya dosya yolunda ara</label>
-      <div style="margin:9px 0 17px"><input class="search" id="report-search" type="search"
-        placeholder="Örn. Apple, Piotroski, değişim…" autocomplete="off"></div>
+      <div style="margin:9px 0 17px" class="filter-control">
+        <input class="search" id="report-search" type="search"
+          placeholder="Örn. Apple, Piotroski, değişim…" autocomplete="off">
+        <label for="report-kind-filter">Rapor türü</label>
+        <select id="report-kind-filter">
+          <option value="all">Tüm raporlar</option>
+          <option value="web">Web analizleri (v0.2)</option>
+          <option value="previous">Önceki / terminal raporları</option>
+        </select>
+      </div>
       <div id="report-list" class="report-grid" aria-live="polite">
         <div class="empty">Raporlar aranıyor…</div>
       </div>
@@ -298,6 +316,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
         <div class="viewer-toolbar"><span id="viewer-file" class="viewer-title"></span>
           <a id="viewer-open" class="btn" href="reports/" target="_blank" rel="noopener noreferrer">Yeni sekmede aç ↗</a>
         </div>
+        <div style="padding:11px 14px;color:#28425e;font-size:12px;background:#e6eef9" id="viewer-provenance"></div>
         <iframe id="viewer-frame" sandbox="" title="Seçilen INVEST_AI raporu"></iframe>
       </div>
       <p class="muted" style="font-size:12px;margin-top:10px">Rapor ayrı ve sınırlandırılmış bir çerçevede açılır. Görüntüleme sorunu varsa “Yeni sekmede aç” seçeneğini kullan.</p>
@@ -313,6 +332,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
   const fullReports = document.getElementById("report-list");
   const status = document.getElementById("report-list-status");
   const search = document.getElementById("report-search");
+  const kindFilter = document.getElementById("report-kind-filter");
   let reports = [];
   let lastScreen = "raporlar";
   let busy = false;
@@ -345,6 +365,22 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       .replace(/CIK([0-9]{10})/i, "CIK $1").trim();
   }
 
+  // Classification comes solely from the generated filename + containing folder.
+  // "As-of" dates are research cutoffs, NOT download dates or freshness guarantees.
+  function reportMeta(path, filename) {
+    if (!path.startsWith("reports/research/")) {
+      return {kind:"previous", label:"Önceki / terminal", detail:"Önceden oluşturulmuş rapor · sürümünü raporun içinden kontrol et", asOf:""};
+    }
+    const match = /^([A-Z][A-Z0-9.\-]{0,14})_(DEMO|LIVE|CACHE)_(\d{4}-\d{2}-\d{2})_(?:(unknown|financial|non_financial)_)?([a-f0-9]{12})\.html?$/i.exec(filename);
+    if (!match) {
+      return {kind:"web", label:"Web analizi", detail:"Kaynak türü dosya isminden doğrulanamadı", asOf:""};
+    }
+    const mode = match[2].toUpperCase();
+    const names = {DEMO:"Örnek / manuel aktarım", LIVE:"SEC üzerinden indirme", CACHE:"Yerel SEC arşivi"};
+    return {kind:"web", mode, label: names[mode], asOf:match[3],
+      detail:"Bilgi kesme tarihi: "+match[3]+(match[4]?" · Sektör: "+match[4]:" · Önceki web sürümü")};
+  }
+
   function insideReports(url) {
     return url.origin === REPORT_ROOT.origin &&
       url.pathname.startsWith(REPORT_ROOT.pathname) &&
@@ -375,7 +411,8 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
           filename: basename,
           category: category(basename),
           path: decodeURIComponent(dest.pathname).replace(REPORT_ROOT.pathname, "reports/"),
-          url: dest.href
+          url: dest.href,
+          meta: reportMeta(decodeURIComponent(dest.pathname).replace(REPORT_ROOT.pathname, "reports/"), basename)
         });
       }
       if (collected.length > 1000) return;
@@ -403,18 +440,31 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     pill.className = "pill";
     pill.textContent = item.category;
     top.append(pill);
+    const meta = item.meta || reportMeta(item.path, item.filename || "");
+    const marker = document.createElement("span");
+    marker.className = "pill" + (meta.kind === "previous" ? " pill-legacy" :
+      meta.mode === "DEMO" ? " pill-demo" : "");
+    marker.textContent = meta.label;
+    top.append(marker);
     const h = document.createElement("h3");
     h.textContent = item.name;
     const p = document.createElement("span");
     p.className = "file-path";
     p.textContent = item.path;
+    const detail = document.createElement("span");
+    detail.className = "report-meta";
+    detail.textContent = meta.detail;
     const foot = document.createElement("span");
     foot.className = "open-hint";
     foot.textContent = "Raporu görüntüle ↗";
-    button.append(top, h, p, foot);
+    button.append(top, h, detail, p, foot);
     button.addEventListener("click", () => {
       document.getElementById("viewer-heading").textContent = item.name;
       document.getElementById("viewer-file").textContent = item.path;
+      document.getElementById("viewer-provenance").textContent =
+        meta.kind === "previous"
+        ? "Önceki/terminal raporu. Bu belgeyi yeni web araştırmasıyla karıştırma; bilgi ve üretim tarihini raporun içinden kontrol et."
+        : (meta.detail + " · Kaynak türü: " + meta.label + ". Tarih tek başına verinin güncelliğini kanıtlamaz.");
       document.getElementById("viewer-frame").src = item.url;
       document.getElementById("viewer-open").href = item.url;
       show("viewer");
@@ -429,7 +479,9 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     fullReports.replaceChildren();
     const term = search.value.toLocaleLowerCase("tr").trim();
     const matches = reports.filter(item =>
-      (item.name + " " + item.category + " " + item.path).toLocaleLowerCase("tr").includes(term));
+      (kindFilter.value === "all" || item.meta.kind === kindFilter.value) &&
+      (item.name + " " + item.category + " " + item.path + " " + item.meta.label)
+        .toLocaleLowerCase("tr").includes(term));
     if (!reports.length) {
       const message = emptyMessage("Henüz HTML raporu yok.",
         "Analiz çalıştır bölümündeki Apple örneğini terminalde çalıştır; sonra listeyi yenile.");
@@ -442,7 +494,19 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       fullReports.append(emptyMessage("Aramana uygun rapor bulunamadı.",
         "Başka bir şirket adı veya dosya adı dene."));
     } else {
-      for (const item of matches) fullReports.append(reportCard(item));
+      let lastGroup = null;
+      for (const item of matches) {
+        if (item.meta.kind !== lastGroup) {
+          lastGroup = item.meta.kind;
+          const section = document.createElement("div");
+          section.className = "report-section-title";
+          section.textContent = lastGroup === "web"
+            ? "Web üzerinden oluşturulan araştırmalar"
+            : "Önceki / terminal raporları";
+          fullReports.append(section);
+        }
+        fullReports.append(reportCard(item));
+      }
     }
   }
 
@@ -454,8 +518,11 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       const found = [];
       await scanDirectory(REPORT_ROOT, 0, new Set(), found);
       const unique = new Map(found.map(item => [item.url, item]));
-      reports = Array.from(unique.values()).sort((a, b) =>
-        a.name.localeCompare(b.name, "tr", { numeric: true }));
+      reports = Array.from(unique.values()).sort((a, b) => {
+        if (a.meta.kind !== b.meta.kind) return a.meta.kind === "web" ? -1 : 1;
+        if (a.meta.asOf !== b.meta.asOf) return b.meta.asOf.localeCompare(a.meta.asOf);
+        return a.name.localeCompare(b.name, "tr", { numeric: true });
+      });
       render();
     } catch (_) {
       reports = [];
@@ -515,7 +582,9 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       const url = new URL(data.report_url, document.baseURI);
       if (insideReports(url)) {
         const report = {name: data.company + " " + data.mode + " " + data.as_of,
-          path: data.report_url.slice(1), category:"Şirket araştırması", url:url.href};
+          path: data.report_url.slice(1), category:"Şirket araştırması", url:url.href,
+          filename:data.report_url.split("/").pop(),
+          meta:reportMeta(data.report_url.slice(1),data.report_url.split("/").pop())};
         const open = document.createElement("button");
         open.className = "btn primary";
         open.type = "button";
@@ -578,6 +647,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     });
   }
   search.addEventListener("input", render);
+  kindFilter.addEventListener("change", render);
   document.getElementById("refresh-home").addEventListener("click", refresh);
   document.getElementById("refresh-list").addEventListener("click", refresh);
   document.getElementById("viewer-back").addEventListener("click", () => {
