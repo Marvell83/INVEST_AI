@@ -58,6 +58,10 @@ def render_dashboard(quality, valuation=None):
         tag = "1" if v == 1 else ("0" if v == 0 else "?")
         css = "yes" if v == 1 else ("no" if v == 0 else "unknown")
         why = p.get("missing_reasons", {}).get(key, "")
+        why = {
+            "SECTOR_NOT_CONFIRMED": "Şirketin finans dışı sektörde olduğu doğrulanmadı; puanlama başlatılmadı.",
+            "FINANCIAL_SECTOR_METHOD_UNAVAILABLE": "Finans kuruluşları için bu Piotroski yöntemi uygulanmıyor.",
+        }.get(why, why)
         rows.append(f"<tr><td>{_safe(description)}</td><td class='{css}'>{tag}</td><td>{_safe(why)}</td></tr>")
     complete = p.get("known_count") == 9 and isinstance(p.get("score"), int)
     score = f"{p['score']} / 9" if complete else "Tamamlanmadı"
@@ -84,6 +88,13 @@ def render_dashboard(quality, valuation=None):
         credit_rows = ["<tr><td colspan='6'>Kaynaklı kredi notu kaydı verilmedi.</td></tr>"]
 
     warnings = []
+    sector = p.get("sector", "unknown")
+    sector_caution = {
+        "unknown": "Şirket sektörü doğrulanmadığı için dokuz Piotroski koşulu da hesaplanmadı. Bu bir 0/9 puanı değildir. Finans dışı şirket sınıflandırması doğrulanırsa analizi yeniden çalıştırın.",
+        "financial": "Finans kuruluşlarında bu genel Piotroski yöntemi kullanılmaz; sektöre özgü yöntem gerekir. Bu bir 0/9 puanı değildir.",
+    }.get(sector)
+    if sector_caution:
+        warnings.append(sector_caution)
     if not complete:
         warnings.append("Eksik Piotroski verileri 0 puan sayılmaz; sonuç kesin bir skor değildir.")
     if credit:
@@ -139,7 +150,8 @@ def render_dashboard(quality, valuation=None):
 <h1>{_safe(name)}</h1><p class="muted">CIK {_safe(cik)} · Bilgi tarihi: {_safe(quality.get('as_of',''))}
 · Tek bileşik puan yok</p></header>
 <div class="grid"><section class="card"><h2>Piotroski F-Score</h2>
-<strong class="big">{_safe(score)}</strong><p>{_safe(detail)}</p></section>
+<strong class="big">{_safe(score)}</strong><p>{_safe(detail)}</p>
+{("<div class='note'>" + _safe(sector_caution) + "</div>") if sector_caution else ""}</section>
 <section class="card"><h2>Veri kapsamı</h2>
 <p>Sektör: {_safe(p.get('sector','Bilinmiyor'))}</p>
 <p>Son mali dönem: {_safe(p.get('periods',{}).get('current_fy_end','Bilinmiyor'))}</p>
