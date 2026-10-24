@@ -24,7 +24,6 @@ class PortfolioHTMLTests(unittest.TestCase):
         self.assertIn("3.000,00", h)
         self.assertIn("2.370,00", h)
         self.assertIn("AI gibi", h)
-        self.assertIn("Kesirli", h) if False else None
         self.assertIn("INVEST_AI | Portföy Risk Analizi", h)
         self.assertIn("kullanıcı tarafından", h)
         self.assertNotIn("<script", h.lower())
