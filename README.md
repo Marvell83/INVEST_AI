@@ -299,3 +299,26 @@ python sec_degisim_raporu.py --report reports/degisim.json --out reports/degisim
 
 **[Teknik kılavuz: olay tanımları, SEC kaynakları, dönem eşlemesi ve sınırlamalar](docs/SEC_FINANSAL_DEGISIM_V01.md).**
 
+
+## INVEST_AI Ana Sayfa (Codespaces ve yerel geliştirme)
+
+Depo kökünde `index.html` bulunuyor. Böylece terminalden `python3 -m http.server 8000` çalıştırıldığında ana adreste klasör listesi yerine **INVEST_AI araştırma merkezi** açılır.
+
+- **Ana sayfa:** platform modülleri ve oluşturulmuş raporlara hızlı erişim.
+- **Raporlarım:** `reports/` altındaki tüm HTML raporlarını otomatik tarama, isimle arama, aynı sayfada inceleme veya yeni sekmede açma.
+- **Analiz çalıştır:** mevcut Python araçları için kopyalanabilir komutlar.
+- **Sistem hakkında:** yöntem ve kapsam sınırları.
+
+Site, yalnızca raporları gösteren **statik geliştirme arayüzüdür**. Hisse fiyatı indirmez, Python kodunu tarayıcıda çalıştırmaz ve bulut sunucusuna kurulmuş üretim/abonelik hizmeti değildir. Python'un standart yerel HTTP sunucusu ve tarayıcı yeterlidir. Yeni rapor oluşturulduğunda listeden **Yenile** kullanılabilir.
+
+Codespaces terminalin meşgulse, **Terminal → Yeni Terminal** açarak yeni değişiklikleri güvenli biçimde getirebilirsin:
+
+~~~bash
+cd /workspaces/INVEST_AI
+git pull --ff-only origin main
+~~~
+
+Ardından zaten çalışan 8000 bağlantı noktasındaki sayfayı yenile. Yerel değişiklikler ile Git çakışırsa çalışma dosyalarını zorla sıfırlama.
+
+**[Ana sayfa rehberi ve kullanım adımları](docs/ANA_SAYFA_V01.md).**
+

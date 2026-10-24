@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1221">
+  <title>INVEST_AI | Araştırma Merkezi</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --background:#090f1d; --surface:#121d31; --surface2:#19263b;
+      --line:#293a53; --muted:#a9b7ce; --text:#edf4ff;
+      --accent:#6aaefc; --accent2:#5de5c5; --warn:#f4c277;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--text); background:var(--background);
+      font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    button,input,a { font:inherit; }
+    button { cursor:pointer; }
+    a { color:var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    .app { min-height:100vh; display:grid; grid-template-columns:245px minmax(0,1fr); }
+    .sidebar { border-right:1px solid var(--line); background:#0c1526;
+      padding:28px 19px; display:flex; flex-direction:column; gap:25px; }
+    .brand { display:flex; align-items:center; gap:12px; color:var(--text); text-decoration:none; }
+    .brand:hover { text-decoration:none; }
+    .brand-mark { width:42px; height:42px; flex:none; border-radius:12px;
+      display:grid; place-items:center; font-size:19px; font-weight:850;
+      color:#07162b; background:linear-gradient(145deg,var(--accent),var(--accent2)); }
+    .brand strong { display:block; font-size:20px; letter-spacing:.5px; }
+    .brand small { display:block; font-size:11px; color:var(--muted); }
+    .nav-caption { text-transform:uppercase; font-size:10px; color:#849ab9;
+      letter-spacing:1.8px; margin:0 0 9px 12px; }
+    .nav-list { display:grid; gap:6px; }
+    .nav-link { display:flex; align-items:center; gap:11px; color:#c4d3e8;
+      padding:11px 13px; border:1px solid transparent; border-radius:10px;
+      text-align:left; background:transparent; width:100%; }
+    .nav-link:hover,.nav-link.active { background:#1b3050; border-color:#35557a; text-decoration:none; color:#fff; }
+    .nav-ico { font-size:18px; width:22px; text-align:center; }
+    .sidebar-info { margin-top:auto; padding:15px; background:var(--surface);
+      border:1px solid var(--line); border-radius:13px; font-size:12px; color:var(--muted); }
+    .sidebar-info b { display:block; color:var(--accent2); margin-bottom:5px; font-weight:650; }
+    .main { min-width:0; padding:32px clamp(16px,4vw,54px) 55px; }
+    .top { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:25px; }
+    .eyebrow { color:var(--accent2); letter-spacing:2px; font-weight:700;
+      font-size:11px; text-transform:uppercase; }
+    .top-note { color:var(--muted); font-size:12px; border:1px solid var(--line);
+      padding:7px 12px; border-radius:30px; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { font-size:clamp(27px,3.6vw,42px); line-height:1.15; letter-spacing:-1.4px; margin:11px 0; }
+    h2 { font-size:21px; margin:0; letter-spacing:-.5px; }
+    h3 { font-size:16px; margin:0 0 6px; }
+    .muted { color:var(--muted); }
+    .hero { background:radial-gradient(ellipse at 90% 8%,#1f4869 0%,transparent 48%),
+      linear-gradient(125deg,#172743,#101c32); border:1px solid #34516f;
+      border-radius:21px; padding:clamp(22px,3vw,37px); position:relative; overflow:hidden; }
+    .hero p { max-width:690px; color:#bdcee3; margin:0 0 22px; }
+    .buttons { display:flex; flex-wrap:wrap; gap:10px; }
+    .btn { border:1px solid #4a607d; color:var(--text); border-radius:10px;
+      padding:10px 15px; background:#1c2c45; display:inline-flex;
+      gap:9px; align-items:center; justify-content:center; }
+    .btn:hover { text-decoration:none; background:#2a4061; }
+    .btn.primary { background:var(--accent); border-color:var(--accent);
+      color:#08182b; font-weight:700; }
+    .btn.primary:hover { background:#8bc3ff; }
+    .metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:19px 0 29px; }
+    .metric { background:var(--surface); border:1px solid var(--line); padding:17px 19px; border-radius:15px; }
+    .metric small { color:var(--muted); display:block; font-size:12px; }
+    .metric strong { font-size:27px; font-weight:750; display:block; margin-top:5px; font-variant-numeric:tabular-nums; }
+    .metric span { font-size:11px; color:#91a5c0; }
+    .section-top { display:flex; justify-content:space-between; align-items:center;
+      flex-wrap:wrap; gap:12px; margin:29px 0 15px; }
+    .section-top p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+    .search { width:min(100%,360px); color:var(--text); background:#121f34;
+      border:1px solid #3a4e69; border-radius:11px; padding:11px 13px;
+      outline-offset:3px; }
+    .search:focus { border-color:var(--accent); }
+    .report-grid,.feature-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px; }
+    .report-card,.feature-card { text-align:left; background:var(--surface);
+      border:1px solid var(--line); border-radius:15px; padding:18px; min-width:0; }
+    .report-card { color:var(--text); display:flex; flex-direction:column; align-items:stretch; gap:9px; }
+    .report-card:hover { border-color:#5b95ce; background:#182a43; }
+    .card-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .pill { display:inline-block; font-size:11px; border-radius:8px; padding:4px 8px;
+      color:#bdeadd; background:#183c3d; border:1px solid #285f5c; }
+    .report-card h3 { overflow-wrap:anywhere; margin:0; line-height:1.4; }
+    .file-path { color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+    .open-hint { color:var(--accent); font-size:12px; font-weight:650; }
+    .feature-card p { font-size:13px; margin:8px 0 0; color:var(--muted); }
+    .feature-number { font-size:12px; color:var(--accent2); margin-bottom:7px; }
+    .empty { grid-column:1/-1; border:1px dashed #405471;
+      padding:24px; border-radius:15px; background:#101b2c; }
+    .empty p { color:var(--muted); margin:6px 0 12px; }
+    .empty code { color:#cfe4fb; }
+    .tools { display:grid; gap:15px; }
+    .tool { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:19px; }
+    .tool p { color:var(--muted); font-size:13px; margin:0 0 12px; }
+    .command { overflow-x:auto; white-space:pre-wrap; overflow-wrap:anywhere;
+      background:#080e19; border:1px solid #31425a; border-radius:10px;
+      padding:15px; color:#cce4fa; line-height:1.8; font-size:12px; }
+    .tool-actions { display:flex; justify-content:flex-end; margin-top:9px; }
+    .viewer { border:1px solid #4b6484; border-radius:15px; overflow:hidden; background:#fff; }
+    .viewer-toolbar { background:#14243c; display:flex; align-items:center; gap:12px;
+      justify-content:space-between; padding:10px 14px; }
+    .viewer-title { overflow-wrap:anywhere; font-size:13px; font-weight:600; }
+    .viewer iframe { display:block; border:0; background:white; width:100%; min-height:680px; height:76vh; }
+    .notice { border-left:3px solid var(--warn); border-radius:8px;
+      padding:12px 15px; color:#e0cda5; background:#30261e; font-size:12px; margin-top:20px; }
+    .hidden { display:none !important; }
+    .screen { margin-top:22px; }
+    .footer { margin:35px 0 0; color:#8398b4; font-size:12px; }
+    code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+    :focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+    @media (max-width:930px) {
+      .app { grid-template-columns:1fr; }
+      .sidebar { padding:14px 18px; border-right:0; border-bottom:1px solid var(--line); gap:12px; }
+      .nav-caption,.sidebar-info { display:none; }
+      .nav-list { display:flex; flex-wrap:wrap; gap:5px; }
+      .nav-link { width:auto; padding:7px 9px; font-size:12px; }
+      .nav-ico { font-size:14px; width:auto; }
+      .main { padding:24px 17px 40px; }
+    }
+    @media (max-width:650px) {
+      .report-grid,.feature-grid { grid-template-columns:1fr; }
+      .metrics { grid-template-columns:1fr 1fr; }
+      .top-note { display:none; }
+      .viewer iframe { min-height:500px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="brand" href="#ana" aria-label="INVEST AI ana sayfa">
+      <span class="brand-mark">IA</span>
+      <span><strong>INVEST_AI</strong><small>Araştırma Merkezi · v0.1</small></span>
+    </a>
+    <nav class="nav-list" aria-label="Ana menü">
+      <button type="button" class="nav-link active" data-screen="ana"><span class="nav-ico">⌂</span> Ana sayfa</button>
+      <button type="button" class="nav-link" data-screen="raporlar"><span class="nav-ico">▤</span> Raporlarım</button>
+      <button type="button" class="nav-link" data-screen="araclar"><span class="nav-ico">⌘</span> Analiz çalıştır</button>
+      <button type="button" class="nav-link" data-screen="hakkinda"><span class="nav-ico">ⓘ</span> Sistem hakkında</button>
+    </nav>
+    <div class="sidebar-info">
+      <b>● Çevrimdışı rapor merkezi</b>
+      Python'un yerel HTTP sunucusuyla çalışır. Raporları yalnız sunucunun erişebildiği klasörden listeler.
+      <p>Bu ekran fiyat veya finansal veri indirmez; raporlar Python analiz modülleriyle oluşturulur.</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <span class="eyebrow">INVEST_AI / RESEARCH PLATFORM</span>
+      <span class="top-note">US-GAAP / SEC · Kaynaklı araştırma</span>
+    </div>
+
+    <section id="screen-ana" class="screen">
+      <div class="hero">
+        <div class="eyebrow">YATIRIM ARAŞTIRMASI</div>
+        <h1>Şirketleri keşfet.<br>Verileri doğrula. Sonuçları incele.</h1>
+        <p>INVEST_AI şirket analizi, Piotroski finansal kalite, TTM nakit akışı ve SEC bildirim farklarını aynı araştırma merkezinden görüntüle. Araştırma raporları otomatik listelenir.</p>
+        <div class="buttons">
+          <button type="button" class="btn primary" data-go="raporlar">Raporlarımı görüntüle →</button>
+          <button type="button" class="btn" data-go="araclar">Yeni analiz oluştur</button>
+        </div>
+      </div>
+      <div class="metrics">
+        <div class="metric"><small>Bulunan HTML raporu</small><strong id="report-total">—</strong><span>reports/ klasöründen</span></div>
+        <div class="metric"><small>Analiz motorları</small><strong>4</strong><span>Şirket · TTM · SEC değişim · Piotroski</span></div>
+        <div class="metric"><small>Dış hizmet maliyeti</small><strong>0 ₺</strong><span>Python standart kütüphanesi</span></div>
+      </div>
+      <div class="section-top"><div><h2>Raporlara hızlı erişim</h2><p>Oluşturduğun raporlar aşağıda görünür.</p></div>
+        <button id="refresh-home" type="button" class="btn">↻ Yenile</button></div>
+      <div id="home-reports" class="report-grid" aria-live="polite"><div class="empty">Raporlar aranıyor…</div></div>
+      <div class="section-top"><div><h2>Platform modülleri</h2><p>Analiz zincirinin mevcut aşamaları</p></div></div>
+      <div class="feature-grid">
+        <div class="feature-card"><div class="feature-number">01 · SEC</div><h3>Finansal veri denetimi</h3><p>CIK doğrulaması, yayımlanma tarihi ve kaynak iziyle finansal bilgileri kontrol eder.</p></div>
+        <div class="feature-card"><div class="feature-number">02 · QUALITY</div><h3>Piotroski F-Score</h3><p>Finansal güç sinyallerini yalnız veri yeterliyse hesaplar. Eksikleri gizlemez.</p></div>
+        <div class="feature-card"><div class="feature-number">03 · TTM</div><h3>12 aylık finansallar</h3><p>İki hesap motoru üzerinden SEC TTM dönem ve kaynak mutabakatı yapar.</p></div>
+        <div class="feature-card"><div class="feature-number">04 · CHANGE</div><h3>Finansal değişimler</h3><p>Yeni SEC kayıtlarını, geçmiş tutar revizyonlarını ve dokuz aylık karşılaştırmaları ayırır.</p></div>
+      </div>
+    </section>
+
+    <section id="screen-raporlar" class="screen hidden">
+      <div class="section-top">
+        <div><h1>Raporlarım</h1><p id="report-list-status">Raporlar klasörü taranıyor…</p></div>
+        <button id="refresh-list" type="button" class="btn">↻ Listeyi yenile</button>
+      </div>
+      <label for="report-search" class="muted">Rapor adı veya dosya yolunda ara</label>
+      <div style="margin:9px 0 17px"><input class="search" id="report-search" type="search"
+        placeholder="Örn. Apple, Piotroski, değişim…" autocomplete="off"></div>
+      <div id="report-list" class="report-grid" aria-live="polite">
+        <div class="empty">Raporlar aranıyor…</div>
+      </div>
+      <p class="muted" style="margin-top:15px;font-size:12px">Sadece reports/ klasöründeki HTML dosyaları listelenir. <a href="reports/" target="_blank" rel="noopener">Rapor klasörünü dosya listesi olarak aç ↗</a></p>
+    </section>
+
+    <section id="screen-araclar" class="screen hidden">
+      <h1>Analiz çalıştır</h1>
+      <p class="muted">Bu merkez raporları görüntüler. Yeni rapor üretmek için Codespaces terminaline aşağıdaki komutlardan birini yapıştır.</p>
+      <div class="tools">
+        <div class="tool">
+          <h3>Apple — hazır örnek şirket araştırması</h3>
+          <p>Depodaki örnek veriyi kullanır. Yeni rapor: reports/apple_arastirma.html</p>
+          <pre class="command" id="command-company">python3 sirket_arastirma_akisi.py --cik 320193 --as-of 2026-10-21 --sector non_financial --companyfacts ornekler/apple_ttm_evidence_2026-10-21.json --out-json reports/apple_arastirma.json --out-html reports/apple_arastirma.html</pre>
+          <div class="tool-actions"><button type="button" class="btn" data-copy="command-company">Komutu kopyala</button></div>
+        </div>
+        <div class="tool">
+          <h3>SEC arşivinden finansal değişim raporu</h3>
+          <p>Gerçekten farklı zamanlarda oluşturulmuş iki SEC JSON dosyası gerektirir. Aşağıdaki dosya isimleri örnektir.</p>
+          <pre class="command" id="command-diff">python3 sec_finansal_degisim.py --old ESKI_COMPANYFACTS.json --new YENI_COMPANYFACTS.json --cik 320193 --as-of 2026-10-24 --out reports/degisim.json
+python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisim.html</pre>
+          <div class="tool-actions"><button type="button" class="btn" data-copy="command-diff">Komutu kopyala</button></div>
+        </div>
+        <div class="tool">
+          <h3>Python testleri</h3>
+          <p>Kaynak ve hesaplama motorlarının mevcut otomatik testlerini çalıştırır.</p>
+          <pre class="command" id="command-tests">python3 -m unittest discover -s tests -v</pre>
+          <div class="tool-actions"><button type="button" class="btn" data-copy="command-tests">Komutu kopyala</button></div>
+        </div>
+      </div>
+      <div class="notice">Komutu terminalde çalıştırdıktan sonra <strong>Raporlarım → Listeyi yenile</strong> ile yeni HTML raporunu bulabilirsin. Bu ana sayfa yatırım analizi hesaplamalarını tarayıcı içinde çalıştırmaz.</div>
+    </section>
+
+    <section id="screen-hakkinda" class="screen hidden">
+      <h1>Sistem hakkında</h1>
+      <div class="tools">
+        <div class="tool"><h3>INVEST_AI nedir?</h3>
+          <p>Şirketlerin SEC kaynaklı finansal açıklamalarını araştırmak, muhasebe verilerindeki boşlukları ve tarihli değişimleri görünür kılmak için geliştirilmekte olan ücretsiz Python araştırma altyapısıdır.</p>
+          <p>Bu sayfa yalnız HTML raporlarına erişim sağlar. SEC verilerinin bağımsız doğrulandığını, otomatik hisse keşif sıralamasının hazır olduğunu veya hedef fiyatların güvenilir olduğunu iddia etmez.</p></div>
+        <div class="tool"><h3>Kaynaklar</h3>
+          <p><a href="https://github.com/Marvell83/INVEST_AI" target="_blank" rel="noopener noreferrer">GitHub deposu ↗</a></p>
+          <p><a href="https://github.com/Marvell83/INVEST_AI/blob/main/docs/SIRKET_ARASTIRMA_AKISI_V01.md" target="_blank" rel="noopener noreferrer">Şirket analizi kullanım rehberi ↗</a></p>
+          <p><a href="https://github.com/Marvell83/INVEST_AI/blob/main/docs/SEC_FINANSAL_DEGISIM_V01.md" target="_blank" rel="noopener noreferrer">SEC finansal değişim rehberi ↗</a></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-viewer" class="screen hidden" aria-label="Seçilen rapor">
+      <div class="section-top">
+        <div><span class="eyebrow">RAPOR GÖRÜNTÜLEYİCİ</span><h2 id="viewer-heading">Rapor</h2></div>
+        <button id="viewer-back" type="button" class="btn">← Raporlara dön</button>
+      </div>
+      <div class="viewer">
+        <div class="viewer-toolbar"><span id="viewer-file" class="viewer-title"></span>
+          <a id="viewer-open" class="btn" href="reports/" target="_blank" rel="noopener noreferrer">Yeni sekmede aç ↗</a>
+        </div>
+        <iframe id="viewer-frame" sandbox="" title="Seçilen INVEST_AI raporu"></iframe>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:10px">Rapor ayrı ve sınırlandırılmış bir çerçevede açılır. Görüntüleme sorunu varsa “Yeni sekmede aç” seçeneğini kullan.</p>
+    </section>
+    <footer class="footer">INVEST_AI · Araştırma prototipi · Finansal tavsiye veya canlı piyasa verisi değildir.</footer>
+  </main>
+</div>
+<script>
+(function () {
+  "use strict";
+  const REPORT_ROOT = new URL("reports/", document.baseURI);
+  const homeReports = document.getElementById("home-reports");
+  const fullReports = document.getElementById("report-list");
+  const status = document.getElementById("report-list-status");
+  const search = document.getElementById("report-search");
+  let reports = [];
+  let lastScreen = "raporlar";
+  let busy = false;
+  const allowedScreens = new Set(["ana", "raporlar", "araclar", "hakkinda", "viewer"]);
+
+  function show(screen) {
+    if (!allowedScreens.has(screen)) return;
+    for (const name of allowedScreens) {
+      document.getElementById("screen-" + name).classList.toggle("hidden", name !== screen);
+    }
+    for (const button of document.querySelectorAll("[data-screen]")) {
+      button.classList.toggle("active", button.dataset.screen === screen);
+    }
+    if (screen !== "viewer") lastScreen = screen;
+    window.scrollTo({ top: 0, behavior: "instant" });
+    if (screen !== "viewer") window.location.hash = screen;
+  }
+
+  function category(name) {
+    const x = name.toLocaleLowerCase("tr");
+    if (x.includes("degisim") || x.includes("değişim") || x.includes("change")) return "Finansal değişim";
+    if (x.includes("piotroski") || x.includes("kalite")) return "Finansal kalite";
+    if (x.includes("portfoy") || x.includes("portföy")) return "Portföy";
+    if (x.includes("ttm")) return "TTM";
+    return "Şirket araştırması";
+  }
+
+  function friendly(name) {
+    return name.replace(/\.html?$/i, "").replace(/[_-]/g, " ")
+      .replace(/CIK([0-9]{10})/i, "CIK $1").trim();
+  }
+
+  function insideReports(url) {
+    return url.origin === REPORT_ROOT.origin &&
+      url.pathname.startsWith(REPORT_ROOT.pathname) &&
+      !url.search && !url.hash;
+  }
+
+  async function scanDirectory(directory, depth, seen, collected) {
+    if (depth > 3 || seen.has(directory.href) || collected.length > 1000) return;
+    seen.add(directory.href);
+    const response = await fetch(directory.href, { cache: "no-store" });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const markup = await response.text();
+    const doc = new DOMParser().parseFromString(markup, "text/html");
+    const paths = Array.from(doc.querySelectorAll("a[href]"))
+      .map(node => node.getAttribute("href"))
+      .filter(Boolean);
+    for (const path of paths) {
+      if (path === "../" || path === "./" || path.startsWith("?") || path.startsWith("#")) continue;
+      let dest;
+      try { dest = new URL(path, directory); } catch (_) { continue; }
+      if (!insideReports(dest) || dest.href === directory.href) continue;
+      if (path.endsWith("/")) {
+        if (depth < 3) await scanDirectory(dest, depth + 1, seen, collected);
+      } else if (/\.html?$/i.test(dest.pathname)) {
+        const basename = decodeURIComponent(dest.pathname.split("/").pop() || "");
+        collected.push({
+          name: friendly(basename),
+          filename: basename,
+          category: category(basename),
+          path: decodeURIComponent(dest.pathname).replace(REPORT_ROOT.pathname, "reports/"),
+          url: dest.href
+        });
+      }
+      if (collected.length > 1000) return;
+    }
+  }
+
+  function emptyMessage(title, desc) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "empty";
+    const b = document.createElement("strong");
+    b.textContent = title;
+    const p = document.createElement("p");
+    p.textContent = desc;
+    wrapper.append(b, p);
+    return wrapper;
+  }
+
+  function reportCard(item) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "report-card";
+    const top = document.createElement("div");
+    top.className = "card-top";
+    const pill = document.createElement("span");
+    pill.className = "pill";
+    pill.textContent = item.category;
+    top.append(pill);
+    const h = document.createElement("h3");
+    h.textContent = item.name;
+    const p = document.createElement("span");
+    p.className = "file-path";
+    p.textContent = item.path;
+    const foot = document.createElement("span");
+    foot.className = "open-hint";
+    foot.textContent = "Raporu görüntüle ↗";
+    button.append(top, h, p, foot);
+    button.addEventListener("click", () => {
+      document.getElementById("viewer-heading").textContent = item.name;
+      document.getElementById("viewer-file").textContent = item.path;
+      document.getElementById("viewer-frame").src = item.url;
+      document.getElementById("viewer-open").href = item.url;
+      show("viewer");
+    });
+    return button;
+  }
+
+  function render() {
+    document.getElementById("report-total").textContent = String(reports.length);
+    status.textContent = reports.length + " HTML raporu bulundu · reports/ klasörü";
+    homeReports.replaceChildren();
+    fullReports.replaceChildren();
+    const term = search.value.toLocaleLowerCase("tr").trim();
+    const matches = reports.filter(item =>
+      (item.name + " " + item.category + " " + item.path).toLocaleLowerCase("tr").includes(term));
+    if (!reports.length) {
+      const message = emptyMessage("Henüz HTML raporu yok.",
+        "Analiz çalıştır bölümündeki Apple örneğini terminalde çalıştır; sonra listeyi yenile.");
+      homeReports.append(message.cloneNode(true));
+      fullReports.append(message);
+      return;
+    }
+    for (const item of reports.slice(0, 4)) homeReports.append(reportCard(item));
+    if (!matches.length) {
+      fullReports.append(emptyMessage("Aramana uygun rapor bulunamadı.",
+        "Başka bir şirket adı veya dosya adı dene."));
+    } else {
+      for (const item of matches) fullReports.append(reportCard(item));
+    }
+  }
+
+  async function refresh() {
+    if (busy) return;
+    busy = true;
+    status.textContent = "Raporlar taranıyor…";
+    try {
+      const found = [];
+      await scanDirectory(REPORT_ROOT, 0, new Set(), found);
+      const unique = new Map(found.map(item => [item.url, item]));
+      reports = Array.from(unique.values()).sort((a, b) =>
+        a.name.localeCompare(b.name, "tr", { numeric: true }));
+      render();
+    } catch (_) {
+      reports = [];
+      homeReports.replaceChildren(emptyMessage("Rapor klasörü okunamadı.",
+        "Sunucuyu INVEST_AI depo kökünde çalıştırdığından emin ol: python3 -m http.server 8000"));
+      fullReports.replaceChildren(emptyMessage("Rapor listesi açılamıyor.",
+        "reports/ dizini bulunmalı ve sunucu doğru klasörden çalışmalıdır."));
+      status.textContent = "Rapor klasörüne erişilemedi";
+      document.getElementById("report-total").textContent = "—";
+    } finally {
+      busy = false;
+    }
+  }
+
+  for (const button of document.querySelectorAll("[data-screen], [data-go]")) {
+    button.addEventListener("click", () => show(button.dataset.screen || button.dataset.go));
+  }
+  for (const button of document.querySelectorAll("[data-copy]")) {
+    button.addEventListener("click", async () => {
+      const source = document.getElementById(button.dataset.copy);
+      if (!source) return;
+      try {
+        await navigator.clipboard.writeText(source.textContent.trim());
+        const original = button.textContent;
+        button.textContent = "Kopyalandı ✓";
+        button.blur();
+        setTimeout(() => { button.textContent = original; }, 1600);
+      } catch (_) {
+        button.textContent = "Komutu seçip kopyala";
+      }
+    });
+  }
+  search.addEventListener("input", render);
+  document.getElementById("refresh-home").addEventListener("click", refresh);
+  document.getElementById("refresh-list").addEventListener("click", refresh);
+  document.getElementById("viewer-back").addEventListener("click", () => {
+    document.getElementById("viewer-frame").removeAttribute("src");
+    show(lastScreen);
+  });
+  window.addEventListener("hashchange", () => {
+    const hash = window.location.hash.replace(/^#/, "");
+    if (allowedScreens.has(hash) && hash !== "viewer") show(hash);
+  });
+  const initial = window.location.hash.replace(/^#/, "");
+  if (allowedScreens.has(initial) && initial !== "viewer") show(initial);
+  refresh();
+}());
+</script>
+</body>
+</html>
