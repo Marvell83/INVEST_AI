@@ -1,0 +1,27 @@
+{
+  "schema_version": "invest-ai-portfolio-0.1",
+  "example_disclaimer": "SYNTHETIC demonstration quantities, prices and costs. NOT real user holdings or market quotes.",
+  "base_currency": "USD",
+  "as_of": "2026-10-24",
+  "cash_usd": 30,
+  "fx_usdtry": {"rate": 49.6, "date": "2026-10-23"},
+  "positions": [
+    {"ticker": "NVDA", "quantity": "2", "cost_per_share_usd": 190, "price_usd": 200, "price_date": "2026-10-23", "price_source": "SYNTHETIC SAMPLE", "sector": "semiconductors", "themes": ["ai_chips", "ai_infrastructure"]},
+    {"ticker": "TSM", "quantity": "1", "cost_per_share_usd": 350, "price_usd": 400, "price_date": "2026-10-23", "price_source": "SYNTHETIC SAMPLE", "sector": "semiconductors", "themes": ["ai_chips"]},
+    {"ticker": "ASML", "quantity": "0.25", "cost_per_share_usd": 1500, "price_usd": 1600, "price_date": "2026-10-23", "price_source": "SYNTHETIC SAMPLE", "sector": "semiconductor_equipment", "themes": ["ai_chips"]},
+    {"ticker": "VRT", "quantity": "2", "cost_per_share_usd": 175, "price_usd": 200, "price_date": "2026-10-23", "price_source": "SYNTHETIC SAMPLE", "sector": "datacenter_equipment", "themes": ["ai_infrastructure"]},
+    {"ticker": "STRL", "quantity": "1", "cost_per_share_usd": 300, "price_usd": 350, "price_date": "2026-10-23", "price_source": "SYNTHETIC SAMPLE", "sector": "construction", "themes": ["ai_infrastructure"]},
+    {"ticker": "VST", "quantity": "3", "cost_per_share_usd": 150, "price_usd": 140, "price_date": "2026-10-23", "price_source": "SYNTHETIC SAMPLE", "sector": "electric_power", "themes": ["ai_energy"]},
+    {"ticker": "RDDT", "quantity": "2", "cost_per_share_usd": 125, "price_usd": 150, "price_date": "2026-10-23", "price_source": "SYNTHETIC SAMPLE", "sector": "internet", "themes": ["adtech"]},
+    {"ticker": "LLY", "quantity": "0.25", "cost_per_share_usd": 1050, "price_usd": 1200, "price_date": "2026-10-23", "price_source": "SYNTHETIC SAMPLE", "sector": "pharma", "themes": ["healthcare"]}
+  ],
+  "theme_unions": {"ai_connected": ["ai_chips", "ai_infrastructure", "ai_energy"]},
+  "scenarios": [
+    {
+      "name": "ai_capex_slowdown",
+      "horizon": "12 months",
+      "rationale": "Entirely hypothetical input shocks; not an earnings forecast or investment recommendation.",
+      "shocks_pct": {"NVDA": -30, "TSM": -25, "ASML": -20, "VRT": -40, "STRL": -35, "VST": -20, "RDDT": -10, "LLY": 5}
+    }
+  ]
+}
