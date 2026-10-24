@@ -144,6 +144,69 @@ def _shares_note(shares):
     return f"<p class='muted'>Dolaşımdaki hisse: {_safe(reason)}.</p>"
 
 
+LAYER_STATUS = {
+    "MATCHED": "birebir eşleşti", "MATCHED_WITH_NOTES": "eşleşti, notlar var",
+    "DIFFERENCES": "fark var — manuel inceleme gerekir", "NOT_APPLICABLE": "uygulanmadı",
+    "NOT_COMPARABLE": "karşılaştırılamadı",
+}
+CHECK_STATUS = {
+    "MATCH": "eşleşti", "VALUE_DIFFERS": "tutar farklı",
+    "SHARED_CONFLICT": "ortak katmanda XBRL etiket çelişkisi", "SHARED_MISSING": "ortak katmanda değer yok",
+    "SAME_VALUE_OTHER_FILING": "aynı tutar, farklı SEC dosyası",
+    "YEAR_NOT_IN_SHARED_STATEMENTS": "bu yıl ortak tablolarda yok",
+    "ROUNDING": "yuvarlama farkı (≤ %0,1)", "SHARED_INCOMPLETE": "ortak çeyreklerde eksik değer",
+}
+LAYER_REASONS = {
+    "NO_PIOTROSKI_SEC_INPUTS": "Piotroski hiç SEC verisi kullanmadı (sektör veya iki yıllık dönem şartı)",
+    "TTM_ENGINES_NOT_RECONCILED": "iki TTM motoru mutabık değil",
+    "NO_FOUR_CONSECUTIVE_SHARED_QUARTERS_TO_TTM_END": "TTM bitişine kadar art arda dört ortak çeyrek yok",
+}
+
+
+def _millions(value):
+    return "—" if value is None else f"{value / 1e6:,.0f}"
+
+
+def render_layer_reconciliation(layers):
+    """Where Piotroski / TTM inputs differ from the shared statements layer."""
+    piotroski, ttm = layers.get("piotroski", {}), layers.get("ttm", {})
+    rows = []
+    for check in piotroski.get("checks", []):
+        if check["status"] != "MATCH":
+            rows.append(("Piotroski · " + check["piotroski_input"], check["fiscal_year_end"],
+                         check["piotroski"], check.get("shared"), check["status"]))
+    for check in ttm.get("checks", []):
+        if check["status"] != "MATCH":
+            rows.append(("TTM · " + check["metric"], ttm.get("ttm_end", ""),
+                         check["ttm"], check.get("shared"), check["status"]))
+    table = ""
+    if rows:
+        body = "".join(
+            f"<tr><td>{_safe(name)}</td><td>{_safe(period)}</td><td class='num'>{_safe(_millions(old))}</td>"
+            f"<td class='num'>{_safe(_millions(new))}</td><td>{_safe(CHECK_STATUS.get(status, status))}</td></tr>"
+            for name, period, old, new, status in rows)
+        table = ("<div class='scroll'><table><thead><tr><th>Kontrol</th><th>Dönem</th>"
+                 "<th class='num'>Eski motor</th><th class='num'>Ortak katman</th><th>Durum</th></tr></thead>"
+                 f"<tbody>{body}</tbody></table></div>")
+
+    def line(title, part):
+        checks = part.get("checks", [])
+        matched = sum(c["status"] == "MATCH" for c in checks)
+        reason = part.get("reason", "")
+        detail = f" ({matched}/{len(checks)} kontrol birebir)" if checks else f" — {LAYER_REASONS.get(reason, reason)}"
+        status = part.get("status", "NOT_APPLICABLE")
+        css = "no" if status == "DIFFERENCES" else ("yes" if status == "MATCHED" else "")
+        return (f"<p>{_safe(title)}: <span class='{css}'>{_safe(LAYER_STATUS.get(status, status))}</span>"
+                f"{_safe(detail)}</p>")
+    return (
+        "<section class='card'><h2>Katman mutabakatı</h2>" +
+        line("Piotroski girdileri ↔ yıllık tablolar", piotroski) +
+        line("TTM ↔ son dört çeyreğin toplamı", ttm) + table +
+        "<p class='muted'>Piotroski ve TTM motorları SEC verisini hâlâ kendi kurallarıyla okur. Bu bölüm, "
+        "aynı SEC dosyasında onların kullandığı rakamları ortak tablo katmanıyla karşılaştırır (milyon USD). "
+        "Eşleşme, SEC verisinin bağımsız doğrulandığı anlamına gelmez.</p></section>")
+
+
 def render_quarterly_section(quarterly):
     """Discrete fiscal quarters (newest first); values in millions as reported to SEC."""
     quarters = quarterly.get("quarters", [])

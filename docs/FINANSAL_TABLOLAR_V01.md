@@ -55,6 +55,21 @@ Her hücre şunları taşır: `status` (`REPORTED` / `DERIVED` / `MISSING` / `CO
 
 Birden fazla hisse sınıfı olan şirketler (ör. A/B/C sınıfı) aynı dosyada birden fazla değer bildirebilir. Bu durumda değerler toplanmaz ve aralarından seçim yapılmaz; sonuç `CONFLICT` olur. Yıllık ve çeyreklik çıktıların ikisinde de `shares_outstanding` alanı bulunur.
 
+## Katman mutabakatı
+
+Piotroski ve iki TTM motoru SEC verisini hâlâ kendi kurallarıyla okur. `katman_mutabakati.py` her araştırma raporunda bu motorların kullandığı rakamları ortak katmanla karşılaştırır ve raporda "Katman mutabakatı" bölümünde gösterir. Hiçbir motorun sonucunu değiştirmez.
+
+| Kontrol | Nasıl karşılaştırılır | Dikkat gerektiren durum |
+|---|---|---|
+| Piotroski girdileri ↔ yıllık tablolar | Piotroski'nin kullandığı her SEC kaydı (net kâr, CFO, gelir, brüt kâr, varlıklar, borç, dönen varlık ve yükümlülükler) aynı yılın ortak hücresiyle birebir | `VALUE_DIFFERS` (tutar farklı), `SHARED_CONFLICT` (Piotroski bir değer kullandı, ortak katman etiket çelişkisi gördü) |
+| TTM ↔ son dört çeyrek | Mutabık TTM, TTM bitişinde sona eren art arda dört ortak çeyreğin toplamıyla | %0,1'i aşan fark (`VALUE_DIFFERS`); %0,1'e kadarki fark yuvarlama sayılır (`ROUNDING`) |
+
+Dikkat gerektiren bir fark araştırma raporunun açık eksiklerine eklenir:
+- `SHARED_STATEMENTS_DIFFER_FROM_PIOTROSKI_INPUTS`
+- `SHARED_QUARTERS_DIFFER_FROM_TTM`
+
+Bilinen kural farkı: Piotroski gelir etiketleri arasında **%5'e kadar** farkı kabul eder, ortak katman **%0,5'te** durur. Bu yüzden etiketleri %0,5–%5 arası ayrışan şirketlerde Piotroski girdisi `SHARED_CONFLICT` olarak işaretlenir. Piotroski'nin ortak katmana taşınması bu eşiğin hangisinde birleşeceğine bağlıdır ([YOL_HARITASI.md](YOL_HARITASI.md)).
+
 ## Oranlar
 
 | Grup | Oranlar |

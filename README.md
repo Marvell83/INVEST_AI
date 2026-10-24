@@ -42,6 +42,7 @@ SEC Company Facts (ham JSON, SHA-256 ile arşiv: sec_arsiv)
 | | `degerleme_kaydi.py`, `tahmin_defteri.py` | Değerleme tahminlerini kaynaklı SQLite kaydına yazma ve puanlama |
 | **Finansal tablolar** | `finansal_tablolar.py` | Ortak, tarihli ve kaynaklı yıllık ve çeyreklik gelir tablosu / nakit akışı / bilanço (27 kalem); kapak sayfası hisse sayısı |
 | | `finansal_oranlar.py` | Marj, büyüme, nakit kalitesi, ROA / ROE / ROIC, borçluluk; her oranın formülü ve hesaplanamama nedeni |
+| | `katman_mutabakati.py` | Piotroski ve TTM girdilerinin ortak tablolarla aynı rakam ve SEC dosyalarını kullanıp kullanmadığı |
 | **SEC verisi** | `sec_companyfacts.py` | Company Facts indirme / normalize etme |
 | | `sec_arsiv.py` | Ortak arşiv yardımcıları: SHA-256 arşiv, atomik yazma, ticker–CIK haritası, istek hızı sınırı |
 | | `sec_gap_audit.py` | Yıllık kaynak / dönem / etiket çelişkisi denetimi |
@@ -90,7 +91,7 @@ Ayrıntılı kullanım: [web analizi](docs/WEB_SIRKET_ANALIZI_V02.md) · [şirke
 
 | Paket | Komut | Sonuç |
 |---|---|---|
-| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **412/412** |
+| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **427/427** |
 | Dondurulmuş v0.1 kabul | `dogrulama/kabul_testi.py` | **17/17** |
 | Kabul altyapısı + v0.2 modülleri | `unittest test_dogrulama_seti test_moduller_v02` | **9/9** (2 + 7) |
 

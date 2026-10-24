@@ -17,11 +17,14 @@ import re
 
 from finansal_oranlar import compute_ratios
 from finansal_tablolar import build_annual_statements, build_quarterly_statements
+from katman_mutabakati import reconcile_layers
 from kredi_notlari import company_quality_snapshot
 from sec_companyfacts import SEC_DATA, _validate_cik, download_companyfacts
 from sec_gap_audit import audit_company
 from sec_ttm_crosscheck import audit_ttm
-from sirket_analiz_paneli import render_dashboard, render_financial_sections, render_quarterly_section
+from sirket_analiz_paneli import (
+    render_dashboard, render_financial_sections, render_layer_reconciliation, render_quarterly_section,
+)
 
 VERSION = "invest-ai-company-research-0.1.0"
 SECTORS = ("non_financial", "financial", "unknown")
@@ -100,6 +103,7 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
     if statements["cik"] != cik or quarterly["cik"] != cik:
         raise ValueError("financial statements issuer differs from requested CIK")
     ratios = compute_ratios(statements)
+    layers = reconcile_layers(quality["piotroski"], statements, ttm, quarterly)
 
     p = quality["piotroski"]
     gaps = []
@@ -117,6 +121,10 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         gaps.append("PIOTROSKI_ANNUAL_PERIOD_MISMATCH")
     if ttm.get("primary", {}).get("periods", {}).get("annual_end") not in (None, annual_end):
         gaps.append("TTM_ANNUAL_PERIOD_MISMATCH")
+    if layers["piotroski"]["status"] == "DIFFERENCES":
+        gaps.append("SHARED_STATEMENTS_DIFFER_FROM_PIOTROSKI_INPUTS")
+    if layers["ttm"]["status"] == "DIFFERENCES":
+        gaps.append("SHARED_QUARTERS_DIFFER_FROM_TTM")
 
     evidence = raw.get("evidence_notes")
     manual = isinstance(evidence, dict) and (
@@ -160,6 +168,7 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         "financial_statements": statements,
         "financial_ratios": ratios,
         "quarterly_statements": quarterly,
+        "layer_reconciliation": layers,
         "actual_price": None, "dcf": None, "combined_investment_score": None,
         "forecast_created": False, "investment_recommendation": None,
         "limitations": limitations,
@@ -234,6 +243,8 @@ def render_company_research(report):
         financials = render_financial_sections(report["financial_statements"], report["financial_ratios"])
     if "quarterly_statements" in report:
         financials += render_quarterly_section(report["quarterly_statements"])
+    if "layer_reconciliation" in report:
+        financials += render_layer_reconciliation(report["layer_reconciliation"])
     return base.replace("</main>", intro + financials + ttm_section + notes + "</main>", 1)
 
 
