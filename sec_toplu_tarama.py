@@ -286,6 +286,8 @@ def scan_universe(records, *, as_of, archive_dir, reports_dir, offline=False,
         "version": VERSION, "as_of": as_of,
         "mode": "offline_cache" if offline else "sec_cached_or_direct",
         "ticker_map": "provided_snapshot" if ticker_data is not None else "not_provided",
+        "ticker_map_sha256": (hashlib.sha256(_canonical_bytes(ticker_data)).hexdigest()
+                              if ticker_data is not None else None),
         "status": "SCANNED_WITH_COVERAGE_LIMITATIONS",
         "records": [], "counts": {},
         "network_requests": 0,
@@ -420,18 +422,25 @@ def main(argv=None):
     ticker.add_argument("--ticker-map", help="locally archived SEC company_tickers.json")
     ticker.add_argument("--download-ticker-map", action="store_true",
                         help="one online SEC request for current ticker/CIK mapping")
+    parser.add_argument("--ticker-map-out", help="required when downloading ticker map")
     parser.add_argument("--max-companies", type=int, default=100)
     parser.add_argument("--cache-ttl-hours", type=float, default=24)
     parser.add_argument("--minimum-request-interval", type=float, default=1.0)
     args = parser.parse_args(argv)
     if args.download_ticker_map and not args.online:
         parser.error("--download-ticker-map requires --online")
+    if args.download_ticker_map and not args.ticker_map_out:
+        parser.error("--download-ticker-map requires --ticker-map-out")
+    if args.ticker_map_out and not args.download_ticker_map:
+        parser.error("--ticker-map-out requires --download-ticker-map")
     if not args.universe or not Path(args.universe).is_file():
         parser.error("universe file does not exist")
     path_list = [Path(args.universe).resolve(), Path(args.out_json).resolve(),
                  Path(args.out_csv).resolve()]
     if args.ticker_map:
         path_list.append(Path(args.ticker_map).resolve())
+    if args.ticker_map_out:
+        path_list.append(Path(args.ticker_map_out).resolve())
     if len(set(path_list)) != len(path_list):
         parser.error("input and output files must have distinct paths")
     roots = [Path(args.archive_dir).resolve(), Path(args.reports_dir).resolve()]
@@ -445,6 +454,7 @@ def main(argv=None):
         parser.error("set SEC_USER_AGENT to application name and actual contact email")
     if args.download_ticker_map:
         ticker_data = download_ticker_map(user_agent=user_agent, limiter=limiter)
+        _atomic_write(args.ticker_map_out, _canonical_bytes(ticker_data))
     elif args.ticker_map:
         ticker_data = _load_json(args.ticker_map, max_bytes=MAX_TICKERS_JSON)
     else:
@@ -457,6 +467,12 @@ def main(argv=None):
         ticker_data=ticker_data, limit=args.max_companies,
         max_age_hours=args.cache_ttl_hours, user_agent=user_agent,
         min_interval_seconds=args.minimum_request_interval, limiter=limiter)
+    if args.ticker_map_out:
+        summary["ticker_map_snapshot"] = str(Path(args.ticker_map_out))
+    elif args.ticker_map:
+        summary["ticker_map_snapshot"] = str(Path(args.ticker_map))
+    else:
+        summary["ticker_map_snapshot"] = None
     _export(summary, args.out_json, args.out_csv)
     print(json.dumps({k: v for k, v in summary.items() if k != "records"},
                      ensure_ascii=False, indent=2))
