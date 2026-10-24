@@ -17,3 +17,7 @@ sec_dcf_v02.json
 companyfacts.json
 *.db
 *.db-journal
+
+# Browser-triggered SEC raw archive and generated company research
+veri/
+reports/research/
