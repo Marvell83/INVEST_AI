@@ -151,7 +151,9 @@ class ResearchService:
         result["source"]["archive_path"] = archive.relative_to(self.root).as_posix() if archive else None
         page = render_company_research(result)
         digest = result["source"]["canonical_json_sha256"][:12]
-        basename = f"{ticker}_{mode.upper()}_{as_of}_{digest}"
+        # A different analyst sector assumption must not overwrite an earlier report
+        # generated from the same SEC snapshot with another classification.
+        basename = f"{ticker}_{mode.upper()}_{as_of}_{sector}_{digest}"
         folder = self.root / "reports" / "research"
         out_json = folder / (basename + ".json")
         out_html = folder / (basename + ".html")
@@ -167,6 +169,7 @@ class ResearchService:
             "annual_end": result["annual_source_audit"].get("latest_any_fy_end"),
             "ttm_end": ttm.get("primary", {}).get("periods", {}).get("current_9m_end"),
             "ttm_status": ttm["status"], "piotroski_score": p["score"],
+            "piotroski_status": p["status"], "sector": sector,
             "piotroski_range": p["score_range"], "research_gaps": result["research_gaps"],
             "report_url": "/" + out_html.relative_to(self.root).as_posix(),
             "no_investment_advice": True,
