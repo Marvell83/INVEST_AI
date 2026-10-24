@@ -1,10 +1,10 @@
 # INVEST_AI — Bağımsız Değerleme Çekirdeği
 
-**Durum:** geliştirme ve doğrulama aşamasında. Bu depo, YATIRIM AI'nın yatırım araştırması platformu için geliştirilen ilk bağımsız değerleme çekirdeğini içerir.
+**Durum:** geliştirme ve doğrulama aşamasında. Bu depo INVEST_AI'nın kaynaklı SEC şirket araştırması, finansal kalite, tarihli TTM verileri, deneysel değerleme ve tahmin kaydı modüllerini içerir.
 
 ## Amaç
 
-InvestingPro ile seçilen şirketlere ait finansal verileri, sektör ve şirket araştırmalarından gelen kaynaklı varsayımları ve geleceğe dönük nakit akışı projeksiyonlarını kullanarak senaryolu DCF ve ters DCF değerlemesi yapmak. **Henüz InvestingPro entegrasyonu, otomatik haber takip sistemi veya gerçek şirketlere bağlı üretim uygulaması yoktur.**
+Hedef, tek bir kullanıcının portföyüyle sınırlı olmayan, şirketler için **kaynağı izlenebilir tarihli SEC finansal veri analizi, veri kalite denetimi, Piotroski F-Score, TTM, kaynaklı senaryolu DCF/ters DCF ve Tahmin Defteri** sunan bağımsız bir yatırım araştırma altyapısı oluşturmaktır. **Henüz üretime hazır otomatik yatırım önerisi, canlı fiyat/haber takip sistemi, InvestingPro bağlantısı veya IFRS/20-F desteği yoktur.**
 
 ## Modüller
 
@@ -249,4 +249,21 @@ python -m unittest discover -s tests -v
 ```
 
 İçerik, örnek matematik, sınırlamalar ve Midas'tan manuel veri şablonu: [Portföy Risk Motoru v0.1](docs/PORTFOY_RISK_MOTORU_V01.md).
+
+
+## Tek komutla genel şirket araştırması — v0.1 (24 Ekim 2026)
+
+**Yeni:** `sirket_arastirma_akisi.py`, portföy adetleri veya kişisel işlem geçmişi gerektirmeden **SEC Company Facts kapsamındaki tek bir şirketi** analiz eder. Halihazırdaki `sec_gap_audit.py` (yıllık kaynak kontrolü), `piotroski_fscore.py` (9 gösterge), `kredi_notlari.py` (opsiyonel manuel ihraççı notları), `sec_ttm_crosscheck.py` (iki ayrı TTM hesap motoru) ve `sirket_analiz_paneli.py` (Türkçe HTML) bileşenlerini tek iş akışında birleştirir.
+
+Eksik veya çelişkili kaynak **kısmi araştırma raporunda belirtilir**; bilinmeyen F-Score kesin sayıya, TTM noksanlığı sıfıra, geçmiş finansallar otomatik hedef fiyata çevrilmez. CIK, sektör sınıflandırması, bilgi tarihi ve isteğe bağlı mali yıl sonu açıkça denetlenir. Çıktı hem kaynakları koruyan JSON hem de internet gerektirmeyen HTML'dir. Ücretsiz Python standart kütüphanesini kullanır.
+
+Depodaki **manuel SEC aktarımı** Apple örneğiyle çevrimdışı kullanım:
+
+```powershell
+python sirket_arastirma_akisi.py --cik 320193 --as-of 2026-10-21 --sector non_financial --companyfacts ornekler/apple_ttm_evidence_2026-10-21.json --out-json reports/apple_research.json --out-html reports/apple_research.html
+```
+
+Bu Apple dosyası gerçek ham API indirmesi değildir, **manuel transkripsiyon** olarak raporlanır. Bir SEC API dosyası doğrudan indirilecekse gerçek iletişim e-postası içeren `SEC_USER_AGENT` ve arşivlemek için `--snapshot-out` zorunludur.
+
+[Genel şirket araştırma rehberi, durum sözleşmeleri ve sonraki ürün aşamaları](docs/SIRKET_ARASTIRMA_AKISI_V01.md).
 
