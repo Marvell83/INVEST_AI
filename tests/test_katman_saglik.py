@@ -70,7 +70,8 @@ class ScanSummaryTests(unittest.TestCase):
             with out_csv.open(encoding="utf-8-sig", newline="") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[0]["revenue_alias_bucket"], "HALF_TO_FIVE_PERCENT")
-            self.assertEqual((rows[0]["piotroski_attention"], rows[0]["latest_operating_income"]), ("", "REPORTED"))
+            self.assertEqual(rows[0]["latest_operating_income"], "REPORTED")
+            self.assertNotIn("piotroski_attention", rows[0])
             self.assertEqual(json.loads(out_json.read_text(encoding="utf-8"))["layer_health_counts"], counts)
             text = "\n".join(health_summary_lines(summary))
             self.assertIn("%0,5–%5 arası 1 (öncelikli etiket, notla)", text)
