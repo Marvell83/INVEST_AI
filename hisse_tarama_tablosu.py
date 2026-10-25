@@ -193,7 +193,19 @@ def _lineup(report, *, ticker=None, path=None):
         if price > 0:
             row.update(market_price=price, price_source=recorded["source"], price_date=recorded["date"])
             # A price dated after the financial snapshot is NOT treated as a period-matched valuation.
-            if row["as_of"] and recorded["date"] <= row["as_of"] and row["shares"] is not None:
+            # Require a dated cover-page share count not later than the observed price,
+            # and no more than ~one quarter apart. Otherwise market multiples are misleading.
+            aligned = False
+            if row["as_of"] and row["shares"] is not None:
+                from datetime import date
+                try:
+                    pricing = date.fromisoformat(recorded["date"])
+                    cutoff = date.fromisoformat(row["as_of"])
+                    shares_date = date.fromisoformat(shares["date"])
+                    aligned = shares_date <= pricing <= cutoff and (pricing - shares_date).days <= 100
+                except (KeyError, TypeError, ValueError):
+                    pass
+            if aligned:
                 cap = _finite(price * row["shares"])
                 row["market_cap"] = cap
                 row["pe"] = _division(cap, row["net_income"], positive=True)
