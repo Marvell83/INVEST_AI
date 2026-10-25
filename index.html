@@ -369,6 +369,16 @@
               <option value="exclude">Etkin eşiklerde eksikleri gösterme</option>
               <option value="include">Eksikleri de göster (veri bekliyor)</option>
             </select></div>
+          <div class="form-field"><label for="fundamentals-coverage">SEC finansal kapsama durumu</label>
+            <select id="fundamentals-coverage" class="web-input">
+              <option value="all">Bütün şirketler</option>
+              <option value="OK">Finansalları işlenmiş</option>
+              <option value="NO_SUPPORTED_ANNUAL_DATA">Desteklenen yıllık veri yok</option>
+              <option value="NO_COMPANYFACTS">SEC Company Facts yok</option>
+              <option value="ERROR">İşleme hatası</option>
+              <option value="PENDING">Sırada / bekliyor</option>
+              <option value="TOO_LARGE">Dosya boyutu sınırı</option>
+            </select></div>
           <div class="form-field"><label for="fundamentals-filter-column">Filtrelenecek oran / veri</label>
             <select id="fundamentals-filter-column" class="web-input"></select></div>
           <div class="form-field"><label for="fundamentals-filter-min">En az (yüzdeliklerde %)</label>
@@ -970,11 +980,13 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     const term = document.getElementById("fundamentals-search").value.trim().toLocaleLowerCase("tr");
     const policy = document.getElementById("fundamentals-policy").value;
     const decision = document.getElementById("fundamentals-decision").value;
+    const coverage = document.getElementById("fundamentals-coverage").value;
     const rate = readYield();
     const rows = fundamentals.rows.filter(row => {
       if (term && !(String(row.ticker)+" "+String(row.company)+" "+String(row.cik))
                    .toLocaleLowerCase("tr").includes(term)) return false;
       if (decision !== "all" && screenState(row,rate) !== decision) return false;
+      if (coverage !== "all" && row.screening_status !== coverage) return false;
       for (const condition of fundamentalsFilters) {
         const value = row[condition.key];
         if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -1121,7 +1133,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
   document.getElementById("fundamentals-refresh").addEventListener("click",openFundamentals);
   for (const id of ["fundamentals-search","fundamentals-yield"])
     document.getElementById(id).addEventListener("input",drawFundamentals);
-  for (const id of ["fundamentals-policy","fundamentals-decision"])
+  for (const id of ["fundamentals-policy","fundamentals-decision","fundamentals-coverage"])
     document.getElementById(id).addEventListener("change",drawFundamentals);
   document.getElementById("fundamentals-add-filter").addEventListener("click",()=>{
     const columnMap=fundamentalsColumnMap();
@@ -1146,6 +1158,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     fundamentalsFilters=[];
     document.getElementById("fundamentals-search").value="";
     document.getElementById("fundamentals-decision").value="all";
+    document.getElementById("fundamentals-coverage").value="all";
     document.getElementById("fundamentals-policy").value="exclude";
     drawFundamentals();
   });
