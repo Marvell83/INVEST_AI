@@ -127,6 +127,52 @@ class ResearchServiceTests(unittest.TestCase):
             self.assertEqual(result["mode"], "cache")
             self.assertEqual(result["ttm_status"], "RECONCILED_CALCULATIONS")
 
+
+    def test_sec_scanner_pages_without_companyfacts_download(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = [{"cik_str": i + 1000, "ticker": f"S{i:03d}",
+                          "title": f"Synthetic {i:03d} Incorporated"} for i in range(124)]
+            ticker_calls = []
+            def fetch_map(*, user_agent, limiter):
+                ticker_calls.append(1)
+                return directory
+            def reject_facts(*args, **kwargs):
+                self.fail("SEC ticker listing cannot fetch Company Facts")
+            app = service(folder, ticker_download=fetch_map, fact_download=reject_facts)
+            first = app.scan_sec_list({})
+            self.assertEqual((first["total"], first["matched"], len(first["rows"])), (124, 124, 50))
+            self.assertEqual(first["rows"][0]["ticker"], "S000")
+            self.assertFalse(first["financial_facts_downloaded"])
+            second = app.scan_sec_list({"offset": 50})
+            self.assertEqual(second["rows"][0]["ticker"], "S050")
+            self.assertEqual(len(app.scan_sec_list({"offset": 100})["rows"]), 24)
+            self.assertEqual(app.scan_sec_list({"query": "synthetic 123"})["rows"][0]["ticker"], "S123")
+            self.assertEqual(len(ticker_calls), 1)
+
+    def test_sec_scanner_cached_list_without_contact_and_explicit_refresh(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = service(folder)
+            self.assertEqual(app.scan_sec_list({})["source"], "SEC_DOWNLOAD")
+            saved = ResearchService(root=app.root, secret=SECRET, user_agent="",
+                                    ticker_download=lambda **kw: self.fail("unexpected network"))
+            self.assertEqual(saved.scan_sec_list({})["rows"][0]["ticker"], "SYN")
+            with self.assertRaisesRegex(RequestError, "SEC_USER_AGENT"):
+                saved.scan_sec_list({"refresh": True})
+
+    def test_sec_scanner_validation_and_lock(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = service(folder)
+            for bad in ({"offset": True}, {"offset": -1}, {"query": "x" * 81},
+                        {"refresh": "yes"}, {"unknown": 5}, []):
+                with self.subTest(bad=bad), self.assertRaises(RequestError):
+                    app.scan_sec_list(bad)
+            app.lock.acquire()
+            try:
+                with self.assertRaisesRegex(RequestError, "Bir SEC işlemi"):
+                    app.scan_sec_list({})
+            finally:
+                app.lock.release()
+
     def test_live_without_real_user_agent_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             s = service(folder, user_agent="")
