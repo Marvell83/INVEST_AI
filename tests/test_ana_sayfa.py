@@ -106,7 +106,7 @@ class InvestAISiteTests(unittest.TestCase):
 
     def test_site_shows_web_version_and_new_reports_from_api(self):
         src = INDEX.read_text(encoding="utf-8")
-        self.assertIn("Araştırma Merkezi · v0.2", src)
+        self.assertIn("Araştırma Merkezi · v0.4", src)
         self.assertIn('filename:data.report_url.split("/").pop()', src)
         self.assertIn("meta:reportMeta(data.report_url.slice(1)", src)
         self.assertIn('document.getElementById("viewer-provenance")', src)
