@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+import io
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 import zipfile
 
-from sec_piyasa_toplu_tarama import ingest_zip, load_bulk_grid, run
+from sec_piyasa_toplu_tarama import fetch_bulk_zip, ingest_zip, load_bulk_grid, run
 from test_finansal_tablolar import AS_OF, company
 
 
@@ -26,6 +29,43 @@ class SECBulkScreeningTests(unittest.TestCase):
         with zipfile.ZipFile(folder / "companyfacts.zip", "w", compression=zipfile.ZIP_DEFLATED) as z:
             z.writestr("CIK0000000077.json",json.dumps(company()))
         return folder / "companyfacts.zip"
+
+
+    def test_bulk_http_download_streams_zip_and_accepts_range_resume(self):
+        data = io.BytesIO()
+        with zipfile.ZipFile(data, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("CIK0000000077.json", json.dumps(company()))
+        archive_bytes = data.getvalue()
+        with tempfile.TemporaryDirectory() as folder, patch(
+                "sec_piyasa_toplu_tarama.shutil.disk_usage",
+                return_value=SimpleNamespace(free=10_000_000_000)):
+            dest = Path(folder) / "companyfacts.zip"
+            partial = dest.with_name(dest.name + ".part")
+            halfway = len(archive_bytes)//2
+            partial.write_bytes(archive_bytes[:halfway])
+            requests = []
+            class Source:
+                status = 206
+                headers = {"Content-Range": f"bytes {halfway}-{len(archive_bytes)-1}/{len(archive_bytes)}"}
+                def __init__(self):
+                    self.stream = io.BytesIO(archive_bytes[halfway:])
+                def __enter__(self):
+                    return self
+                def __exit__(self, *args):
+                    pass
+                def read(self, n):
+                    return self.stream.read(n)
+            def opener(request, timeout):
+                requests.append(request)
+                return Source()
+            result = fetch_bulk_zip(dest, user_agent="INVEST_AI Research test@example.com",
+                                    opener=opener)
+            self.assertEqual(result.read_bytes(), archive_bytes)
+            self.assertEqual(requests[0].get_header("Range"), f"bytes={halfway}-")
+            self.assertFalse(partial.exists())
+            # Existing local ZIP should not trigger another network request.
+            self.assertEqual(fetch_bulk_zip(dest, user_agent="INVEST_AI Research test@example.com",
+                                            opener=lambda *args, **kwargs: self.fail("network")), dest)
 
     def test_complete_zip_ingest_and_missing_issuers(self):
         with tempfile.TemporaryDirectory() as folder:
