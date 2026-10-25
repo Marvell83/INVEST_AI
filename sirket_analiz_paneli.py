@@ -207,6 +207,94 @@ def render_layer_reconciliation(layers):
         "Eşleşme, SEC verisinin bağımsız doğrulandığı anlamına gelmez.</p></section>")
 
 
+FORECAST_REASONS = {
+    "LATEST_REVENUE_UNAVAILABLE_OR_NONPOSITIVE": "son yılın geliri yok veya pozitif değil",
+    "LATEST_OPERATING_MARGIN_UNAVAILABLE": "son yılın faaliyet marjı hesaplanamadı",
+    "FEWER_THAN_2_REVENUE_GROWTH_OBSERVATIONS": "en az iki yıllık gelir büyümesi gözlemi gerekir",
+    "FEWER_THAN_2_OPERATING_MARGIN_OBSERVATIONS": "en az iki yıllık faaliyet marjı gözlemi gerekir",
+}
+FORECAST_WARNINGS = {
+    "SHORT_HISTORY_ONLY_BASE_SCENARIO": "Geçmiş kısa (üçten az gözlem); yalnız baz senaryo gösterildi.",
+    "HIGH_HISTORICAL_GROWTH_RARELY_PERSISTS": "Tarihsel medyan büyüme %25'in üzerinde; bu hız uzun süre nadiren korunur.",
+    "LONG_RUN_GROWTH_ABOVE_TYPICAL_NOMINAL_ECONOMY": "Uzun vadeli büyüme %5'in üzerinde; tipik nominal ekonomik büyümeden yüksek.",
+}
+SCENARIO_LABELS = {"temkinli": "Temkinli", "baz": "Baz", "iyimser": "İyimser"}
+
+
+def _pct(value):
+    return "—" if value is None else f"{value * 100:.1f}%"
+
+
+def render_forecast_section(baseline, projection=None):
+    """Historical baseline statistics and, if the analyst gave a sourced long-run rate, scenarios."""
+    def stat_row(label, stats, fmt=_pct):
+        if not stats or stats.get("n", 0) == 0:
+            return f"<tr><td>{_safe(label)}</td><td class='num' colspan='3'>—</td><td class='num'>0</td></tr>"
+        return (f"<tr><td>{_safe(label)}</td><td class='num'>{_safe(fmt(stats['median']))}</td>"
+                f"<td class='num'>{_safe(fmt(stats['q1']))}</td><td class='num'>{_safe(fmt(stats['q3']))}</td>"
+                f"<td class='num'>{_safe(stats['n'])}</td></tr>")
+    cagr = baseline.get("revenue_cagr")
+    cagr_text = (f"Gelir yıllık bileşik büyümesi: {_pct(cagr['value'])} "
+                 f"({cagr['from']} → {cagr['to']}, {cagr['years']} yıl)" if cagr else "")
+    base = baseline.get("base", {})
+    rows = "".join((
+        stat_row("Yıllık gelir büyümesi", baseline.get("revenue_growth")),
+        stat_row("Faaliyet kâr marjı", baseline.get("operating_margin")),
+        stat_row("Efektif vergi oranı", baseline.get("effective_tax_rate")),
+        stat_row("Serbest nakit akışı marjı", baseline.get("fcf_margin")),
+        stat_row("Satış / yatırılan sermaye artışı", baseline.get("sales_to_capital"), lambda v: f"{v:.2f}x"),
+    ))
+    parts = [
+        "<section class='card'><h2>Tarihsel baz ve senaryolar</h2>",
+        f"<p>Son mali yıl: <strong>{_safe(baseline.get('base_fiscal_year_end') or 'Bilinmiyor')}</strong> · "
+        f"gelir {_safe(_millions(base.get('revenue')))} milyon USD · faaliyet marjı "
+        f"{_safe(_pct(base.get('operating_margin')))}</p>",
+        f"<p>{_safe(cagr_text)}</p>" if cagr_text else "",
+        "<div class='scroll'><table><thead><tr><th>Şirketin kendi geçmişi</th><th class='num'>Medyan</th>"
+        "<th class='num'>Alt çeyrek</th><th class='num'>Üst çeyrek</th><th class='num'>Gözlem</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></div>",
+    ]
+    if baseline.get("status") != "OK":
+        reasons = "; ".join(FORECAST_REASONS.get(r, r) for r in baseline.get("reasons", []))
+        parts.append(f"<div class='note'>Senaryo üretmek için geçmiş yetersiz: {_safe(reasons)}.</div>")
+    if projection is None:
+        parts.append("<p class='muted'>Senaryo projeksiyonu için analistin kaynaklı uzun vadeli büyüme oranı "
+                     "gerekir (ör. <code>--long-run-growth 0.03 --long-run-source \"…\"</code>). "
+                     "Sistem bu oranı kendisi seçmez.</p>")
+    elif projection.get("status") == "OK":
+        assumptions = projection["assumptions"]
+        scenario_rows = []
+        for name, scenario in projection["scenarios"].items():
+            for row in scenario["rows"]:
+                scenario_rows.append(
+                    f"<tr><td>{_safe(SCENARIO_LABELS.get(name, name))}</td><td>MY+{_safe(row['year'])}</td>"
+                    f"<td class='num'>{_safe(_pct(row['revenue_growth']))}</td>"
+                    f"<td class='num'>{_safe(_millions(row['revenue']))}</td>"
+                    f"<td class='num'>{_safe(_pct(row['operating_margin']))}</td>"
+                    f"<td class='num'>{_safe(_millions(row['operating_income']))}</td></tr>")
+        warnings = "".join(f"<li>{_safe(FORECAST_WARNINGS.get(w, w))}</li>" for w in projection["warnings"])
+        parts += [
+            f"<p>Uzun vadeli büyüme (analist): <strong>{_safe(_pct(assumptions['long_run_growth']))}</strong> · "
+            f"kaynak: {_safe(assumptions['long_run_growth_source'])}</p>",
+            "<div class='scroll'><table><thead><tr><th>Senaryo</th><th>Yıl</th><th class='num'>Gelir büyümesi</th>"
+            "<th class='num'>Gelir (milyon USD)</th><th class='num'>Faaliyet marjı</th>"
+            "<th class='num'>Faaliyet kârı (milyon USD)</th></tr></thead>"
+            f"<tbody>{''.join(scenario_rows)}</tbody></table></div>",
+            f"<ul>{warnings}</ul>" if warnings else "",
+        ]
+        if projection.get("retrospective"):
+            parts.append("<p class='muted'>Bilgi tarihi bugünden eski: bu senaryolar geçmişe dönük kurulmuştur, "
+                         "o tarihte yapılmış bir tahmin gibi değerlendirilemez.</p>")
+    else:
+        reasons = "; ".join(FORECAST_REASONS.get(r, r) for r in projection.get("reasons", []))
+        parts.append(f"<div class='note'>Senaryo üretilemedi: {_safe(reasons)}.</div>")
+    parts.append(
+        "<p class='muted'>Senaryolar şirketin kendi geçmişinin alt çeyrek / medyan / üst çeyrek büyüme ve marjından "
+        "başlar; büyüme son yılda analistin uzun vadeli oranına, marj senaryo hedefine doğrusal olarak ulaşır. "
+        "Bunlar olasılık tahmini, hedef fiyat veya yatırım tavsiyesi değildir.</p></section>")
+    return "".join(parts)
+
+
 def render_quarterly_section(quarterly):
     """Discrete fiscal quarters (newest first); values in millions as reported to SEC."""
     quarters = quarterly.get("quarters", [])
