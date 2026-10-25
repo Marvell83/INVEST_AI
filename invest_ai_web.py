@@ -1,8 +1,9 @@
-"""INVEST_AI v0.2: authenticated local web research (Python stdlib only).
+"""INVEST_AI v0.3: authenticated local web research (Python stdlib only).
 
-A local browser POST executes existing SEC/TTM/Piotroski engines. Requires a
-session API key printed in the terminal, no user-facing shell input, no trading.
-SEC requests are serialised/throttled and archived with a content hash.
+A local browser POST executes existing SEC/TTM/Piotroski engines and, when the
+analyst supplies sourced rates, the scenario projection and scenario DCF.
+Requires a session API key printed in the terminal, no user-facing shell input,
+no trading. SEC requests are serialised/throttled and archived with a content hash.
 """
 from __future__ import annotations
 
@@ -10,8 +11,10 @@ import argparse
 from datetime import datetime, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import hashlib
 import hmac
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -25,14 +28,48 @@ from sec_arsiv import (
     SECThrottle, StopSECRequests, atomic_write, cached_capture, canonical_bytes,
     check_doc, download_ticker_map, load_json, save_capture, ticker_mapping,
 )
+from senaryo_degerleme import DISCOUNT_BOUNDS, TERMINAL_GROWTH_CAP
 from sirket_arastirma_akisi import build_company_research, render_company_research
+from tahmin_motoru import LONG_RUN_BOUNDS
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "invest-ai-web-0.2.0"
+VERSION = "invest-ai-web-0.3.0"
 TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,14}$")
 EMAIL_RE = re.compile(r"\S+@\S+\.\S+")
 MODES = ("demo", "live", "cache")
 SECTORS = ("non_financial", "financial", "unknown")
+REQUIRED_FIELDS = frozenset(("ticker", "mode", "sector"))
+# Optional analyst inputs: each rate travels with its citation.
+SCENARIO_FIELDS = ("long_run_growth", "long_run_growth_source", "discount_rate", "discount_rate_source")
+SOURCE_LENGTH = (8, 300)
+MAX_BODY_BYTES = 4096
+
+
+def _scenario_inputs(request):
+    """Validate optional scenario / valuation inputs; the system never fills them in."""
+    values = {name: request.get(name) for name in SCENARIO_FIELDS}
+    for rate, source, (low, high), label in (
+            ("long_run_growth", "long_run_growth_source", LONG_RUN_BOUNDS, "Uzun vadeli büyüme"),
+            ("discount_rate", "discount_rate_source", DISCOUNT_BOUNDS, "İskonto oranı")):
+        if (values[rate] is None) != (values[source] is None):
+            raise RequestError(f"{label} ve kaynağı birlikte girilmeli.")
+        if values[rate] is None:
+            continue
+        value = values[rate]
+        if (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+                or not low <= value <= high):
+            raise RequestError(f"{label} %{low * 100:g} ile %{high * 100:g} arasında olmalı.")
+        text = values[source]
+        if not isinstance(text, str) or not SOURCE_LENGTH[0] <= len(text.strip()) <= SOURCE_LENGTH[1]:
+            raise RequestError(f"{label} kaynağı {SOURCE_LENGTH[0]}–{SOURCE_LENGTH[1]} karakter olmalı.")
+        values[source] = text.strip()
+    if values["discount_rate"] is not None:
+        if values["long_run_growth"] is None:
+            raise RequestError("Değerleme için önce uzun vadeli büyüme ve kaynağı girilmeli.")
+        if values["long_run_growth"] > TERMINAL_GROWTH_CAP:
+            raise RequestError(f"Değerlemede uzun vadeli büyüme en fazla %{TERMINAL_GROWTH_CAP * 100:g} "
+                               "olabilir (sonsuz büyüme tavanı).")
+    return values
 
 
 class RequestError(Exception):
@@ -88,7 +125,8 @@ class ResearchService:
         return table, "DOWNLOADED_SEC_MAP"
 
     def analyze(self, request):
-        if not isinstance(request, dict) or set(request) != {"ticker", "mode", "sector"}:
+        if (not isinstance(request, dict) or not REQUIRED_FIELDS <= set(request)
+                or not set(request) <= REQUIRED_FIELDS | set(SCENARIO_FIELDS)):
             raise RequestError("ticker, mode ve sector alanları gerekir.")
         ticker, mode, sector = request["ticker"], request["mode"], request["sector"]
         if not isinstance(ticker, str):
@@ -96,14 +134,16 @@ class ResearchService:
         ticker = ticker.strip().upper()
         if not TICKER_RE.fullmatch(ticker) or mode not in MODES or sector not in SECTORS:
             raise RequestError("Ticker, veri türü veya sektör geçersiz.")
+        scenario = _scenario_inputs(request)
         if not self.lock.acquire(blocking=False):
             raise RequestError("Bir analiz çalışıyor. Bittikten sonra yeniden dene.", 409)
         try:
-            return self._run(ticker, mode, sector)
+            return self._run(ticker, mode, sector, scenario)
         finally:
             self.lock.release()
 
-    def _run(self, ticker, mode, sector):
+    def _run(self, ticker, mode, sector, scenario=None):
+        scenario = scenario or dict.fromkeys(SCENARIO_FIELDS)
         if mode == "demo":
             if ticker != "AAPL":
                 raise RequestError("Örnek veri yalnız AAPL içindir. Başka şirket için Güncel SEC seç.")
@@ -144,7 +184,8 @@ class ResearchService:
 
         result = build_company_research(raw, expected_cik=cik, as_of=as_of,
                                         sector=sector,
-                                        input_mode="sec_direct_download" if mode == "live" else "offline_file")
+                                        input_mode="sec_direct_download" if mode == "live" else "offline_file",
+                                        **scenario)
         result["source"]["web_data_mode"] = mode
         result["source"]["web_source_label"] = source
         result["source"]["ticker_map_provenance"] = mapping_source
@@ -154,6 +195,9 @@ class ResearchService:
         # A different analyst sector assumption must not overwrite an earlier report
         # generated from the same SEC snapshot with another classification.
         basename = f"{ticker}_{mode.upper()}_{as_of}_{sector}_{digest}"
+        if any(value is not None for value in scenario.values()):
+            # Different analyst scenario inputs must not overwrite each other either.
+            basename += "_s" + hashlib.sha256(canonical_bytes(scenario)).hexdigest()[:8]
         folder = self.root / "reports" / "research"
         out_json = folder / (basename + ".json")
         out_html = folder / (basename + ".html")
@@ -167,9 +211,12 @@ class ResearchService:
             p.get("known_count") == 0 and len(reasons) == 9
             and set(reasons.values()) == {"TWO_COMPARABLE_ANNUAL_INCOME_PERIODS_REQUIRED"}
         )
+        projection, valuation = result.get("projection") or {}, result.get("scenario_valuation") or {}
         return {
             "ok": True, "company": result["company"], "ticker": ticker,
             "cik": result["cik"], "as_of": as_of, "mode": mode,
+            "projection_status": projection.get("status"), "valuation_status": valuation.get("status"),
+            "valuation_missing": valuation.get("missing", []),
             "source": source, "coverage_status": result["coverage_status"],
             "annual_end": result["annual_source_audit"].get("latest_any_fy_end"),
             "ttm_end": ttm.get("primary", {}).get("periods", {}).get("current_9m_end"),
@@ -250,7 +297,7 @@ class Website(SimpleHTTPRequestHandler):
         if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
             return self.respond(415, {"ok": False, "error": "JSON gerekli"})
         length = self.headers.get("Content-Length", "")
-        if not length.isdigit() or not 0 < int(length) <= 512:
+        if not length.isdigit() or not 0 < int(length) <= MAX_BODY_BYTES:
             return self.respond(413, {"ok": False, "error": "İstek boyutu geçersiz"})
         try:
             payload = json.loads(self.rfile.read(int(length)))
