@@ -92,6 +92,7 @@ Formdaki **"Senaryo ve değerleme girdileri (isteğe bağlı)"** bölümü, tahm
 | Uzun vadeli nominal büyüme (%) | −5 ile 8 arası; girilirse temkinli / baz / iyimser senaryolar eklenir |
 | İskonto oranı (%) | 4 ile 20 arası; yalnız büyüme de girildiyse çalışır ve deneysel DCF ile duyarlılık tablosunu ekler |
 | Her oranın kaynağı | zorunlu, 8–300 karakter |
+| Hisse fiyatı (USD), fiyatın tarihi ve kaynağı | üçü birlikte; yalnız büyüme ve iskonto da girildiyse çalışır; tarih bugünden ileri olamaz; ters DCF ile fiyatın ima ettiği yıllık büyümeyi ve şirket geçmişine göre konumunu ekler |
 
 - Oranlar yüzde olarak girilir ve sunucuya oran olarak gönderilir (3 → 0,03).
 - Değerlemede uzun vadeli büyüme en fazla %4 olabilir (sonsuz büyüme tavanı).

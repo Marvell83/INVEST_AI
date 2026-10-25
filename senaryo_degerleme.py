@@ -15,11 +15,12 @@ Results are experimental scenario values, not price targets or advice.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import math
 from pathlib import Path
 
-from degerleme_v02 import degerle_v02
+from degerleme_v02 import degerle_v02, ters_dcf_v02
 from finansal_oranlar import compute_ratios
 from finansal_tablolar import build_annual_statements
 from tahmin_motoru import historical_baseline, project_scenarios
@@ -29,6 +30,8 @@ DISCOUNT_BOUNDS = (0.04, 0.20)
 TERMINAL_GROWTH_CAP = 0.04  # degerleme_v02 default cap on perpetual growth
 SENSITIVITY_STEPS = (-0.01, -0.005, 0.0, 0.005, 0.01)
 OVERRIDABLE = ("tax_rate", "sales_to_capital", "net_debt", "shares", "terminal_roic", "terminal_growth")
+IMPLIED_GROWTH_RANGE = (-0.5, 1.0)  # searched constant annual revenue growth
+PRICE_DATE_TOLERANCE_DAYS = 7
 
 
 def _source(text, name):
@@ -169,6 +172,66 @@ def value_scenarios(projection, baseline, statements, *, discount_rate, discount
     ])
 
 
+def _history_position(value, observations):
+    """Where a growth rate sits within the company's own annual growth history."""
+    if not observations:
+        return {"band": "NO_HISTORY", "n": 0}
+    ordered = sorted(observations)
+    q1, q3 = _quantile(ordered, 0.25), _quantile(ordered, 0.75)
+    band = ("BELOW_HISTORY" if value < ordered[0] else "ABOVE_HISTORY" if value > ordered[-1]
+            else "BELOW_Q1" if value < q1 else "ABOVE_Q3" if value > q3 else "WITHIN_Q1_Q3")
+    return {"band": band, "n": len(ordered), "share_of_years_below": sum(g < value for g in ordered) / len(ordered),
+            "min": ordered[0], "q1": q1, "median": _quantile(ordered, 0.5), "q3": q3, "max": ordered[-1]}
+
+
+def _quantile(ordered, q):
+    position = (len(ordered) - 1) * q
+    low, high = math.floor(position), math.ceil(position)
+    return ordered[low] + (ordered[high] - ordered[low]) * (position - low)
+
+
+def implied_growth(projection, baseline, valuation, *, price, price_source, price_date):
+    """Constant annual revenue growth that an analyst-supplied price implies.
+
+    Everything except growth stays as in the valued base scenario (margin path,
+    tax, sales-to-capital, discount, terminal assumptions, net debt, shares).
+    The root search covers a bounded range and cannot prove that no other root exists.
+    """
+    if valuation.get("status") != "OK":
+        return {"status": "VALUATION_UNAVAILABLE"}
+    price = _number(price, "price")
+    if not 0 < price < 1e7:
+        raise ValueError("price must be a positive per-share amount")
+    source = _source(price_source, "price_source")
+    try:
+        quoted = dt.date.fromisoformat(price_date)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("price_date must be YYYY-MM-DD") from exc
+    scenario = valuation["sensitivity"]["scenario"]
+    engine = _engine_inputs(projection, scenario, valuation["inputs"])
+    low, high = IMPLIED_GROWTH_RANGE
+    search = ters_dcf_v02(engine, price, lower=low, upper=high)
+    result = {"status": "OK", "price": {"value": price, "source": source, "date": price_date},
+              "scenario": scenario, "years": engine["yillar"],
+              "search": {"state": search["durum"], "range": [low, high],
+                         "roots": [r["buyume"] for r in search["dogrulanan_kokler"]],
+                         "all_roots_guaranteed": False},
+              "warnings": []}
+    gap = (quoted - dt.date.fromisoformat(projection["as_of"])).days
+    if gap > 0:
+        result["warnings"].append("PRICE_AFTER_SEC_AS_OF")
+    if abs(gap) > PRICE_DATE_TOLERANCE_DAYS:
+        result["warnings"].append("PRICE_DATE_FAR_FROM_SEC_AS_OF")
+    if search["durum"] != "tek_cozum_dogrulandi":
+        result["status"] = "NO_UNIQUE_SOLUTION"
+        return result
+    implied = search["ima_edilen_buyume"]
+    history = [row["revenue_growth"] for row in baseline["series"] if row.get("revenue_growth") is not None]
+    result.update(implied_growth=implied, history_position=_history_position(implied, history),
+                  base_scenario_starting_growth=projection["scenarios"][scenario]["starting_growth"])
+    return result
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Scenario DCF from SEC history (offline; not advice)")
     parser.add_argument("--companyfacts", required=True)
@@ -184,8 +247,14 @@ def main(argv=None):
         flag = "--" + name.replace("_", "-")
         parser.add_argument(flag, type=float)
         parser.add_argument(flag + "-source")
+    parser.add_argument("--price", type=float, help="optional analyst-entered share price for a reverse DCF")
+    parser.add_argument("--price-date", help="date of --price (YYYY-MM-DD)")
+    parser.add_argument("--price-source")
     parser.add_argument("--out", required=True)
     args = parser.parse_args(argv)
+    price_args = (args.price, args.price_date, args.price_source)
+    if any(x is not None for x in price_args) and None in price_args:
+        parser.error("--price, --price-date and --price-source must be given together")
     overrides = {}
     for name in OVERRIDABLE:
         value = getattr(args, name, None)
@@ -201,12 +270,17 @@ def main(argv=None):
                                    long_run_growth_source=args.long_run_source)
     report = value_scenarios(projection, baseline, statements, discount_rate=args.discount_rate,
                              discount_source=args.discount_source, overrides=overrides)
+    implied = None
+    if args.price is not None:
+        implied = implied_growth(projection, baseline, report, price=args.price,
+                                 price_source=args.price_source, price_date=args.price_date)
     target = Path(args.out)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps({"projection": projection, "valuation": report}, ensure_ascii=False,
-                                 indent=2, allow_nan=False), encoding="utf-8")
+    target.write_text(json.dumps({"projection": projection, "valuation": report, "implied_growth": implied},
+                                 ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     values = {k: round(v["per_share"], 2) for k, v in report["scenarios"].items()}
-    print(f"CIK {report['cik']} | {report['status']} | per share {values} | {target}")
+    implied_text = f" | implied growth {implied.get('implied_growth')}" if implied else ""
+    print(f"CIK {report['cik']} | {report['status']} | per share {values}{implied_text} | {target}")
 
 
 if __name__ == "__main__":

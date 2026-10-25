@@ -40,12 +40,40 @@ MODES = ("demo", "live", "cache")
 SECTORS = ("non_financial", "financial", "unknown")
 REQUIRED_FIELDS = frozenset(("ticker", "mode", "sector"))
 # Optional analyst inputs: each rate travels with its citation.
-SCENARIO_FIELDS = ("long_run_growth", "long_run_growth_source", "discount_rate", "discount_rate_source")
+SCENARIO_FIELDS = ("long_run_growth", "long_run_growth_source", "discount_rate", "discount_rate_source",
+                   "market_price", "market_price_date", "market_price_source")
 SOURCE_LENGTH = (8, 300)
 MAX_BODY_BYTES = 4096
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
-def _scenario_inputs(request):
+def _price_inputs(values, today):
+    """An analyst-entered, dated and cited price for the reverse DCF; never downloaded."""
+    names = ("market_price", "market_price_date", "market_price_source")
+    given = [values[n] is not None for n in names]
+    if not any(given):
+        return
+    if not all(given):
+        raise RequestError("Fiyat, fiyat tarihi ve fiyatın kaynağı birlikte girilmeli.")
+    if values["discount_rate"] is None:
+        raise RequestError("Ters DCF için önce büyüme ve iskonto girdileri gerekli.")
+    price = values["market_price"]
+    if isinstance(price, bool) or not isinstance(price, (int, float)) or not math.isfinite(price) or not 0 < price <= 1e6:
+        raise RequestError("Fiyat 0'dan büyük, en fazla 1.000.000 USD olmalı.")
+    date = values["market_price_date"]
+    try:
+        quoted = datetime.strptime(date, "%Y-%m-%d").date() if isinstance(date, str) and DATE_RE.match(date) else None
+    except ValueError:
+        quoted = None
+    if quoted is None or quoted > today:
+        raise RequestError("Fiyat tarihi YYYY-AA-GG biçiminde ve bugünden ileri olmayan bir tarih olmalı.")
+    text = values["market_price_source"]
+    if not isinstance(text, str) or not SOURCE_LENGTH[0] <= len(text.strip()) <= SOURCE_LENGTH[1]:
+        raise RequestError(f"Fiyat kaynağı {SOURCE_LENGTH[0]}–{SOURCE_LENGTH[1]} karakter olmalı.")
+    values["market_price_source"] = text.strip()
+
+
+def _scenario_inputs(request, today):
     """Validate optional scenario / valuation inputs; the system never fills them in."""
     values = {name: request.get(name) for name in SCENARIO_FIELDS}
     for rate, source, (low, high), label in (
@@ -69,6 +97,7 @@ def _scenario_inputs(request):
         if values["long_run_growth"] > TERMINAL_GROWTH_CAP:
             raise RequestError(f"Değerlemede uzun vadeli büyüme en fazla %{TERMINAL_GROWTH_CAP * 100:g} "
                                "olabilir (sonsuz büyüme tavanı).")
+    _price_inputs(values, today)
     return values
 
 
@@ -134,7 +163,7 @@ class ResearchService:
         ticker = ticker.strip().upper()
         if not TICKER_RE.fullmatch(ticker) or mode not in MODES or sector not in SECTORS:
             raise RequestError("Ticker, veri türü veya sektör geçersiz.")
-        scenario = _scenario_inputs(request)
+        scenario = _scenario_inputs(request, self.clock().date())
         if not self.lock.acquire(blocking=False):
             raise RequestError("Bir analiz çalışıyor. Bittikten sonra yeniden dene.", 409)
         try:
@@ -212,11 +241,13 @@ class ResearchService:
             and set(reasons.values()) == {"TWO_COMPARABLE_ANNUAL_INCOME_PERIODS_REQUIRED"}
         )
         projection, valuation = result.get("projection") or {}, result.get("scenario_valuation") or {}
+        implied = result.get("implied_growth") or {}
         return {
             "ok": True, "company": result["company"], "ticker": ticker,
             "cik": result["cik"], "as_of": as_of, "mode": mode,
             "projection_status": projection.get("status"), "valuation_status": valuation.get("status"),
             "valuation_missing": valuation.get("missing", []),
+            "implied_growth_status": implied.get("status"), "implied_growth": implied.get("implied_growth"),
             "source": source, "coverage_status": result["coverage_status"],
             "annual_end": result["annual_source_audit"].get("latest_any_fy_end"),
             "ttm_end": ttm.get("primary", {}).get("periods", {}).get("current_9m_end"),

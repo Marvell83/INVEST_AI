@@ -290,9 +290,25 @@
               <input id="analysis-discount-source" class="web-input" maxlength="300"
                 placeholder="sermaye maliyeti hesabı veya kaynağı">
             </div>
+            <div class="form-field">
+              <label for="analysis-price">Hisse fiyatı (USD) — ters DCF için</label>
+              <input id="analysis-price" class="web-input" type="number" step="0.01" min="0.01"
+                inputmode="decimal" placeholder="senin girdiğin fiyat">
+            </div>
+            <div class="form-field">
+              <label for="analysis-price-date">Fiyatın tarihi</label>
+              <input id="analysis-price-date" class="web-input" type="date">
+            </div>
+            <div class="form-field" style="grid-column:1/-1">
+              <label for="analysis-price-source">Fiyatın kaynağı</label>
+              <input id="analysis-price-source" class="web-input" maxlength="300"
+                placeholder="ör. borsa kapanış fiyatı, kaynak ve saat">
+            </div>
           </div>
           <p class="web-help">Değerlemede uzun vadeli büyüme en fazla %4 olabilir. Net borç ve hisse sayısı SEC
-            dosyalarından alınır; menkul kıymetler ve kiralar net borca dahil değildir. Sonuçlar hedef fiyat değildir.</p>
+            dosyalarından alınır; menkul kıymetler ve kiralar net borca dahil değildir. Sonuçlar hedef fiyat değildir.
+            Fiyat girersen (büyüme ve iskonto ile birlikte) ters DCF, bu fiyatın baz senaryo varsayımlarıyla hangi
+            yıllık büyümeyi ima ettiğini ve bunun şirketin geçmişine göre nerede durduğunu gösterir. Sistem fiyat indirmez.</p>
         </details>
         <p class="web-help">Örnek mod yalnız AAPL ile çalışır ve 2026-10-21 tarihli manuel aktarımı kullanır.
           Güncel SEC modu internete ve gerçek iletişim adresiyle yapılandırılmış SEC_USER_AGENT'a ihtiyaç duyar.
@@ -620,6 +636,16 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
         (data.valuation_status ? " | Deneysel DCF: " + (texts[data.valuation_status] || data.valuation_status) : "");
       container.append(scenario);
     }
+    if (!isError && data.implied_growth_status) {
+      const reverse = document.createElement("p");
+      reverse.textContent = data.implied_growth_status === "OK"
+        ? "Ters DCF: fiyat, yıllık sabit %" + (data.implied_growth * 100).toFixed(1) +
+          " gelir büyümesi ima ediyor (şirket geçmişiyle karşılaştırma raporda)."
+        : (data.implied_growth_status === "NO_UNIQUE_SOLUTION"
+          ? "Ters DCF: aranan aralıkta tek bir çözüm bulunamadı (ayrıntı raporda)."
+          : "Ters DCF: değerleme olmadığı için yapılmadı.");
+      container.append(reverse);
+    }
     if (!isError && typeof data.report_url === "string" &&
         /^\/reports\/[A-Za-z0-9_./-]+\.html$/.test(data.report_url)) {
       const url = new URL(data.report_url, document.baseURI);
@@ -657,6 +683,20 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     }
     if ("discount_rate" in body && !("long_run_growth" in body)) {
       return {error: "Değerleme için önce uzun vadeli büyüme ve kaynağı girilmeli."};
+    }
+    const price = read("analysis-price"), priceDate = read("analysis-price-date"),
+          priceSource = read("analysis-price-source");
+    if (price || priceDate || priceSource) {
+      if (!price || !priceDate || !priceSource) {
+        return {error: "Fiyat, fiyat tarihi ve fiyatın kaynağı birlikte girilmeli."};
+      }
+      if (!("discount_rate" in body)) return {error: "Ters DCF için önce büyüme ve iskonto girdileri gerekli."};
+      const value = Number(price.replace(",", "."));
+      if (!Number.isFinite(value) || value <= 0) return {error: "Fiyat pozitif bir sayı olmalı."};
+      if (priceSource.length < 8) return {error: "Fiyat kaynağı en az 8 karakter olmalı."};
+      body.market_price = value;
+      body.market_price_date = priceDate;
+      body.market_price_source = priceSource;
     }
     return {body};
   }

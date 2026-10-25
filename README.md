@@ -45,7 +45,7 @@ SEC Company Facts (ham JSON, SHA-256 ile arşiv: sec_arsiv)
 | | `katman_mutabakati.py` | Piotroski ve TTM girdilerinin ortak tablolarla aynı rakam ve SEC dosyalarını kullanıp kullanmadığı |
 | **Tahmin** | `tahmin_motoru.py` | Şirketin kendi geçmişinden tarihsel baz; analistin kaynaklı uzun vadeli oranıyla temkinli / baz / iyimser senaryolar; Tahmin Defteri kaydı |
 | | `sapma_analizi.py` | Defterdeki tahminleri ilk bildirilen SEC değerleriyle eşleyip hata, yanlılık ve senaryo aralığı isabetini ölçer |
-| | `senaryo_degerleme.py` | Senaryoları aynı gelir / marj yoluyla v0.2 DCF'de değerler; her girdinin kökeni; iskonto × büyüme duyarlılığı |
+| | `senaryo_degerleme.py` | Senaryoları aynı gelir / marj yoluyla v0.2 DCF'de değerler; her girdinin kökeni; iskonto × büyüme duyarlılığı; analistin tarihli fiyatıyla ters DCF (ima edilen büyüme ve şirket geçmişine göre konumu) |
 | **SEC verisi** | `sec_companyfacts.py` | Company Facts indirme / normalize etme |
 | | `sec_arsiv.py` | Ortak arşiv yardımcıları: SHA-256 arşiv, atomik yazma, ticker–CIK haritası, istek hızı sınırı |
 | | `sec_gap_audit.py` | Yıllık kaynak / dönem / etiket çelişkisi denetimi |
@@ -103,7 +103,7 @@ Ayrıntılı kullanım: [web analizi](docs/WEB_SIRKET_ANALIZI_V02.md) · [şirke
 
 | Paket | Komut | Sonuç |
 |---|---|---|
-| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **485/485** |
+| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **499/499** |
 | Dondurulmuş v0.1 kabul | `dogrulama/kabul_testi.py` | **17/17** |
 | Kabul altyapısı + v0.2 modülleri | `unittest test_dogrulama_seti test_moduller_v02` | **9/9** (2 + 7) |
 

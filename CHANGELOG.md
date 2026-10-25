@@ -5,6 +5,21 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Ters DCF senaryolara bağlandı (Ders 7 tamamlandı)
+
+- **`senaryo_degerleme.implied_growth()`:** Analistin girdiği tarihli ve kaynaklı hisse fiyatının, baz senaryonun
+  diğer bütün varsayımları korunarak ima ettiği yıllık sabit gelir büyümesi (`ters_dcf_v02`, −%50…+%100).
+  - Sonuç şirketin kendi büyüme geçmişine göre konumlandırılır (en düşüğün altında … en yüksekten de üstte).
+  - Tek kök yoksa `NO_UNIQUE_SOLUTION` döner.
+  - Fiyat tarihi SEC bilgi tarihinden sonraysa veya 7 günden fazla uzaksa uyarı verilir.
+- **Rapor:** JSON'a `implied_growth` alanı, HTML'e "Ters DCF — fiyatın ima ettiği büyüme" bölümü eklendi. CLI
+  bayrakları: `--price`, `--price-date`, `--price-source` (`senaryo_degerleme.py`, `sirket_arastirma_akisi.py`).
+- **Web:** Formda fiyat, fiyat tarihi ve kaynağı alanları var. Sunucu bu üç alanın birlikte verilmesini,
+  değerleme girdilerini, tarihin bugünden ileri olmamasını ve fiyat aralığını doğrular; sonuç kutusunda ima
+  edilen büyüme gösterilir.
+- **Belgeler:** senaryo değerlemesi, web rehberi, yol haritası, README.
+- **Testler:** 14 yeni test. Toplam `tests/` 499/499.
+
 ## 2026-10-25 — Web formu v0.3: senaryo ve değerleme girdileri
 
 - **`index.html`:** Analiz formuna isteğe bağlı "Senaryo ve değerleme girdileri" bölümü eklendi: uzun vadeli
