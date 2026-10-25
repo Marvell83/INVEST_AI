@@ -33,7 +33,7 @@ from sirket_arastirma_akisi import build_company_research, render_company_resear
 from tahmin_motoru import LONG_RUN_BOUNDS
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "invest-ai-web-0.3.0"
+VERSION = "invest-ai-web-0.4.0"
 TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,14}$")
 EMAIL_RE = re.compile(r"\S+@\S+\.\S+")
 MODES = ("demo", "live", "cache")
@@ -45,6 +45,8 @@ SCENARIO_FIELDS = ("long_run_growth", "long_run_growth_source", "discount_rate",
 SOURCE_LENGTH = (8, 300)
 MAX_BODY_BYTES = 4096
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+SEC_LIST_PAGE_SIZE = 50
+SEC_LIST_MAX_SEARCH_LENGTH = 80
 
 
 def _price_inputs(values, today):
@@ -152,6 +154,68 @@ class ResearchService:
         table = ticker_mapping(source)
         atomic_write(path, canonical_bytes(source))
         return table, "DOWNLOADED_SEC_MAP"
+
+
+    def scan_sec_list(self, request):
+        """List SEC ticker/CIK directory; does not download financial statements."""
+        if not isinstance(request, dict) or not set(request) <= {"query", "offset", "refresh"}:
+            raise RequestError("SEC liste isteği geçersiz.")
+        query = request.get("query", "")
+        offset = request.get("offset", 0)
+        refresh = request.get("refresh", False)
+        if not isinstance(query, str) or len(query) > SEC_LIST_MAX_SEARCH_LENGTH:
+            raise RequestError("Arama en fazla 80 karakter olmalı.")
+        if type(offset) is not int or not 0 <= offset <= 100000 or type(refresh) is not bool:
+            raise RequestError("Sayfa veya güncelleme isteği geçersiz.")
+        if not self.lock.acquire(blocking=False):
+            raise RequestError("Bir SEC işlemi çalışıyor. Daha sonra tekrar dene.", 409)
+        try:
+            path = self.root / "veri/sec_ticker_esleme.json"
+            if refresh or not path.is_file():
+                self._online_ok()
+                try:
+                    source = self.ticker_download(user_agent=self.user_agent, limiter=self.throttle)
+                except urllib.error.HTTPError as exc:
+                    if exc.code in (403, 429):
+                        self.sec_blocked = True
+                    raise RequestError(f"SEC şirket listesi HTTP {exc.code}", 503) from exc
+                except urllib.error.URLError as exc:
+                    raise RequestError("SEC şirket listesi indirilemedi.", 503) from exc
+                except StopSECRequests as exc:
+                    self.sec_blocked = True
+                    raise RequestError(str(exc), 503) from exc
+                ticker_mapping(source)
+                atomic_write(path, canonical_bytes(source))
+                source_label = "SEC_DOWNLOAD"
+            else:
+                source_label = "SAVED_SEC_MAP"
+            raw = load_json(path, max_bytes=12_000_000)
+            mapping = ticker_mapping(raw)
+            values = raw.values() if isinstance(raw, dict) else raw
+            names = {}
+            for row in values:
+                ticker = row["ticker"].strip().upper()
+                title = row.get("title", "")
+                names[ticker] = title[:300] if isinstance(title, str) else ""
+            records = sorted(
+                ({"ticker": ticker, "company": names.get(ticker, ""),
+                  "cik": f"{cik:010d}"} for ticker, cik in mapping.items()),
+                key=lambda row: (row["ticker"], row["cik"]))
+            term = query.strip().casefold()
+            if term:
+                records = [row for row in records if term in row["ticker"].casefold()
+                           or term in row["company"].casefold() or term in row["cik"]]
+            matched = len(records)
+            return {"ok": True, "source": source_label, "total": len(mapping),
+                    "matched": matched, "offset": offset, "limit": SEC_LIST_PAGE_SIZE,
+                    "rows": records[offset:offset + SEC_LIST_PAGE_SIZE],
+                    "has_more": offset + SEC_LIST_PAGE_SIZE < matched,
+                    "snapshot_updated_utc": datetime.fromtimestamp(
+                        path.stat().st_mtime, tz=timezone.utc).isoformat(),
+                    "data_scope": "SEC_TICKER_CIK_DIRECTORY_ONLY",
+                    "financial_facts_downloaded": False}
+        finally:
+            self.lock.release()
 
     def analyze(self, request):
         if (not isinstance(request, dict) or not REQUIRED_FIELDS <= set(request)
@@ -303,7 +367,7 @@ class Website(SimpleHTTPRequestHandler):
         return super().do_HEAD()
 
     def do_POST(self):
-        if self.path != "/api/analyze":
+        if self.path not in ("/api/analyze", "/api/sec-scan"):
             return self.respond(404, {"ok": False, "error": "API yolu bulunamadı"})
         origin = self.headers.get("Origin")
         host = self.headers.get("Host", "")
@@ -326,7 +390,7 @@ class Website(SimpleHTTPRequestHandler):
         except (ValueError, UnicodeError):
             return self.respond(400, {"ok": False, "error": "JSON okunamadı"})
         try:
-            return self.respond(200, self.service.analyze(payload))
+            return self.respond(200, self.service.scan_sec_list(payload) if self.path == "/api/sec-scan" else self.service.analyze(payload))
         except RequestError as exc:
             return self.respond(exc.status, {"ok": False, "error": str(exc)})
         except (KeyError, OSError, TypeError, ValueError) as exc:
@@ -348,7 +412,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     service = ResearchService()
     server = build_server(service, port=args.port)
-    print(f"INVEST_AI v0.2: http://127.0.0.1:{server.server_port}", flush=True)
+    print(f"INVEST_AI {VERSION}: http://127.0.0.1:{server.server_port}", flush=True)
     print("WEB ANALİZ ANAHTARI (sitedeki parola kutusuna yapıştır): " + service.secret, flush=True)
     print("Codespaces Ports görünürlüğünü PRIVATE tut; Ctrl+C ile kapat.", flush=True)
     try:

@@ -127,6 +127,52 @@ class ResearchServiceTests(unittest.TestCase):
             self.assertEqual(result["mode"], "cache")
             self.assertEqual(result["ttm_status"], "RECONCILED_CALCULATIONS")
 
+
+    def test_sec_scanner_pages_without_companyfacts_download(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = [{"cik_str": i + 1000, "ticker": f"S{i:03d}",
+                          "title": f"Synthetic {i:03d} Incorporated"} for i in range(124)]
+            ticker_calls = []
+            def fetch_map(*, user_agent, limiter):
+                ticker_calls.append(1)
+                return directory
+            def reject_facts(*args, **kwargs):
+                self.fail("SEC ticker listing cannot fetch Company Facts")
+            app = service(folder, ticker_download=fetch_map, fact_download=reject_facts)
+            first = app.scan_sec_list({})
+            self.assertEqual((first["total"], first["matched"], len(first["rows"])), (124, 124, 50))
+            self.assertEqual(first["rows"][0]["ticker"], "S000")
+            self.assertFalse(first["financial_facts_downloaded"])
+            second = app.scan_sec_list({"offset": 50})
+            self.assertEqual(second["rows"][0]["ticker"], "S050")
+            self.assertEqual(len(app.scan_sec_list({"offset": 100})["rows"]), 24)
+            self.assertEqual(app.scan_sec_list({"query": "synthetic 123"})["rows"][0]["ticker"], "S123")
+            self.assertEqual(len(ticker_calls), 1)
+
+    def test_sec_scanner_cached_list_without_contact_and_explicit_refresh(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = service(folder)
+            self.assertEqual(app.scan_sec_list({})["source"], "SEC_DOWNLOAD")
+            saved = ResearchService(root=app.root, secret=SECRET, user_agent="",
+                                    ticker_download=lambda **kw: self.fail("unexpected network"))
+            self.assertEqual(saved.scan_sec_list({})["rows"][0]["ticker"], "SYN")
+            with self.assertRaisesRegex(RequestError, "SEC_USER_AGENT"):
+                saved.scan_sec_list({"refresh": True})
+
+    def test_sec_scanner_validation_and_lock(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = service(folder)
+            for bad in ({"offset": True}, {"offset": -1}, {"query": "x" * 81},
+                        {"refresh": "yes"}, {"unknown": 5}, []):
+                with self.subTest(bad=bad), self.assertRaises(RequestError):
+                    app.scan_sec_list(bad)
+            app.lock.acquire()
+            try:
+                with self.assertRaisesRegex(RequestError, "Bir SEC işlemi"):
+                    app.scan_sec_list({})
+            finally:
+                app.lock.release()
+
     def test_live_without_real_user_agent_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             s = service(folder, user_agent="")
@@ -229,6 +275,20 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(report_status, 200)
         self.assertIn(b"Apple", page)
         self.assertEqual(self.request("GET", answer["report_url"].replace(".html", ".json"))[0], 404)
+
+
+    def test_sec_scanner_http_requires_key_and_same_origin(self):
+        self.service.user_agent = "INVEST_AI test@example.com"
+        status, body = self.request("POST", "/api/sec-scan", payload={})
+        self.assertEqual(status, 200)
+        result = json.loads(body)
+        self.assertEqual(result["total"], 1)
+        self.assertFalse(result["financial_facts_downloaded"])
+        self.assertEqual(self.request("POST", "/api/sec-scan", payload={}, secret="wrong")[0], 403)
+        self.assertEqual(self.request("POST", "/api/sec-scan", payload={},
+                                      origin="https://evil.example")[0], 403)
+        self.assertEqual(self.request("POST", "/api/sec-scan", payload={"offset": -1})[0], 422)
+        self.assertEqual(self.request("GET", "/api/sec-scan")[0], 404)
 
     def test_unauthorized_post_forbidden(self):
         payload = {"ticker": "AAPL", "mode": "demo", "sector": "unknown"}
