@@ -313,9 +313,40 @@
         <p class="web-help">Örnek mod yalnız AAPL ile çalışır ve 2026-10-21 tarihli manuel aktarımı kullanır.
           Güncel SEC modu internete ve gerçek iletişim adresiyle yapılandırılmış SEC_USER_AGENT'a ihtiyaç duyar.
           Sektör seçimini otomatik tahmin etmiyoruz. Anahtar tarayıcıda kaydedilmez.</p>
-        <button id="analyze-submit" type="submit" class="btn primary" style="margin-top:16px">Şirketi analiz et →</button>
+        <div class="buttons" style="margin-top:16px">
+          <button id="analyze-submit" type="submit" class="btn primary">Şirketi analiz et →</button>
+          <button id="sec-scan-submit" type="button" class="btn">SEC verilerini tara →</button>
+        </div>
         <div id="web-analysis-result" aria-live="polite" role="status"></div>
       </form>
+      <section id="sec-scan-panel" class="web-form" hidden aria-label="SEC şirket ve hisse listesi">
+        <div class="section-top">
+          <div><h2>SEC şirket / hisse listesi</h2>
+            <p>Resmî SEC ticker–CIK dizininden alınır. Henüz 10-K / 10-Q finansalları indirilmez.</p></div>
+          <button id="sec-scan-refresh" type="button" class="btn">SEC listesini güncelle</button>
+        </div>
+        <div class="form-field">
+          <label for="sec-scan-search">Hisse kodu, şirket adı veya CIK ile ara</label>
+          <input id="sec-scan-search" class="search" type="search" maxlength="80"
+                 placeholder="Örn. AAPL, NVIDIA, 320193" autocomplete="off">
+        </div>
+        <p id="sec-scan-summary" class="web-help" role="status" aria-live="polite"></p>
+        <div class="scroll" style="margin-top:12px">
+          <table>
+            <thead><tr><th>Hisse kodu</th><th>Şirket</th><th>CIK</th><th>İşlem</th></tr></thead>
+            <tbody id="sec-scan-rows"></tbody>
+          </table>
+        </div>
+        <div class="buttons" style="margin-top:16px;align-items:center">
+          <button id="sec-scan-prev" type="button" class="btn" disabled>← Önceki</button>
+          <span id="sec-scan-page" class="muted" aria-live="polite"></span>
+          <button id="sec-scan-next" type="button" class="btn" disabled>Sonraki →</button>
+        </div>
+        <p class="web-help">Bu liste SEC'deki şirket kodlarını gösterir; aktif ABD borsa hisseleriyle
+          birebir aynı evren değildir. ETF/ADR, mükerrer menkul kıymet türleri ve
+          finansal veri yeterliliği henüz ayıklanmaz. “Seç” yalnızca hisse kodunu
+          analiz formuna taşır; dosya indirmez.</p>
+      </section>
       <div class="section-top"><div><h2>Geliştirici komutları</h2>
         <p>İleri düzey kullanım ve test için terminal alternatifleri.</p></div></div>
       <div class="tools">
@@ -615,8 +646,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     description.textContent = isError ? (data.error || "Bilinmeyen hata") :
       ("Kaynak: " + data.source + " | Bilgi tarihi: " + data.as_of +
        " | Yıllık dönem: " + (data.annual_end || "Eksik") +
-       " | TTM: " + data.ttm_status +
-       ");
+       " | TTM: " + data.ttm_status);
     container.append(description);
     if (!isError && data.projection_status) {
       const texts = {OK:"üretildi", INSUFFICIENT_HISTORY:"geçmiş yetersiz",
