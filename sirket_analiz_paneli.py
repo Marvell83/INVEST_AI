@@ -63,13 +63,27 @@ PAGE_STYLE = """
 STATEMENT_TITLES = {"income": "Gelir tablosu", "cash_flow": "Nakit akışı", "balance": "Bilanço"}
 
 
+def _tr_percent(share):
+    return "%" + f"{share * 100:.2f}".replace(".", ",")
+
+
+def _alias_gap_text(gap):
+    others = ", ".join(f"{a['concept']} = {a['value'] / 1e6:,.0f}" for a in gap["other_aliases"])
+    return f"öncelikli gelir etiketi kullanıldı; diğer etiket {others} (fark {_tr_percent(gap['spread'])})"
+
+
 def _statement_cell(cell):
     status = cell.get("status")
     if status in ("REPORTED", "DERIVED"):
         scale = 1e6
-        text = f"{cell['value'] / scale:,.0f}" + ("†" if status == "DERIVED" else "")
+        text = (("≈" if cell.get("approximate") else "") + f"{cell['value'] / scale:,.0f}" +
+                ("†" if status == "DERIVED" else "") + ("‡" if cell.get("alias_gap") else ""))
         title = (f"{cell.get('method', '')} · {', '.join(cell.get('sources', []))}" if status == "DERIVED" else
                  f"{cell.get('concept', '')} · {cell.get('accession', '')} · {cell.get('filed', '')}")
+        if cell.get("approximate"):
+            title = "yaklaşık: " + title + " · faaliyet dışı kalemleri içerir"
+        if cell.get("alias_gap"):
+            title += " · " + _alias_gap_text(cell["alias_gap"])
         if cell.get("revised"):
             title += " · sonradan revize edildi"
         return f"<td class='num' title='{_safe(title)}'>{_safe(text)}</td>"
@@ -108,10 +122,11 @@ def render_financial_sections(statements, ratios):
             rows.append(f"<tr><td>{_safe(line_item_label(key) + unit)}</td>{cells}</tr>")
     table = (
         "<section class='card'><h2>Finansal tablolar — yıllık 10-K (milyon USD)</h2>" +
-        _conflict_note(statements) +
+        _data_notes(statements) +
         "<div class='scroll'><table><thead><tr><th>Kalem</th>" + head + "</tr></thead><tbody>" +
         "".join(rows) + "</tbody></table></div>" + _shares_note(statements.get("shares_outstanding")) +
         "<p class='muted'>— bildirilmedi (sıfır sayılmaz) · † aynı SEC dosyasından türetildi · "
+        "≈ yaklaşık değer · ‡ gelir etiketleri arasında %0,5–%5 fark var, öncelikli etiket kullanıldı · "
         "hücrenin üzerine gelince XBRL kavramı, accession ve dosyalama tarihi görünür. "
         "Serbest nakit akışı CFO − CapEx'tir, FCFF değildir.</p></section>")
 
@@ -126,6 +141,9 @@ def render_financial_sections(statements, ratios):
             r = item["ratios"][key]
             if r["value"] is None:
                 cells.append(f"<td class='num muted' title='{_safe(r.get('reason', ''))}'>—</td>")
+            elif r.get("approximate"):
+                cells.append(f"<td class='num' title='yaklaşık faaliyet kârıyla hesaplandı'>"
+                             f"≈{_safe(_ratio_text(key, r['value']))}</td>")
             else:
                 cells.append(f"<td class='num'>{_safe(_ratio_text(key, r['value']))}</td>")
         ratio_rows.append(f"<tr><td title='{_safe(formula)}'>{_safe(label)}</td>{''.join(cells)}</tr>")
@@ -145,10 +163,26 @@ QUARTER_ROWS = (("income", "revenue"), ("income", "gross_profit"), ("income", "o
                 ("balance", "stockholders_equity"))
 
 
-def _conflict_note(statements):
+def _data_notes(statements):
+    """Visible notes for conflicts, revenue alias gaps and approximate values."""
+    notes = []
     conflicts = statements.get("conflicts", [])
-    return (f"<div class='note'>{len(conflicts)} kalemde XBRL etiketleri birbirini tutmuyor; "
-            "bu hücrelere değer yazılmadı ve manuel inceleme gerekir.</div>") if conflicts else ""
+    if conflicts:
+        notes.append(f"<div class='note'>{len(conflicts)} kalemde XBRL etiketleri birbirini tutmuyor; "
+                     "bu hücrelere değer yazılmadı ve manuel inceleme gerekir.</div>")
+    gaps = statements.get("alias_gaps", [])
+    if gaps:
+        largest = max(g["spread"] for g in gaps)
+        notes.append(f"<div class='note'>‡ {len(gaps)} dönemde gelir etiketleri en çok {_tr_percent(largest)} "
+                     f"ayrışıyor (ör. net satışlar ile toplam gelirler). Öncelikli etiket ({_safe(gaps[0]['used'])}) "
+                     "kullanıldı; Piotroski de aynı kuralı uygular. %5'i aşan fark çelişki sayılır.</div>")
+    approximate = statements.get("approximations", [])
+    if approximate:
+        notes.append(f"<div class='note'>≈ {len(approximate)} dönemde şirket faaliyet kârı bildirmedi. "
+                     "Yaklaşık faaliyet kârı = vergi öncesi kâr + faiz gideri (aynı SEC dosyası). Faiz geliri, "
+                     "özkaynak yöntemi sonuçları ve diğer faaliyet dışı kalemleri içerir; bu kalemle hesaplanan "
+                     "oranlar ve senaryolar da yaklaşıktır.</div>")
+    return "".join(notes)
 
 
 def _shares_note(shares):
@@ -176,6 +210,7 @@ CHECK_STATUS = {
     "SAME_VALUE_OTHER_FILING": "aynı tutar, farklı SEC dosyası",
     "YEAR_NOT_IN_SHARED_STATEMENTS": "bu yıl ortak tablolarda yok",
     "ROUNDING": "yuvarlama farkı (≤ %0,1)", "SHARED_INCOMPLETE": "ortak çeyreklerde eksik değer",
+    "SHARED_APPROXIMATE": "ortak katmanda yaklaşık faaliyet kârı",
 }
 LAYER_REASONS = {
     "NO_PIOTROSKI_SEC_INPUTS": "Piotroski hiç SEC verisi kullanmadı (sektör veya iki yıllık dönem şartı)",
@@ -238,6 +273,8 @@ FORECAST_WARNINGS = {
     "SHORT_HISTORY_ONLY_BASE_SCENARIO": "Geçmiş kısa (üçten az gözlem); yalnız baz senaryo gösterildi.",
     "HIGH_HISTORICAL_GROWTH_RARELY_PERSISTS": "Tarihsel medyan büyüme %25'in üzerinde; bu hız uzun süre nadiren korunur.",
     "LONG_RUN_GROWTH_ABOVE_TYPICAL_NOMINAL_ECONOMY": "Uzun vadeli büyüme %5'in üzerinde; tipik nominal ekonomik büyümeden yüksek.",
+    "OPERATING_MARGIN_FROM_APPROXIMATE_EBIT": "Faaliyet marjı yaklaşık faaliyet kârından (vergi öncesi kâr + faiz "
+                                              "gideri) hesaplandı; faaliyet dışı kalemleri içerir.",
 }
 SCENARIO_LABELS = {"temkinli": "Temkinli", "baz": "Baz", "iyimser": "İyimser"}
 
@@ -275,6 +312,10 @@ def render_forecast_section(baseline, projection=None):
         "<th class='num'>Alt çeyrek</th><th class='num'>Üst çeyrek</th><th class='num'>Gözlem</th></tr></thead>"
         f"<tbody>{rows}</tbody></table></div>",
     ]
+    approximate = baseline.get("approximate_operating_income_years") or []
+    if approximate:
+        parts.append(f"<p class='muted'>≈ {_safe(', '.join(approximate))} yıllarında faaliyet kârı bildirilmedi; "
+                     "marjlar yaklaşık faaliyet kârıyla (vergi öncesi kâr + faiz gideri) hesaplandı.</p>")
     if baseline.get("status") != "OK":
         reasons = "; ".join(FORECAST_REASONS.get(r, r) for r in baseline.get("reasons", []))
         parts.append(f"<div class='note'>Senaryo üretmek için geçmiş yetersiz: {_safe(reasons)}.</div>")
@@ -336,6 +377,7 @@ VALUATION_WARNINGS = {
     "UC_ROIC_ISKONTO_ALTINDA": "Uç dönem RONIC iskontonun altında: büyüme değer yok eder.",
     "NEGATIF_YATIRIM_SERMAYE_CIKISI_VARSAYIMI": "Gelir düşen yıllarda sermaye geri çekiliyor varsayılır.",
     "UC_VERGI_NORMALIZE_EDILDI": "Uç dönemde vergi normalleştirildi; devreden zarar sonsuza taşınmaz.",
+    "OPERATING_MARGIN_FROM_APPROXIMATE_EBIT": FORECAST_WARNINGS["OPERATING_MARGIN_FROM_APPROXIMATE_EBIT"],
 }
 MISSING_INPUT_HINTS = {
     "tax_rate": "vergi oranı geçmişten hesaplanamadı", "sales_to_capital": "satış / sermaye geçmişten hesaplanamadı",
@@ -473,13 +515,37 @@ def render_quarterly_section(quarterly):
         rows.append(f"<tr><td>{_safe(line_item_label(key))}</td>{cells}</tr>")
     return (
         "<section class='card'><h2>Çeyreklik tablolar — 10-Q / 10-K (milyon USD)</h2>" +
-        _conflict_note(quarterly) +
+        _data_notes(quarterly) +
         "<div class='scroll'><table><thead><tr><th>Kalem</th>" + head + "</tr></thead><tbody>" +
         "".join(rows) + "</tbody></table></div>"
         "<p class='muted'>Çeyrekler mali yıla göredir (MY = mali yılın bittiği takvim yılı). "
         "† bildirilmiş 3 aylık değer yoksa mali yıl başından itibaren birikimli (YTD) iki değerin farkıdır; "
         "4. çeyrek yıllık 10-K eksi 9 aylık 10-Q'dur. Nakit akışı kalemleri SEC'e çoğunlukla yalnız "
-        "YTD olarak bildirildiği için genellikle türetilmiştir.</p></section>")
+        "YTD olarak bildirildiği için genellikle türetilmiştir.</p></section>" +
+        render_ttm_section(quarterly.get("ttm")))
+
+
+TTM_ROWS = ("revenue", "gross_profit", "operating_income", "net_income", "cfo", "capex", "free_cash_flow")
+
+
+def render_ttm_section(ttm):
+    """Trailing twelve months from the latest four consecutive shared quarters."""
+    if not ttm:
+        return ""
+    if ttm.get("status") == "INSUFFICIENT_QUARTERS":
+        return ("<section class='card'><h2>Son 12 ay (TTM)</h2><p>Art arda dört çeyrek bulunamadı; "
+                "TTM hesaplanmadı.</p></section>")
+    rows = "".join(f"<tr><td>{_safe(line_item_label(key))}</td>{_statement_cell(ttm['items'][key])}</tr>"
+                   for key in TTM_ROWS)
+    latest = f"{ttm['fiscal_year_label']} Ç{ttm['fiscal_quarter']}"
+    return (
+        "<section class='card'><h2>Son 12 ay (TTM) — ortak çeyreklerden (milyon USD)</h2>"
+        f"<p>{_safe(ttm['start'])} – {_safe(ttm['end'])} · son çeyrek <strong>{_safe(latest)}</strong></p>"
+        "<div class='scroll'><table><thead><tr><th>Kalem</th><th class='num'>TTM</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></div>"
+        "<p class='muted'>Yukarıdaki tablodaki son dört çeyreğin toplamıdır; hangi çeyrek en son olursa olsun "
+        "çalışır. Bir çeyrek eksik veya çelişkiliyse o kalem — kalır. Serbest nakit akışı CFO − CapEx'tir, "
+        "FCFF değildir.</p></section>")
 
 
 def render_dashboard(quality, valuation=None):

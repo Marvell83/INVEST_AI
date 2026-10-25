@@ -43,6 +43,10 @@ RATIOS = {
 }
 
 
+# Ratios that use operating income; flagged when it is the pretax + interest proxy.
+OPERATING_INCOME_RATIOS = ("operating_margin", "operating_income_growth", "roic", "interest_coverage")
+
+
 def _value(cell):
     return cell["value"] if cell.get("status") in ("REPORTED", "DERIVED") else None
 
@@ -166,6 +170,12 @@ def _year_ratios(statements, index):
         for key in ("revenue_growth", "operating_income_growth", "roa", "roe", "roic"):
             if out[key]["value"] is None:
                 out[key]["reason"] = "PRIOR_FISCAL_YEAR_REQUIRED"
+    current_proxy = bool(year["income"]["operating_income"].get("approximate"))
+    prior_proxy = bool(prior and prior["income"]["operating_income"].get("approximate"))
+    for key in OPERATING_INCOME_RATIOS:
+        uses_proxy = current_proxy or (key == "operating_income_growth" and prior_proxy)
+        if uses_proxy and out[key]["value"] is not None:
+            out[key]["approximate"] = "OPERATING_INCOME_PROXY"
     return {"fiscal_year_end": year["fiscal_year_end"], "ratios": out}
 
 

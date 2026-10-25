@@ -5,6 +5,33 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Gerçek veri düzeltmeleri (tablolar v0.3)
+
+11 şirketlik ilk gerçek SEC denemesinde bulunan dört sorun giderildi.
+
+- **Hisse bazlı ödeme:** `AllocatedShareBasedCompensationExpense` eşanlamlı listesinden çıkarıldı. Bu farklı bir
+  kavramdır ve Alphabet, J&J, Coca-Cola'da yanlış etiket çelişkisi üretiyordu. Artık yalnız nakit akışı
+  tablosundaki `ShareBasedCompensation` okunur.
+- **Gelir etiketleri (%5 kuralı):** Gelir etiketleri arasında %0,5–%5 fark varsa öncelikli etiket kullanılır, hücre
+  `REPORTED` kalır, fark `alias_gap` alanında ve raporda ‡ işaretiyle görünür. %5 üstü fark çelişkidir. Piotroski
+  ile ortak katman artık aynı kuralı uygular; yol haritasındaki açık eşik kararı kapandı. Diğer kalemler %0,5'te
+  kalır. Walmart'ın gelir hücresi bu kuralla kullanılabilir hale gelir.
+- **Yaklaşık faaliyet kârı:** `OperatingIncomeLoss` bildirilmemişse faaliyet kârı = vergi öncesi kâr + faiz gideri
+  (aynı SEC dosyası); `DERIVED`, `approximate: true`, `EBIT_PROXY_PRETAX_PLUS_INTEREST`. Bunu kullanan oranlar,
+  tarihsel baz, senaryolar, değerleme ve Tahmin Defteri kaydı uyarı taşır; raporda ≈ ile gösterilir. Sapma
+  analizi yaklaşık gerçekleşenleri puanlamaz.
+- **Her çeyrekte TTM:** `finansal_tablolar.trailing_twelve_months()` ve çeyreklik çıktının `ttm` alanı: en son
+  çeyrekle biten art arda dört çeyreğin toplamı (1., 2., 3. veya 4. çeyrek). Raporda "Son 12 ay (TTM)" bölümü.
+  Eski iki TTM motoru 9 aylık dönemlerde çapraz kontrol olarak kalır; `reconcile_ttm` artık aynı fonksiyonu
+  kullanır. Eski motorlar çalışmadığında rapor açığı `TTM_SINGLE_METHOD_ONLY:<durum>` olur.
+- **Toplu tarama:** Katman sağlığına `shared_ttm_status`, `shared_ttm_end`, `latest_operating_income` eklendi
+  (CSV'de 3 yeni sütun); Türkçe özet satırları güncellendi.
+- **Belgeler:** finansal tablolar (v0.3 kuralları, TTM), toplu tarama (ilk denemenin bulguları ve düzeltmeler),
+  yol haritası, README.
+- **Testler:** 36 yeni test (`test_gercek_veri_kurallari.py`, `test_ortak_ttm.py`, mutabakat). 6 testin
+  beklentisi yeni kurala göre güncellendi. Toplam `tests/` 542/542. Değişen satırlarda 24 hedefli mutasyonun
+  hepsi testlerce yakalanıyor.
+
 ## 2026-10-25 — Gerçek veri kontrolü: çoklu şirket katman sağlığı
 
 - **`katman_mutabakati.layer_health()`:** Bir araştırma raporundaki ortak katmanların özeti:

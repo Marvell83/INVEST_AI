@@ -213,10 +213,11 @@ def scan_universe(records, *, as_of, archive_dir, reports_dir, offline=False,
 
 
 HEALTH_COUNTED = ("revenue_alias_bucket", "piotroski_reconciliation", "ttm_reconciliation",
-                  "shares_status", "baseline_status")
+                  "shared_ttm_status", "latest_operating_income", "shares_status", "baseline_status")
 HEALTH_COLUMNS = ("statement_years", "latest_fiscal_year_end", "statement_conflicts", "revenue_alias_bucket",
                   "revenue_alias_gap", "quarters", "shares_status", "piotroski_reconciliation",
-                  "piotroski_attention", "ttm_reconciliation", "baseline_status", "latest_ratios_available")
+                  "piotroski_attention", "ttm_reconciliation", "shared_ttm_status", "shared_ttm_end",
+                  "latest_operating_income", "baseline_status", "latest_ratios_available")
 
 
 def _layer_health_counts(records):
@@ -241,11 +242,13 @@ def health_summary_lines(summary):
     buckets = counts.get("revenue_alias_bucket", {})
     lines = [
         f"Katman sağlığı ({issuers} şirket):",
-        f"- Gelir etiketi çelişkisi: yok {buckets.get('NO_REVENUE_CONFLICT', 0)} · "
-        f"%0,5–%5 arası {buckets.get('HALF_TO_FIVE_PERCENT', 0)} (Piotroski eşik kararını etkiler) · "
-        f"%5 üstü {buckets.get('ABOVE_FIVE_PERCENT', 0)}",
+        f"- Gelir etiketleri arası fark: yok {buckets.get('NO_REVENUE_CONFLICT', 0)} · "
+        f"%0,5–%5 arası {buckets.get('HALF_TO_FIVE_PERCENT', 0)} (öncelikli etiket, notla) · "
+        f"%5 üstü {buckets.get('ABOVE_FIVE_PERCENT', 0)} (çelişki)",
         f"- Piotroski girdileri ↔ ortak tablolar: {spread('piotroski_reconciliation')}",
-        f"- TTM ↔ dört çeyrek: {spread('ttm_reconciliation')}",
+        f"- Ortak çeyreklerden TTM: {spread('shared_ttm_status')}",
+        f"- Eski TTM motorları ↔ dört çeyrek (yalnız 9 aylık dönemde): {spread('ttm_reconciliation')}",
+        f"- Son yıl faaliyet kârı: {spread('latest_operating_income')}",
         f"- Kapak sayfası hisse sayısı: {spread('shares_status')}",
         f"- Senaryo için tarihsel baz: {spread('baseline_status')}",
     ]

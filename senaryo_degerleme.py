@@ -165,6 +165,8 @@ def value_scenarios(projection, baseline, statements, *, discount_rate, discount
         result["warnings"].append("TERMINAL_RONIC_NEUTRAL_DEFAULT")
     if projection.get("retrospective"):
         result["warnings"].append("RETROSPECTIVE_PROJECTION")
+    if "OPERATING_MARGIN_FROM_APPROXIMATE_EBIT" in projection.get("warnings", []):
+        result["warnings"].append("OPERATING_MARGIN_FROM_APPROXIMATE_EBIT")
     return dict(result, status="OK", notes=[
         "Same revenue and operating-margin path as the projection; FCFF = NOPAT - revenue change / sales-to-capital",
         "Scenario values are experimental, not price targets, fair values or recommendations",
