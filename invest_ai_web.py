@@ -33,7 +33,7 @@ from sirket_arastirma_akisi import build_company_research, render_company_resear
 from tahmin_motoru import LONG_RUN_BOUNDS
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "invest-ai-web-0.3.0"
+VERSION = "invest-ai-web-0.4.0"
 TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,14}$")
 EMAIL_RE = re.compile(r"\S+@\S+\.\S+")
 MODES = ("demo", "live", "cache")
@@ -45,6 +45,8 @@ SCENARIO_FIELDS = ("long_run_growth", "long_run_growth_source", "discount_rate",
 SOURCE_LENGTH = (8, 300)
 MAX_BODY_BYTES = 4096
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+SEC_LIST_PAGE_SIZE = 50
+SEC_LIST_MAX_SEARCH_LENGTH = 80
 
 
 def _price_inputs(values, today):
@@ -303,7 +305,7 @@ class Website(SimpleHTTPRequestHandler):
         return super().do_HEAD()
 
     def do_POST(self):
-        if self.path != "/api/analyze":
+        if self.path not in ("/api/analyze", "/api/sec-scan"):
             return self.respond(404, {"ok": False, "error": "API yolu bulunamadı"})
         origin = self.headers.get("Origin")
         host = self.headers.get("Host", "")
@@ -326,7 +328,7 @@ class Website(SimpleHTTPRequestHandler):
         except (ValueError, UnicodeError):
             return self.respond(400, {"ok": False, "error": "JSON okunamadı"})
         try:
-            return self.respond(200, self.service.analyze(payload))
+            return self.respond(200, self.service.scan_sec_list(payload) if self.path == "/api/sec-scan" else self.service.analyze(payload))
         except RequestError as exc:
             return self.respond(exc.status, {"ok": False, "error": str(exc)})
         except (KeyError, OSError, TypeError, ValueError) as exc:
@@ -348,7 +350,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     service = ResearchService()
     server = build_server(service, port=args.port)
-    print(f"INVEST_AI v0.2: http://127.0.0.1:{server.server_port}", flush=True)
+    print(f"INVEST_AI {VERSION}: http://127.0.0.1:{server.server_port}", flush=True)
     print("WEB ANALİZ ANAHTARI (sitedeki parola kutusuna yapıştır): " + service.secret, flush=True)
     print("Codespaces Ports görünürlüğünü PRIVATE tut; Ctrl+C ile kapat.", flush=True)
     try:
