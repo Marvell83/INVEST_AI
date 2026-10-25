@@ -37,18 +37,19 @@ class SECBulkScreeningTests(unittest.TestCase):
             self.assertEqual(result["total"], 2)  # two issuers, one multi-class ticker
             self.assertEqual(result["statuses"], {"NO_COMPANYFACTS":1,"OK":1})
             screen = load_bulk_grid(folder)
-            self.assertEqual(screen["available"], 2)
+            self.assertEqual(screen["available"], 3)  # SYN, SYN.B and NONE
             self.assertEqual(screen["scope"], "BULK_SEC_COMPANYFACTS")
             self.assertFalse(screen["market_price_fetched"])
-            found = {r["cik"]:r for r in screen["rows"]}
-            row = found["0000000077"]
+            found = {r["ticker"]:r for r in screen["rows"]}
+            row = found["SYN"]
             self.assertEqual(row["ticker"], "SYN")
+            self.assertEqual(found["SYN.B"]["roe"], row["roe"])
             self.assertAlmostEqual(row["roe"], 200 / 640)
             self.assertAlmostEqual(row["operating_margin"], 260 / 1200)
             self.assertIsNone(row["market_cap"])
             self.assertIsNone(row["peg"])
-            self.assertEqual(found["0000000042"]["screening_status"], "NO_COMPANYFACTS")
-            self.assertIsNone(found["0000000042"]["roe"])
+            self.assertEqual(found["NONE"]["screening_status"], "NO_COMPANYFACTS")
+            self.assertIsNone(found["NONE"]["roe"])
             self.assertEqual(events[-1]["phase"], "complete")
 
     def test_limit_checkpoint_and_resume_without_recomputation(self):
