@@ -155,6 +155,68 @@ class ResearchService:
         atomic_write(path, canonical_bytes(source))
         return table, "DOWNLOADED_SEC_MAP"
 
+
+    def scan_sec_list(self, request):
+        """List SEC ticker/CIK directory; does not download financial statements."""
+        if not isinstance(request, dict) or not set(request) <= {"query", "offset", "refresh"}:
+            raise RequestError("SEC liste isteği geçersiz.")
+        query = request.get("query", "")
+        offset = request.get("offset", 0)
+        refresh = request.get("refresh", False)
+        if not isinstance(query, str) or len(query) > SEC_LIST_MAX_SEARCH_LENGTH:
+            raise RequestError("Arama en fazla 80 karakter olmalı.")
+        if type(offset) is not int or not 0 <= offset <= 100000 or type(refresh) is not bool:
+            raise RequestError("Sayfa veya güncelleme isteği geçersiz.")
+        if not self.lock.acquire(blocking=False):
+            raise RequestError("Bir SEC işlemi çalışıyor. Daha sonra tekrar dene.", 409)
+        try:
+            path = self.root / "veri/sec_ticker_esleme.json"
+            if refresh or not path.is_file():
+                self._online_ok()
+                try:
+                    source = self.ticker_download(user_agent=self.user_agent, limiter=self.throttle)
+                except urllib.error.HTTPError as exc:
+                    if exc.code in (403, 429):
+                        self.sec_blocked = True
+                    raise RequestError(f"SEC şirket listesi HTTP {exc.code}", 503) from exc
+                except urllib.error.URLError as exc:
+                    raise RequestError("SEC şirket listesi indirilemedi.", 503) from exc
+                except StopSECRequests as exc:
+                    self.sec_blocked = True
+                    raise RequestError(str(exc), 503) from exc
+                ticker_mapping(source)
+                atomic_write(path, canonical_bytes(source))
+                source_label = "SEC_DOWNLOAD"
+            else:
+                source_label = "SAVED_SEC_MAP"
+            raw = load_json(path, max_bytes=12_000_000)
+            mapping = ticker_mapping(raw)
+            values = raw.values() if isinstance(raw, dict) else raw
+            names = {}
+            for row in values:
+                ticker = row["ticker"].strip().upper()
+                title = row.get("title", "")
+                names[ticker] = title[:300] if isinstance(title, str) else ""
+            records = sorted(
+                ({"ticker": ticker, "company": names.get(ticker, ""),
+                  "cik": f"{cik:010d}"} for ticker, cik in mapping.items()),
+                key=lambda row: (row["ticker"], row["cik"]))
+            term = query.strip().casefold()
+            if term:
+                records = [row for row in records if term in row["ticker"].casefold()
+                           or term in row["company"].casefold() or term in row["cik"]]
+            matched = len(records)
+            return {"ok": True, "source": source_label, "total": len(mapping),
+                    "matched": matched, "offset": offset, "limit": SEC_LIST_PAGE_SIZE,
+                    "rows": records[offset:offset + SEC_LIST_PAGE_SIZE],
+                    "has_more": offset + SEC_LIST_PAGE_SIZE < matched,
+                    "snapshot_updated_utc": datetime.fromtimestamp(
+                        path.stat().st_mtime, tz=timezone.utc).isoformat(),
+                    "data_scope": "SEC_TICKER_CIK_DIRECTORY_ONLY",
+                    "financial_facts_downloaded": False}
+        finally:
+            self.lock.release()
+
     def analyze(self, request):
         if (not isinstance(request, dict) or not REQUIRED_FIELDS <= set(request)
                 or not set(request) <= REQUIRED_FIELDS | set(SCENARIO_FIELDS)):
