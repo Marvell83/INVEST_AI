@@ -32,6 +32,27 @@ Baz senaryo, iskonto oranı ve uç dönem büyümesinin ±%0,5 ve ±%1 değişim
 - Analist RONIC'i değiştirdiyse tüm hücrelerde sabit kalır.
 - Uç büyümenin iskontoya eşit veya büyük olduğu, ya da %4 tavanı aştığı hücreler boş bırakılır.
 
+## Ters DCF — fiyatın ima ettiği büyüme
+
+`implied_growth(projection, baseline, valuation, price=..., price_source=..., price_date=...)` soruyu tersine çevirir: Analistin girdiği hisse fiyatı, baz senaryonun diğer bütün varsayımları aynen korunarak yıllık **sabit** kaç gelir büyümesini ima ediyor? Sabit tutulan varsayımlar: marj yolu, vergi, satış / sermaye, iskonto, uç dönem, net borç ve hisse sayısı.
+
+- **Fiyat girişi:** Fiyatı sistem indirmez. Analist fiyatı tarihi ve kaynağıyla girer.
+- **Karşılaştırma:** Bulunan oran şirketin kendi yıllık büyüme geçmişiyle karşılaştırılır. Raporda şu bantlardan biri yazılır:
+  - geçmişin en düşüğünün altında,
+  - alt çeyreğin altında,
+  - orta bant,
+  - üst çeyreğin üstünde,
+  - en yükseğin de üstünde.
+
+  Böylece piyasa fiyatına gömülü beklentinin şirketin geçmişine göre ne kadar iddialı olduğu görülür.
+- **Kök arama:** Mevcut `ters_dcf_v02` ile −%50 … +%100 aralığında yapılır. Tek kök doğrulanırsa sonuç verilir. Kök yoksa veya birden fazlaysa `NO_UNIQUE_SOLUTION` döner; bu, çözümsüzlüğün kanıtı değildir.
+- **Tarih uyarıları:**
+  - fiyat tarihi SEC bilgi tarihinden sonraysa (`PRICE_AFTER_SEC_AS_OF`), fiyat rapordaki SEC verisinde olmayan yeni bilgileri yansıtıyor olabilir;
+  - iki tarih arasında 7 günden fazla fark varsa `PRICE_DATE_FAR_FROM_SEC_AS_OF`.
+- **Sabit büyüme bir basitleştirmedir.** Sonuç piyasa beklentisinin bir yorumudur; alım / satım sinyali değildir.
+
+Komut satırında `--price`, `--price-date`, `--price-source` birlikte verilir; bu kullanım hem `senaryo_degerleme.py` hem `sirket_arastirma_akisi.py` için geçerlidir. Web formunda da aynı üç alan vardır.
+
 ## Kullanım
 
 ```bash
@@ -48,7 +69,7 @@ Tek komutluk araştırmada `--long-run-growth/--long-run-source` ile birlikte `-
 
 - Deneysel v0.2 motorunun sınırları aynen geçerlidir (NOL süresi yok, SBC yalnız gider, uç dönem vergisi normalleştirilir; bkz. README).
 - İskonto oranı tek bir sabit orandır; dönemsel sermaye maliyeti veya kaldıraç değişimi yoktur.
-- Hisse başı değerler senaryo hesabıdır; **hedef fiyat, adil değer veya yatırım tavsiyesi değildir**. Piyasa fiyatı sisteme girmez; ters DCF bu sürümde senaryolarla bağlanmadı.
+- Hisse başı değerler senaryo hesabıdır; **hedef fiyat, adil değer veya yatırım tavsiyesi değildir**. Sistem piyasa fiyatı indirmez; ters DCF yalnız analistin girdiği tarihli fiyatı kullanır.
 
 ## Testler
 

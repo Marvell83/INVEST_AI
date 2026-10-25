@@ -409,6 +409,56 @@ def _per_share(value):
     return f"{value:,.2f}"
 
 
+REVERSE_WARNINGS = {
+    "PRICE_AFTER_SEC_AS_OF": "Fiyat tarihi SEC bilgi tarihinden sonra: fiyat, rapordaki SEC verisinde olmayan "
+                             "yeni bilgileri yansıtıyor olabilir.",
+    "PRICE_DATE_FAR_FROM_SEC_AS_OF": "Fiyat tarihi ile SEC bilgi tarihi arasında 7 günden fazla fark var.",
+}
+
+
+def _history_sentence(position):
+    band, n = position.get("band"), position.get("n", 0)
+    if band == "NO_HISTORY":
+        return "Karşılaştırılacak büyüme geçmişi yok."
+    return {
+        "BELOW_HISTORY": f"Şirketin {n} yıllık büyüme gözleminin en düşüğünün ({_pct(position.get('min'))}) de altında.",
+        "BELOW_Q1": f"Şirket geçmişinin alt çeyreğinin ({_pct(position.get('q1'))}) altında.",
+        "WITHIN_Q1_Q3": f"Şirket geçmişinin orta bandında ({_pct(position.get('q1'))} – {_pct(position.get('q3'))}).",
+        "ABOVE_Q3": f"Şirket geçmişinin üst çeyreğinin ({_pct(position.get('q3'))}) üstünde.",
+        "ABOVE_HISTORY": f"Şirketin {n} yıllık büyüme gözleminin en yükseğinin ({_pct(position.get('max'))}) de üstünde.",
+    }.get(band, band)
+
+
+def render_reverse_dcf_section(result):
+    """What constant revenue growth an analyst-entered price implies, versus the company's own history."""
+    parts = ["<section class='card'><h2>Ters DCF — fiyatın ima ettiği büyüme</h2>"]
+    price = result.get("price")
+    if price:
+        parts.append(f"<p>Fiyat: <strong>{_safe(_per_share(price['value']))} USD</strong> · {_safe(price['date'])} · "
+                     f"kaynak: {_safe(price['source'])}</p>")
+    status = result.get("status")
+    if status == "OK":
+        parts.append(
+            f"<p>Bu fiyat, baz senaryonun marj yolu, vergi, satış / sermaye, iskonto ve uç dönem varsayımlarıyla "
+            f"{_safe(result['years'])} yıl boyunca yıllık sabit <strong>{_safe(_pct(result['implied_growth']))}</strong> "
+            "gelir büyümesi ima ediyor.</p>"
+            f"<p>{_safe(_history_sentence(result['history_position']))} Baz senaryonun başlangıç büyümesi "
+            f"{_safe(_pct(result['base_scenario_starting_growth']))}'dir ve yıllar içinde uzun vadeli orana iner.</p>")
+    elif status == "NO_UNIQUE_SOLUTION":
+        roots = ", ".join(_pct(r) for r in result["search"]["roots"]) or "yok"
+        parts.append("<div class='note'>Fiyat, aranan −%50 ile +%100 yıllık büyüme aralığında tek bir çözüme "
+                     f"karşılık gelmiyor (bulunan kökler: {_safe(roots)}). Bu, çözümsüzlüğün kanıtı değildir.</div>")
+    else:
+        parts.append("<div class='note'>Senaryo değerlemesi üretilmediği için ters DCF yapılmadı.</div>")
+    warnings = "".join(f"<li>{_safe(REVERSE_WARNINGS.get(w, w))}</li>" for w in result.get("warnings", []))
+    if warnings:
+        parts.append(f"<ul>{warnings}</ul>")
+    parts.append("<p class='muted'>Fiyat analist tarafından girilir; sistem fiyat indirmez. Sabit büyüme bir "
+                 "basitleştirmedir ve kök araması tüm kökleri bulmayı garanti etmez. Sonuç, piyasa beklentisinin bir "
+                 "yorumudur; alım / satım sinyali değildir.</p></section>")
+    return "".join(parts)
+
+
 def render_quarterly_section(quarterly):
     """Discrete fiscal quarters (newest first); values in millions as reported to SEC."""
     quarters = quarterly.get("quarters", [])

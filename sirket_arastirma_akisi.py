@@ -24,9 +24,9 @@ from sec_gap_audit import audit_company
 from sec_ttm_crosscheck import audit_ttm
 from sirket_analiz_paneli import (
     render_dashboard, render_financial_sections, render_forecast_section, render_layer_reconciliation,
-    render_quarterly_section, render_valuation_section,
+    render_quarterly_section, render_reverse_dcf_section, render_valuation_section,
 )
-from senaryo_degerleme import value_scenarios
+from senaryo_degerleme import implied_growth, value_scenarios
 from tahmin_motoru import historical_baseline, project_scenarios
 
 VERSION = "invest-ai-company-research-0.1.0"
@@ -59,7 +59,8 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
                            credit_db=None, equity_offering_evidence=None,
                            expected_fiscal_end=None, input_mode="offline_file",
                            long_run_growth=None, long_run_growth_source=None,
-                           discount_rate=None, discount_rate_source=None):
+                           discount_rate=None, discount_rate_source=None,
+                           market_price=None, market_price_source=None, market_price_date=None):
     """Return one issuer's dated annual, Piotroski and TTM evidence.
 
     Sector and CIK are explicit analyst inputs, not inferred from the ticker.
@@ -74,6 +75,11 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         raise ValueError("discount_rate and discount_rate_source must be given together")
     if discount_rate is not None and long_run_growth is None:
         raise ValueError("a scenario valuation needs the long-run growth projection inputs too")
+    price_inputs = (market_price, market_price_source, market_price_date)
+    if any(x is not None for x in price_inputs) and None in price_inputs:
+        raise ValueError("market_price, market_price_source and market_price_date must be given together")
+    if market_price is not None and discount_rate is None:
+        raise ValueError("a reverse DCF needs the scenario valuation inputs too")
     _date(as_of, "as_of")
     if input_mode not in INPUT_MODES:
         raise ValueError("invalid input_mode")
@@ -118,13 +124,16 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
     ratios = compute_ratios(statements)
     layers = reconcile_layers(quality["piotroski"], statements, ttm, quarterly)
     baseline = historical_baseline(statements, ratios)
-    projection = valuation = None
+    projection = valuation = implied = None
     if long_run_growth is not None:
         projection = project_scenarios(baseline, long_run_growth=long_run_growth,
                                        long_run_growth_source=long_run_growth_source)
     if discount_rate is not None:
         valuation = value_scenarios(projection, baseline, statements, discount_rate=discount_rate,
                                     discount_source=discount_rate_source)
+    if market_price is not None:
+        implied = implied_growth(projection, baseline, valuation, price=market_price,
+                                 price_source=market_price_source, price_date=market_price_date)
 
     p = quality["piotroski"]
     gaps = []
@@ -193,6 +202,7 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         "historical_baseline": baseline,
         "projection": projection,
         "scenario_valuation": valuation,
+        "implied_growth": implied,
         "actual_price": None, "dcf": None, "combined_investment_score": None,
         # A scenario projection is not recorded in the forecast ledger by this report.
         "forecast_created": False, "investment_recommendation": None,
@@ -274,6 +284,8 @@ def render_company_research(report):
         financials += render_forecast_section(report["historical_baseline"], report.get("projection"))
     if report.get("scenario_valuation"):
         financials += render_valuation_section(report["scenario_valuation"])
+    if report.get("implied_growth"):
+        financials += render_reverse_dcf_section(report["implied_growth"])
     return base.replace("</main>", intro + financials + ttm_section + notes + "</main>", 1)
 
 
@@ -298,6 +310,9 @@ def main(argv=None):
     parser.add_argument("--discount-rate", type=float,
                         help="optional analyst discount rate (e.g. 0.09) to value the scenarios")
     parser.add_argument("--discount-source", help="citation for --discount-rate (required with it)")
+    parser.add_argument("--price", type=float, help="optional analyst-entered share price for a reverse DCF")
+    parser.add_argument("--price-date", help="date of --price (YYYY-MM-DD)")
+    parser.add_argument("--price-source", help="citation for --price")
     parser.add_argument("--out-json", required=True)
     parser.add_argument("--out-html", required=True)
     args = parser.parse_args(argv)
@@ -331,7 +346,8 @@ def main(argv=None):
         expected_fiscal_end=args.expected_fiscal_end, credit_db=args.ratings_db,
         equity_offering_evidence=evidence, input_mode=mode,
         long_run_growth=args.long_run_growth, long_run_growth_source=args.long_run_source,
-        discount_rate=args.discount_rate, discount_rate_source=args.discount_source)
+        discount_rate=args.discount_rate, discount_rate_source=args.discount_source,
+        market_price=args.price, market_price_source=args.price_source, market_price_date=args.price_date)
     page = render_company_research(report)
     if args.snapshot_out:
         snapshot = Path(args.snapshot_out)
