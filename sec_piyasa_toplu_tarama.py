@@ -46,9 +46,11 @@ def fetch_bulk_zip(target, *, user_agent, progress=None, opener=urllib.request.u
     target = Path(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.is_file():
+        # Opening ZIP checks its central directory without decompressing 10+ GB.
+        # Each relevant member is CRC-checked later by ZipFile.open().
         with zipfile.ZipFile(target) as archive:
-            if archive.testzip() is not None:
-                raise ValueError("Existing SEC bulk ZIP failed CRC check")
+            if not archive.infolist():
+                raise ValueError("SEC bulk ZIP is empty")
         return target
     if shutil.disk_usage(target.parent).free < MIN_FREE_DISK_BYTES:
         raise OSError("SEC bulk ZIP requires at least 4.5 GB free disk before starting")
@@ -260,13 +262,27 @@ def load_bulk_grid(root):
         tally = dict(con.execute("SELECT status,count(*) FROM companies GROUP BY status"))
     finally:
         con.close()
+    issuer_count = len(rows)
+    # A financial issuer may have several public share classes (GOOG/GOOGL, etc).
+    # Preserve all SEC ticker symbols without re-parsing the underlying CIK facts.
+    ticker_path = Path(root).resolve() / TICKER_REL
+    if ticker_path.is_file():
+        by_cik = {item["cik"]: item for item in rows}
+        map_data = ticker_mapping(load_json(ticker_path, max_bytes=12_000_000))
+        expanded = []
+        for ticker, number in sorted(map_data.items()):
+            cik = f"{number:010d}"
+            if cik not in by_cik:
+                continue
+            expanded.append({**by_cik[cik], "ticker":ticker})
+        rows = expanded
     return {"version":VERSION,"columns":COLUMNS,"rows":rows,"available":len(rows),
-            "scope":"BULK_SEC_COMPANYFACTS", "screening_counts":tally,
+            "issuer_count":issuer_count, "scope":"BULK_SEC_COMPANYFACTS", "screening_counts":tally,
             "market_price_fetched":False,
             "notes":["Company Facts only, price/PEG unprovided; missing is never zero",
                      "SEC ticker list is not a validated listed-common-stock-only universe",
                      "Issuer XBRL taxonomy/form gaps remain unknown or blank",
-                     "One ticker displayed per CIK; multi-class shares need dedicated mapping"]}
+                     "Ticker share classes listed separately; CIK-level financials are shared between classes"]}
 
 
 def run(root, *, zip_path=None, limit=None, progress=None, user_agent=None):
