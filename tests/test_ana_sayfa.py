@@ -7,6 +7,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import threading
 import unittest
+import shutil
+import subprocess
 from urllib.request import urlopen
 
 
@@ -121,6 +123,16 @@ class InvestAISiteTests(unittest.TestCase):
             self.assertIn(item, src)
         self.assertIn('choose.textContent = "Seç"', src)
         self.assertIn('body: JSON.stringify({query:secScanQuery, offset, refresh})', src)
+
+
+    def test_frontend_javascript_parses_when_node_available(self):
+        if not shutil.which("node"):
+            self.skipTest("Node.js is optional; JavaScript syntax check unavailable")
+        src = INDEX.read_text(encoding="utf-8")
+        script = src.split("<script>", 1)[1].split("</script>", 1)[0]
+        result = subprocess.run(["node", "--check", "-"], input=script, text=True,
+                                capture_output=True, check=False, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_demo_command_has_existing_source_and_modules(self):
         src = INDEX.read_text(encoding="utf-8")
