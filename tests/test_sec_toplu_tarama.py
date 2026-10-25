@@ -91,11 +91,11 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(r["network_requests"], 2)
             self.assertEqual(r["companies_analyzed"], 2)
             self.assertEqual(r["companies_with_errors"], 0)
-            self.assertEqual(r["counts"], {"ANALYZED_PARTIAL": 2})
+            self.assertEqual(r["counts"], {"ANALYZED_CONTROLS_COMPLETE": 2})
             a = r["records"][0]
             self.assertEqual(a["ticker"], "SYN")
             self.assertEqual(a["ttm_status"], "RECONCILED_CALCULATIONS")
-            self.assertIsNone(a["fscore"])
+            self.assertNotIn("fscore", a)
             self.assertTrue(Path(a["research_html"]).exists())
             self.assertTrue(Path(a["snapshot_path"]).exists())
             saved = json.loads(Path(a["research_json"]).read_text())
@@ -123,7 +123,7 @@ class BatchTests(unittest.TestCase):
                 raise AssertionError("fresh cache incorrectly fetched")
             second = scan(td, records=[firms()[0]], fetch=should_not_download)
             self.assertEqual(second["network_requests"], 0)
-            self.assertEqual(second["records"][0]["status"], "ANALYZED_PARTIAL")
+            self.assertEqual(second["records"][0]["status"], "ANALYZED_CONTROLS_COMPLETE")
             self.assertTrue(json.loads(Path(second["records"][0]["research_json"]).read_text())
                             ["source"]["cache_used"])
 
@@ -179,7 +179,7 @@ class BatchTests(unittest.TestCase):
                 return issuer(cik)
             r = scan(td, fetch=fetch)
             self.assertEqual(r["records"][0]["status"], "INPUT_OR_ANALYSIS_ERROR")
-            self.assertEqual(r["records"][1]["status"], "ANALYZED_PARTIAL")
+            self.assertEqual(r["records"][1]["status"], "ANALYZED_CONTROLS_COMPLETE")
             self.assertEqual(r["companies_analyzed"], 1)
 
     def test_429_circuit_breaker_prevents_further_requests(self):
@@ -220,11 +220,14 @@ class BatchTests(unittest.TestCase):
             self.assertIsNone(obj["quality"]["credit"])
             self.assertIsNone(obj["investment_recommendation"])
 
-    def test_unknown_sector_never_gets_a_piotroski_score(self):
+    def test_batch_does_not_generate_fscore_for_any_sector(self):
         with tempfile.TemporaryDirectory() as td:
             r = scan(td, records=[{"cik": 42, "sector": "unknown"}])
-            self.assertIsNone(r["records"][0]["fscore"])
-            self.assertEqual(r["records"][0]["fscore_range"], [0, 9])
+            self.assertNotIn("fscore", r["records"][0])
+            self.assertNotIn("fscore_range", r["records"][0])
+            report = json.loads(Path(r["records"][0]["research_json"]).read_text())
+            self.assertNotIn("piotroski", report["quality"])
+            self.assertIn("ttm", report["layer_reconciliation"])
 
     def test_invalid_filing_input_does_not_turn_into_success(self):
         with tempfile.TemporaryDirectory() as td:

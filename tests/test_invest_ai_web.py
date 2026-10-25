@@ -51,7 +51,7 @@ class ResearchServiceTests(unittest.TestCase):
             self.assertEqual(response["ticker"], "AAPL")
             self.assertEqual(response["source"], "MANUAL_APPLE_EXAMPLE_NOT_LIVE_SEC")
             self.assertEqual(response["as_of"], "2026-10-21")
-            self.assertIsNone(response["piotroski_score"])
+            self.assertNotIn("piotroski_score", response)
             self.assertEqual(response["ttm_status"], "RECONCILED_CALCULATIONS")
             html = s.root / response["report_url"].lstrip("/")
             research = json.loads(html.with_suffix(".json").read_text())
@@ -69,18 +69,21 @@ class ResearchServiceTests(unittest.TestCase):
             s.analyze({"ticker": "AAPL", "mode": "demo", "sector": "non_financial"})
             self.assertEqual(s.throttle.calls, 0)
 
-    def test_api_flags_missing_annual_history_only_when_it_blocks_piotroski(self):
-        cases = (("AAPL", "demo", "non_financial", 0, True),
-                 ("AAPL", "demo", "unknown", 0, False),
-                 ("SYN", "live", "non_financial", 8, False))
-        for ticker, mode, sector, known, missing in cases:
+    def test_active_reports_do_not_run_piotroski(self):
+        for ticker, mode, sector in (("AAPL", "demo", "non_financial"),
+                                     ("AAPL", "demo", "unknown"),
+                                     ("SYN", "live", "non_financial")):
             with self.subTest(mode=mode, sector=sector), tempfile.TemporaryDirectory() as folder:
-                s = service(folder)
-                response = s.analyze({"ticker": ticker, "mode": mode, "sector": sector})
-                self.assertEqual(response["piotroski_known_count"], known)
-                self.assertIs(response["piotroski_missing_annual_history"], missing)
-                page = (s.root / response["report_url"].lstrip("/")).read_text(encoding="utf-8")
-                self.assertEqual("10-K net kâr dönemi bulunmuyor" in page, missing)
+                response = service(folder).analyze({"ticker": ticker, "mode": mode, "sector": sector})
+                self.assertNotIn("piotroski_score", response)
+                self.assertNotIn("piotroski_status", response)
+                self.assertIn("_fundamentals", response["report_url"])
+                path = Path(folder) / response["report_url"].lstrip("/")
+                report = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+                self.assertNotIn("piotroski", report["quality"])
+                self.assertNotIn("piotroski", report["layer_reconciliation"])
+                self.assertNotIn("Piotroski", path.read_text(encoding="utf-8"))
+                self.assertIn("Finansal tablolar", path.read_text(encoding="utf-8"))
 
     def test_other_demo_company_blocked(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -144,8 +147,8 @@ class ResearchServiceTests(unittest.TestCase):
     def test_unknown_sector_is_not_assumed_nonfinancial(self):
         with tempfile.TemporaryDirectory() as folder:
             result = service(folder).analyze({"ticker": "SYN", "mode": "live", "sector": "unknown"})
-            self.assertIsNone(result["piotroski_score"])
-            self.assertIn("SECTOR_SPECIFIC_PIOTROSKI_UNAVAILABLE", result["research_gaps"])
+            self.assertNotIn("piotroski_score", result)
+            self.assertNotIn("SECTOR_SPECIFIC_PIOTROSKI_UNAVAILABLE", result["research_gaps"])
 
     def test_sec_429_disables_further_live_retries(self):
         with tempfile.TemporaryDirectory() as folder:

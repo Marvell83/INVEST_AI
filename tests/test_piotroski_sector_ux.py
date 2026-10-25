@@ -51,7 +51,7 @@ class PiotroskiSectorUXTests(unittest.TestCase):
                 "ticker": "AAPL", "mode": "demo", "sector": "unknown"})
             nonfinancial = research.analyze({
                 "ticker": "AAPL", "mode": "demo", "sector": "non_financial"})
-            self.assertEqual(unknown["piotroski_status"], "sector_unconfirmed")
+            self.assertNotIn("piotroski_status", unknown)
             self.assertEqual(unknown["sector"], "unknown")
             self.assertEqual(nonfinancial["sector"], "non_financial")
             self.assertNotEqual(unknown["report_url"], nonfinancial["report_url"])
@@ -61,17 +61,19 @@ class PiotroskiSectorUXTests(unittest.TestCase):
             self.assertTrue(b.is_file())
             a_json = json.loads(a.with_suffix(".json").read_text(encoding="utf-8"))
             b_json = json.loads(b.with_suffix(".json").read_text(encoding="utf-8"))
-            self.assertEqual(a_json["quality"]["piotroski"]["sector"], "unknown")
-            self.assertEqual(b_json["quality"]["piotroski"]["sector"], "non_financial")
+            self.assertNotIn("piotroski", a_json["quality"])
+            self.assertNotIn("piotroski", b_json["quality"])
             self.assertNotIn("Şirket sektörü doğrulanmadığı", b.read_text(encoding="utf-8"))
             # Different assumptions are kept independent even with identical source hash.
             self.assertEqual(a_json["source"]["canonical_json_sha256"],
                              b_json["source"]["canonical_json_sha256"])
 
-    def test_frontend_includes_explicit_missing_reason(self):
+    def test_frontend_uses_four_stage_research_pipeline(self):
         page = (Path(__file__).resolve().parent.parent / "index.html").read_text(encoding="utf-8")
-        self.assertIn('data.piotroski_status === "sector_unconfirmed"', page)
-        self.assertIn("Bu 0 puan değildir.", page)
+        for label in ("SEC · Temel analiz · Sektör · Gelecek",
+                      "Temel analiz ve eleme", "Sektörel karşılaştırma", "Gelecek analizi"):
+            self.assertIn(label, page)
+        self.assertNotIn('data.piotroski_status', page)
 
 
 if __name__ == "__main__":
