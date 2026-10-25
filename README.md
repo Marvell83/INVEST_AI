@@ -2,6 +2,9 @@
 
 **Durum:** geliştirme ve doğrulama aşamasında. Üretime hazır yatırım önerisi sistemi **değildir**.
 
+**Ürün hedefi (25 Ekim 2026):** **1. SEC evreni ve veri toplama → 2. temel analizle eleme → 3. sektörel analiz → 4. kaynaklı gelecek analizi.** Yeni web/CLI ve toplu tarama raporlarında Piotroski kullanılmaz. Eski bağımsız motor ve eski raporlar silinmeden arşivde tutulur. [Dört aşamalı resmi yol haritası](docs/INVEST_AI_DORT_ASAMALI_YOL_HARITASI.md). Stage 1 tarama tüm pazarı henüz kapsamıyor; stage 2 filtre, stage 3 emsal ve stage 4 beklenti/katalizör modülleri tamamlanmadı.
+
+
 INVEST_AI, ABD SEC Company Facts (XBRL) verisinden **kaynağı ve yayımlanma tarihi izlenebilir** şirket araştırması üretir: veri kalite denetimi, Piotroski F-Score, TTM (son 12 ay) finansalları, kullanıcı varsayımlı DCF / ters DCF ve sonradan puanlanabilen bir tahmin defteri. Yalnız Python standart kütüphanesi kullanılır; ek paket gerekmez.
 
 Değişiklik geçmişi ve her modülün tarihli sürüm notları: **[CHANGELOG.md](CHANGELOG.md)**.
