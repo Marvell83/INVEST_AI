@@ -53,6 +53,28 @@ Bu işlem var olan `veri/companyfacts.zip` arşivini kullanır. **5.003 OK ve 1.
 
 Hatanın hangi kavram/tarih/türden kaynaklandığı doğrulandıktan sonra belirli hesaplama/normalizasyon kuralı düzeltilir. Ardından aynı arşivde `python3 sec_piyasa_toplu_tarama.py --retry-errors` tüm kalan ERROR kayıtlarını yeniden işler. **Farklı SEC arşivi veya farklı kesme tarihi** kullanılırsa hata kayıtları korunarak yeniden deneme yapılmaz; bu durumda yeni kaynak kesiti için ayrı veri yenileme gerekir.
 
+## Desteklenen yıllık 10-K verisi olmayan şirketler — veri kapsamı düzeltmesi
+
+Bazı SEC dosyalayıcılarında `companyfacts.zip` içinde CIK'ye ait dosya **vardır**, ancak INVEST_AI'nin kullandığı **US-GAAP/USD, 10-K mali yıl** veri yapısı yoktur. Eski kod `ValueError: Failed to construct financial ratio row` üretip bunları yanlışlıkla `ERROR` sayıyordu. Artık bu şirketler `NO_SUPPORTED_ANNUAL_DATA` durumuna alınır.
+
+- `NO_US_GAAP_NAMESPACE`: SEC şirket JSON'unda desteklenen `us-gaap` verileri bulunmadı.
+- `NO_ELIGIBLE_US_GAAP_10K_FISCAL_YEAR`: `us-gaap` verileri bulunuyor ancak seçilen bilgi kesme tarihine göre uygun 10-K mali yılı çıkarılamadı.
+- `NO_COMPANYFACTS`: SEC arşivinde eşleşen CIK JSON dosyası yok; farklı bir durumdur.
+- `ERROR`: Gerçek hesaplama/doğrulama hataları ayrı tutulur.
+
+### 2.020 eski hatayı güvenli biçimde yeniden sınıflandır
+
+```bash
+cd /workspaces/INVEST_AI
+git pull --ff-only origin main
+python3 sec_piyasa_toplu_tarama.py --retry-errors
+python3 sec_piyasa_toplu_tarama.py --diagnose
+```
+
+Bu işlem **indirilmiş ZIP'i yeniden indirmez**, aynı snapshot as-of tarihini kullanır ve 5.003 başarılı şirketin finansallarını **yeniden işlemez**. Yeniden sınıflandırma tamamlandıktan sonra **Temel analiz tablosu** ekranını yenile; `Finansal kapsam` sütunu ve `SEC finansal kapsama durumu` filtresi üzerinden hangi şirketlerin finansallarının mevcut olduğunu görebilirsin.
+
+Bu bir veri kapsamı sınıflandırmasıdır, IFRS/20-F ve fonlar için yeni hesaplama desteği değildir. Gerçek analiz edilebilir şirket sayısı ancak işlemin sonuç raporu alındığında netleşir.
+
 ## Sonuçların yorumu
 
 SQLite/Excel finansal satırları şunları içerir: ROE, ROIC, ROA, gelir/kâr büyümesi, marjlar, CFO, nakit dönüşümü, FCF, net borç, borç/özkaynak, yaklaşık net borç/FAVÖK, faiz karşılama, CapEx, D&A, yıllık gelir/varlık/özkaynak/borç tutarları. Üç yıllık finansal geçmiş bulunursa çok yıllık büyüme ve CFO/FCF ölçümleri gösterilir.

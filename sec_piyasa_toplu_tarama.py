@@ -230,20 +230,32 @@ def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
                         raise ValueError("CIK mismatch between ZIP path and JSON")
                     if not isinstance(raw.get("facts"), dict):
                         raise ValueError("SEC file lacks facts object")
-                    # Do not infer sector-specific EBIT proxy for a generic issuer universe.
+                    # Missing annual 10-K US-GAAP years are coverage gaps, not
+                    # computation exceptions. _lineup intentionally returns None
+                    # when no fiscal years exist; never classify that as ERROR.
                     statements = build_annual_statements(raw, as_of=as_of, years=5, ebit_proxy=False)
-                    ratios = compute_ratios(statements)
-                    report = {"cik":cik, "company":raw.get("entityName") or name,
-                              "as_of":as_of,"sector_assumption":"unknown",
-                              "source":{"mode":"SEC_BULK_ZIP"},
-                              "financial_statements":statements,
-                              "financial_ratios":ratios}
-                    row = _lineup(report,ticker=ticker,path=None)
-                    if row is None:
-                        raise ValueError("Failed to construct financial ratio row")
-                    status = "OK" if statements["years"] else "NO_SUPPORTED_ANNUAL_DATA"
-                    why = "" if status=="OK" else "US_GAAP_10K_FY_NOT_FOUND"
-                    row.update(screening_status=status,screening_reason=why)
+                    if not statements["years"]:
+                        status = "NO_SUPPORTED_ANNUAL_DATA"
+                        namespaces = sorted(str(k) for k in raw["facts"])
+                        why = ("NO_US_GAAP_NAMESPACE" if not raw["facts"].get("us-gaap")
+                               else "NO_ELIGIBLE_US_GAAP_10K_FISCAL_YEAR")
+                        row = _empty_row(cik, ticker, raw.get("entityName") or name,
+                                         as_of, status, why)
+                        row["screening_detail"] = (
+                            "Available fact namespaces: " +
+                            (", ".join(namespaces[:8]) if namespaces else "none"))
+                    else:
+                        ratios = compute_ratios(statements)
+                        report = {"cik":cik, "company":raw.get("entityName") or name,
+                                  "as_of":as_of,"sector_assumption":"unknown",
+                                  "source":{"mode":"SEC_BULK_ZIP"},
+                                  "financial_statements":statements,
+                                  "financial_ratios":ratios}
+                        row = _lineup(report,ticker=ticker,path=None)
+                        if row is None:
+                            raise ValueError("Financial ratio row missing despite eligible annual years")
+                        status, why = "OK", ""
+                        row.update(screening_status=status, screening_reason=why)
             except (ValueError, TypeError, KeyError, UnicodeError, OverflowError,
                     zipfile.BadZipFile, OSError, MemoryError) as exc:
                 # Distinguish thousands of malformed issuer facts by actual cause.

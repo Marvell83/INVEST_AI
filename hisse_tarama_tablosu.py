@@ -29,6 +29,8 @@ COLUMNS = [
     ("fiscal_year", "Mali yıl", "text", "Kimlik"),
     ("as_of", "Bilgi tarihi", "text", "Kimlik"),
     ("source_mode", "Veri kaynağı", "text", "Kimlik"),
+    ("screening_status", "Finansal kapsam", "text", "Veri kalitesi"),
+    ("screening_reason", "Kapsam nedeni", "text", "Veri kalitesi"),
     ("roe", "ROE", PERCENT, "Getiri"),
     ("roic", "ROIC", PERCENT, "Getiri"),
     ("roa", "ROA", PERCENT, "Getiri"),
@@ -124,7 +126,7 @@ def _lineup(report, *, ticker=None, path=None):
                as_of=report.get("as_of"), sector=report.get("sector_assumption", "unknown"),
                source_mode=(report.get("source") or {}).get("web_data_mode")
                or (report.get("source") or {}).get("mode") or "unknown",
-               report_url=path,
+               report_url=path, screening_status="OK", screening_reason="",
                price_source=None, price_date=None, roic_warning=False, ebitda_approximate=False)
     for key, name, *_ in COLUMNS:
         if key in current_ratios:

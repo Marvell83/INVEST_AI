@@ -140,7 +140,8 @@ class InvestAISiteTests(unittest.TestCase):
                         'fundamentals-filter-column', 'fundamentals-filter-min',
                         'fundamentals-filter-max', 'fundamentals-add-filter',
                         'fundamentals-decision', 'fundamentals-yield',
-                        'fundamentals-csv', 'fundamentals-table'):
+                        'fundamentals-csv', 'fundamentals-table',
+                        'fundamentals-coverage'):
             self.assertIn(f'id="{control}"', src)
         self.assertIn('"/api/screener"', src)
         self.assertIn('filteredFundamentals()', src)
