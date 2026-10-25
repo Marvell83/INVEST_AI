@@ -31,6 +31,7 @@ COLUMNS = [
     ("source_mode", "Veri kaynağı", "text", "Kimlik"),
     ("screening_status", "Finansal kapsam", "text", "Veri kalitesi"),
     ("screening_reason", "Kapsam nedeni", "text", "Veri kalitesi"),
+    ("screening_detail", "Kapsam ayrıntısı / SEC kimlik kontrolü", "text", "Veri kalitesi"),
     ("roe", "ROE", PERCENT, "Getiri"),
     ("roic", "ROIC", PERCENT, "Getiri"),
     ("roa", "ROA", PERCENT, "Getiri"),
