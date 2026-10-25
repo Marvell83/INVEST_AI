@@ -17,7 +17,7 @@ import math
 
 from sec_companyfacts import METRICS, SEC_DATA, _date, _validate_cik
 
-VERSION = "finansal-tablolar-0.4.0"
+VERSION = "finansal-tablolar-0.5.0"
 ANNUAL_FORMS = frozenset(("10-K", "10-K/A"))
 QUARTERLY_FORMS = frozenset(("10-Q", "10-Q/A", "10-K", "10-K/A"))
 ALIAS_TOLERANCE = 0.005  # ambiguity guard between XBRL aliases, not an accounting standard
@@ -25,9 +25,14 @@ ALIAS_TOLERANCE = 0.005  # ambiguity guard between XBRL aliases, not an accounti
 # membership income). Up to this gap the priority alias is used and the gap stays
 # visible as `alias_gap`; piotroski_fscore applies the same 5% rule.
 ITEM_ALIAS_TOLERANCE = {"revenue": 0.05}
-# Broader concepts read only when none of an item's aliases is reported for the period.
-# NVIDIA and Amazon tag CapEx as productive-asset payments (property plus intangibles).
-FALLBACK_ALIASES = {"capex": ("PaymentsToAcquireProductiveAssets",)}
+# Broader concepts read only when none of an item's aliases is reported for the period:
+# NVIDIA and Amazon tag CapEx as productive-asset payments (property plus intangibles),
+# P&G its balance-sheet cash including restricted cash, some issuers only total equity.
+FALLBACK_ALIASES = {
+    "capex": ("PaymentsToAcquireProductiveAssets",),
+    "cash": ("CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",),
+    "stockholders_equity": ("StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",),
+}
 MAX_YEARS = 10
 MAX_QUARTERS = 40
 STATEMENTS = ("income", "cash_flow", "balance")
@@ -67,10 +72,14 @@ LINE_ITEMS = {
     "cash": ("balance", "instant", "USD", "Nakit ve nakit benzerleri",
              ("CashAndCashEquivalentsAtCarryingValue",)),
     "short_term_investments": ("balance", "instant", "USD", "Kısa vadeli yatırımlar", ("ShortTermInvestments",)),
+    "other_short_term_investments": ("balance", "instant", "USD", "Diğer kısa vadeli yatırımlar",
+                                     ("OtherShortTermInvestments",)),
     "marketable_securities_current": ("balance", "instant", "USD", "Menkul kıymetler (kısa vadeli)",
                                       ("MarketableSecuritiesCurrent",)),
     "marketable_securities_noncurrent": ("balance", "instant", "USD", "Menkul kıymetler (uzun vadeli)",
                                          ("MarketableSecuritiesNoncurrent",)),
+    "marketable_securities_unclassified": ("balance", "instant", "USD", "Menkul kıymetler (vade ayrımı yok)",
+                                           ("MarketableSecurities",)),
     "current_assets": ("balance", "instant", "USD", "Dönen varlıklar", ("AssetsCurrent",)),
     "total_assets": ("balance", "instant", "USD", "Toplam varlıklar", ("Assets",)),
     "current_liabilities": ("balance", "instant", "USD", "Kısa vadeli yükümlülükler",
@@ -106,8 +115,9 @@ DERIVED_ITEMS = {
 }
 DEBT_COMPONENTS = ("long_term_debt_noncurrent", "long_term_debt_current", "long_term_debt",
                    "commercial_paper", "short_term_borrowings")
-SECURITIES_COMPONENTS = ("short_term_investments", "marketable_securities_current",
-                         "marketable_securities_noncurrent")
+SECURITIES_COMPONENTS = ("short_term_investments", "other_short_term_investments",
+                         "marketable_securities_current", "marketable_securities_noncurrent")
+ROIC_CAUTION = 1.0  # above 100% the invested capital base is too small to read the ratio plainly
 LEASE_COMPONENTS = ("operating_lease_liability_current", "operating_lease_liability_noncurrent",
                     "finance_lease_liability_current", "finance_lease_liability_noncurrent")
 ANCHOR_ITEMS = ("revenue", "net_income", "operating_income", "cfo")
@@ -309,21 +319,34 @@ def _component_sum(balance, keys, prefix, method, conflict_keys=None):
     if not reported:
         return {"status": "MISSING", "value": None, "unit": "USD", "reason": f"NO_{prefix}_COMPONENT_REPORTED"}
     cells = [balance[k] for k in reported]
-    if not _same_filing(*cells):
+    # A later 10-K repeats only some prior-year lines. Components from different filings
+    # are summed only when none was revised, so restated and original values never mix.
+    across = not _same_filing(*cells)
+    if across and any(c.get("revised") for c in cells):
         return {"status": "MISSING", "value": None, "unit": "USD",
-                "reason": f"{prefix}_COMPONENTS_FROM_DIFFERENT_FILINGS"}
-    return {"status": "DERIVED", "value": math.fsum(c["value"] for c in cells), "unit": "USD",
-            "method": method, "components": reported,
-            "components_not_reported": [k for k in keys if k not in reported],
-            "accession": cells[0]["accession"], "filed": cells[0]["filed"]}
+                "reason": f"{prefix}_COMPONENTS_FROM_DIFFERENT_FILINGS",
+                "revised_components": [k for k in reported if balance[k].get("revised")]}
+    cell = {"status": "DERIVED", "value": math.fsum(c["value"] for c in cells), "unit": "USD",
+            "method": method.replace("_SAME_FILING", "_UNREVISED_ACROSS_FILINGS") if across else method,
+            "components": reported, "components_not_reported": [k for k in keys if k not in reported],
+            "accession": cells[0]["accession"], "filed": max(c["filed"] for c in cells)}
+    if across:
+        cell["sources"] = sorted({src for c in cells for src in _sources(c)})
+    return cell
 
 
 def _liquid_investments(balance):
     """Securities that offset debt. ShortTermInvestments may already include current
     marketable securities, so when both are reported only the larger one is used:
-    the total is then a lower bound, never a double count."""
-    cell = _component_sum(balance, SECURITIES_COMPONENTS, "SECURITIES", "SUM_OF_REPORTED_SECURITIES_SAME_FILING")
-    short_term, marketable = balance["short_term_investments"], balance["marketable_securities_current"]
+    the total is then a lower bound, never a double count. OtherShortTermInvestments
+    excludes securities by definition and is always added."""
+    split = any(balance[k]["status"] == "REPORTED"
+                for k in ("marketable_securities_current", "marketable_securities_noncurrent"))
+    # A securities total without a maturity split (Coca-Cola) is used only when no split is reported.
+    keys = list(SECURITIES_COMPONENTS) + ([] if split else ["marketable_securities_unclassified"])
+    cell = _component_sum(balance, keys, "SECURITIES", "SUM_OF_REPORTED_SECURITIES_SAME_FILING")
+    short_term = balance["short_term_investments"]
+    marketable = balance["marketable_securities_current" if split else "marketable_securities_unclassified"]
     if cell["status"] == "DERIVED" and short_term["status"] == marketable["status"] == "REPORTED":
         smaller = min((short_term, marketable), key=lambda c: c["value"])
         cell["value"] -= smaller["value"]

@@ -5,6 +5,22 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Bilanço etiket çeşitleri ve ROIC uyarısı (tablolar v0.5)
+
+Dördüncü gerçek veri denemesinin etiket kontrolünden.
+
+- **Farklı dosyalardaki bilanço parçaları:** Bir sonraki 10-K önceki yılın satırlarından yalnız bazılarını tekrar
+  ediyor; bu yüzden Microsoft ve Nvidia'nın önceki yıl toplam borcu ve ROIC'i hesaplanamıyordu. Hiçbir parçası
+  revize edilmemişse farklı dosyalardaki parçalar toplanır (`..._UNREVISED_ACROSS_FILINGS`); revize edilmiş parça
+  varsa toplam yapılmaz (`revised_components`).
+- **Menkul kıymet etiketleri:** `OtherShortTermInvestments` her zaman eklenir; vade ayrımsız `MarketableSecurities`
+  yalnız kısa / uzun vadeli kalemler bildirilmemişse kullanılır (Coca-Cola).
+- **Yedek etiketler:** nakit için kısıtlı nakit dahil toplam (P&G), özkaynak için azınlık payı dahil toplam
+  (J&J, P&G; gerçek veriyle doğrulanacak). Rapordaki yedek etiket notu her etiketin kapsamını ayrı açıklar.
+- **ROIC uyarısı:** ROIC %100'ün üstündeyse `caution: VERY_SMALL_INVESTED_CAPITAL`, raporda ! işareti (Apple %479).
+- **Testler:** 8 yeni test, 4 testin beklentisi yeni kurala göre güncellendi. Toplam `tests/` 570/570. Yeni
+  satırlarda 14 hedefli mutasyonun hepsi yakalanıyor.
+
 ## 2026-10-25 — Menkul kıymetler, kira yükümlülükleri ve net borç (tablolar v0.4)
 
 - **Yeni bilanço kalemleri:** kısa vadeli yatırımlar, kısa / uzun vadeli menkul kıymetler, faaliyet ve finansal

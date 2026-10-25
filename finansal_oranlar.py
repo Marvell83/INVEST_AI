@@ -11,7 +11,7 @@ import argparse
 import json
 from pathlib import Path
 
-from finansal_tablolar import VERSION as STATEMENTS_VERSION
+from finansal_tablolar import ROIC_CAUTION, VERSION as STATEMENTS_VERSION
 from finansal_tablolar import build_annual_statements, previous_year
 
 VERSION = "finansal-oranlar-0.1.0"
@@ -152,6 +152,9 @@ def _year_ratios(statements, index):
                  "average_invested_capital": _avg(invested(get), invested(before) if prior else None)},
         lambda i: i["operating_income"] * (1 - i["effective_tax_rate"]) / i["average_invested_capital"],
         _positive("average_invested_capital"))
+
+    if out["roic"]["value"] is not None and out["roic"]["value"] > ROIC_CAUTION:
+        out["roic"]["caution"] = "VERY_SMALL_INVESTED_CAPITAL"
 
     out["current_ratio"] = _ratio(
         "current_ratio", {"current_assets": get("current_assets"),
