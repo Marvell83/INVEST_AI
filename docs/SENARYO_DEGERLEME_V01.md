@@ -16,13 +16,14 @@ Modül, DCF'nin yıllık gelirinin projeksiyonla aynı olduğunu her çalıştı
 | Uç dönem büyümesi | projeksiyondaki uzun vadeli oran (aynı kaynak); en fazla %4 | Analist |
 | Vergi oranı | şirketin efektif vergi oranlarının medyanı | Şirket geçmişi (SEC) |
 | Satış / yatırılan sermaye | şirketin satış / sermaye artışı medyanı | Şirket geçmişi (SEC) |
-| Net borç | son mali yıl sonunda toplam borç − nakit ve nakit benzerleri | SEC dosyası |
+| Net borç | son mali yıl sonunda toplam borç − nakit − menkul kıymetler (ortak tablolardaki `net_debt`) | SEC dosyası |
 | Hisse sayısı | kapak sayfası dolaşımdaki hisse (`dei`) | SEC dosyası |
 | Uç dönem RONIC | iskonto oranına eşit: büyüme tek başına değer yaratmaz | Yöntem varsayılanı |
 
 - **Değiştirme:** Analist bu girdilerin her birini kaynağıyla değiştirebilir (`overrides`; CLI'da `--net-debt`, `--net-debt-source` vb.).
 - **Eksik girdi:** Bir girdi geçmişten veya SEC'ten bulunamazsa sistem tahmin etmez. Örneğin birden çok hisse sınıfı varsa sonuç `INPUTS_MISSING` olur ve eksik girdiler listelenir.
-- **Net borç uyarısı:** SEC tablolarından gelen net borç, menkul kıymetleri ve kira yükümlülüklerini içermez. Bu yüzden büyük menkul kıymet portföyü olan şirketlerde (ör. Apple) özkaynak değeri düşük çıkar. Analistin net borcu düzeltmesi önerilir.
+- **Net borç uyarıları:** SEC tablolarından gelen net borçtan menkul kıymetler düşülür, kira yükümlülükleri dahil edilmez (`NET_DEBT_EXCLUDES_LEASES`). Şirket menkul kıymet bildirmemişse yalnız nakit düşülür (`NET_DEBT_NO_SECURITIES_REPORTED`); kısa vadeli yatırımlar ile menkul kıymetler birbirini içerebildiği için yalnız büyüğü düşüldüyse değer alt sınırdır (`NET_DEBT_SECURITIES_LOWER_BOUND`). Uzun vadeli stratejik yatırımlar (ör. halka açık olmayan hisseler) düşülmez; gerekirse analist net borcu düzeltir.
+- **Önceki sürüm:** Tablolar v0.4'ten önce net borç menkul kıymetleri içermiyordu; o raporlarda büyük menkul kıymet portföyü olan şirketlerin (ör. Apple) özkaynak değeri düşük çıkıyordu.
 - **Nötr RONIC:** Uç dönem RONIC iskontoya eşitken uç büyümenin değere etkisi küçüktür. Büyümenin değer yaratması için RONIC'in iskontonun üstünde olduğuna dair kanıt gerekir.
 
 ## Duyarlılık

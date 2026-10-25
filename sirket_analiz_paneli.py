@@ -154,14 +154,16 @@ def render_financial_sections(statements, ratios):
         "<div class='scroll'><table><thead><tr><th>Oran</th>" + head + "</tr></thead><tbody>" +
         "".join(ratio_rows) + "</tbody></table></div>"
         "<p class='muted'>Oran adının üzerine gelince formül, — işaretinin üzerine gelince hesaplanamama "
-        "nedeni görünür. Net borç milyon USD'dir; menkul kıymetler ve kira yükümlülükleri dahil değildir. "
+        "nedeni görünür. Net borç milyon USD'dir: toplam borç − nakit − bildirilmişse menkul kıymetler; "
+        "kira yükümlülükleri dahil değildir. "
         "Geçmiş oranlar tahmin, puan veya yatırım tavsiyesi değildir.</p></section>")
     return table + ratio_table
 
 
 QUARTER_ROWS = (("income", "revenue"), ("income", "gross_profit"), ("income", "operating_income"),
                 ("income", "net_income"), ("cash_flow", "cfo"), ("cash_flow", "capex"),
-                ("cash_flow", "free_cash_flow"), ("balance", "cash"), ("balance", "total_debt"),
+                ("cash_flow", "free_cash_flow"), ("balance", "cash"), ("balance", "liquid_investments"),
+                ("balance", "total_debt"), ("balance", "net_debt"),
                 ("balance", "stockholders_equity"))
 
 
@@ -373,8 +375,11 @@ VALUATION_INPUT_LABELS = {
 VALUATION_ORIGINS = {"ANALYST": "Analist", "SEC_HISTORY": "Şirket geçmişi (SEC)", "SEC_FILING": "SEC dosyası",
                      "METHOD_DEFAULT": "Yöntem varsayılanı"}
 VALUATION_WARNINGS = {
-    "NET_DEBT_EXCLUDES_SECURITIES_AND_LEASES": "Net borç SEC tablolarından: menkul kıymetler ve kira yükümlülükleri "
-                                               "dahil değil. Büyük menkul kıymet portföyü olan şirkette değer düşük çıkar.",
+    "NET_DEBT_EXCLUDES_LEASES": "Net borç SEC tablolarından: toplam borç − nakit − menkul kıymetler. Kira "
+                                "yükümlülükleri dahil değil; faaliyet kârı kira giderini zaten düşüyor.",
+    "NET_DEBT_NO_SECURITIES_REPORTED": "Şirket menkul kıymet kalemi bildirmedi; net borçtan yalnız nakit düşüldü.",
+    "NET_DEBT_SECURITIES_LOWER_BOUND": "Kısa vadeli yatırımlar ile kısa vadeli menkul kıymetler birbirini içerebildiği "
+                                       "için yalnız büyüğü düşüldü; menkul kıymetler alt sınırdır.",
     "TERMINAL_RONIC_NEUTRAL_DEFAULT": "Uç dönem RONIC iskonto oranına eşit alındı: uzun vadeli büyüme değer yaratmaz, "
                                       "bu yüzden uç büyüme duyarlılığı küçüktür.",
     "RETROSPECTIVE_PROJECTION": "Bilgi tarihi bugünden eski; değerleme geçmişe dönük kurulmuştur.",

@@ -113,6 +113,15 @@ def _alias_spread(cell):
     return (max(values) - min(values)) / peak if peak else 0.0
 
 
+def _securities_basis(net_debt):
+    """How the latest net debt treated marketable securities."""
+    if not _known(net_debt):
+        return "NET_DEBT_UNAVAILABLE"
+    if "liquid_investments" not in net_debt["deducted"]:
+        return "NONE_REPORTED"
+    return "LOWER_BOUND" if net_debt.get("securities_lower_bound") else "DEDUCTED"
+
+
 def layer_health(research):
     """Compact health of the shared layers in one research report, for multi-company real-data checks.
 
@@ -134,6 +143,7 @@ def layer_health(research):
     piotroski = layers.get("piotroski", {})
     shared_ttm = quarterly.get("ttm") or {}
     operating = years[0]["income"]["operating_income"] if years else {}
+    net_debt = years[0]["balance"].get("net_debt", {}) if years else {}
     return {
         "statement_years": len(years),
         "latest_fiscal_year_end": years[0]["fiscal_year_end"] if years else None,
@@ -147,6 +157,7 @@ def layer_health(research):
         "shared_ttm_status": shared_ttm.get("status"),
         "shared_ttm_end": shared_ttm.get("end"),
         "latest_operating_income": ("APPROXIMATE" if operating.get("approximate") else operating.get("status")),
+        "net_debt_securities": _securities_basis(net_debt),
         "baseline_status": (research.get("historical_baseline") or {}).get("status"),
         "latest_ratios_available": sum(r.get("value") is not None for r in latest_ratios.values()),
         "latest_ratios_total": len(latest_ratios),

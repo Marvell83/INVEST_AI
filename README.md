@@ -107,7 +107,7 @@ Ayrıntılı kullanım: [web analizi](docs/WEB_SIRKET_ANALIZI_V02.md) · [şirke
 
 | Paket | Komut | Sonuç |
 |---|---|---|
-| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **550/550** |
+| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **562/562** |
 | Dondurulmuş v0.1 kabul | `dogrulama/kabul_testi.py` | **17/17** |
 | Kabul altyapısı + v0.2 modülleri | `unittest test_dogrulama_seti test_moduller_v02` | **9/9** (2 + 7) |
 

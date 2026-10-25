@@ -58,8 +58,8 @@ def _value(year, statement, key):
 
 
 def _invested_capital(year):
-    parts = [_value(year, "balance", k) for k in ("stockholders_equity", "total_debt", "cash")]
-    return None if None in parts else parts[0] + parts[1] - parts[2]
+    parts = [_value(year, "balance", k) for k in ("stockholders_equity", "net_debt")]
+    return None if None in parts else parts[0] + parts[1]
 
 
 def historical_baseline(statements, ratios):
