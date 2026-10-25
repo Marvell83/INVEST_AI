@@ -191,6 +191,48 @@ class SECBulkScreeningTests(unittest.TestCase):
             row = next(x for x in load_bulk_grid(folder)["rows"] if x["ticker"] == "SYN")
             self.assertEqual(row["screening_reason"], "NO_ELIGIBLE_US_GAAP_10K_FISCAL_YEAR")
 
+
+    def test_source_cik_mismatch_is_quarantined_not_financial_error(self):
+        with tempfile.TemporaryDirectory() as folder:
+            archive = self.fixture(folder)
+            misplaced = company()
+            misplaced["cik"] = 4321
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
+                z.writestr("CIK0000000077.json", json.dumps(misplaced))
+            state = ingest_zip(folder, archive_path=archive, as_of=AS_OF)
+            self.assertEqual(state["statuses"],
+                             {"SOURCE_CIK_MISMATCH": 1, "NO_COMPANYFACTS": 1})
+            self.assertEqual(state["errors"], 0)
+            diag = diagnose_database(folder)
+            self.assertEqual(len(diag["identity_mismatches"]), 1)
+            self.assertIn("expected=0000000077", diag["identity_mismatches"][0]["detail"])
+            self.assertIn("reported=0000004321", diag["identity_mismatches"][0]["detail"])
+            issuer = next(row for row in load_bulk_grid(folder)["rows"]
+                          if row["ticker"] == "SYN")
+            self.assertEqual(issuer["screening_status"], "SOURCE_CIK_MISMATCH")
+            self.assertIsNone(issuer["roe"])
+            self.assertIsNone(issuer["revenue"])
+
+    def test_retry_progress_is_bounded_and_reports_retries_separately(self):
+        with tempfile.TemporaryDirectory() as folder:
+            archive = self.fixture(folder)
+            ingest_zip(folder, archive_path=archive, as_of=AS_OF)
+            import sqlite3
+            db = Path(folder) / "veri/invest_ai_evren.sqlite3"
+            with sqlite3.connect(db) as conn:
+                conn.execute("UPDATE companies SET status='ERROR',error='ValueError' "
+                             "WHERE cik='0000000042'")
+            events = []
+            result = ingest_zip(folder, archive_path=archive, retry_errors=True,
+                                progress=events.append)
+            self.assertEqual(result["retries_attempted"], 1)
+            self.assertEqual(result["retry_total"], 1)
+            self.assertEqual(result["processed"], 2)
+            self.assertTrue(all(event.get("processed", 0) <= event.get("total", 2)
+                                for event in events))
+            self.assertTrue(all(event.get("retry_attempted", 0) <= 1
+                                for event in events))
+
     def test_no_download_when_local_zip_and_ticker_map_present(self):
         with tempfile.TemporaryDirectory() as folder:
             archive = self.fixture(folder)
