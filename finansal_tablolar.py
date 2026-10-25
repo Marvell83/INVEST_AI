@@ -17,7 +17,7 @@ import math
 
 from sec_companyfacts import METRICS, SEC_DATA, _date, _validate_cik
 
-VERSION = "finansal-tablolar-0.5.0"
+VERSION = "finansal-tablolar-0.5.1"
 ANNUAL_FORMS = frozenset(("10-K", "10-K/A"))
 QUARTERLY_FORMS = frozenset(("10-Q", "10-Q/A", "10-K", "10-K/A"))
 ALIAS_TOLERANCE = 0.005  # ambiguity guard between XBRL aliases, not an accounting standard
@@ -245,7 +245,7 @@ def _same_filing(*cells):
     return len({_sources(c) for c in cells}) == 1
 
 
-def _derive(year, ebit_proxy=True):
+def _derive(year, ebit_proxy=True, net_debt=True):
     income, cash_flow, balance = year["income"], year["cash_flow"], year["balance"]
     revenue, cost = income["revenue"], income["cost_of_revenue"]
     if income["gross_profit"]["status"] == "MISSING":
@@ -306,7 +306,11 @@ def _derive(year, ebit_proxy=True):
     # cost, and some issuers include finance leases in their reported debt.
     balance["lease_liabilities"] = _component_sum(balance, LEASE_COMPONENTS, "LEASE",
                                                   "SUM_OF_REPORTED_LEASE_LIABILITIES_SAME_FILING")
-    balance["net_debt"] = _net_debt(balance)
+    # A bank's cash and debt are operating balances (deposits, central-bank reserves), so
+    # "debt minus cash" has no valuation meaning there.
+    balance["net_debt"] = (_net_debt(balance) if net_debt else
+                           {"status": "MISSING", "value": None, "unit": "USD",
+                            "reason": "NOT_MEANINGFUL_FOR_FINANCIAL_SECTOR"})
 
 
 def _component_sum(balance, keys, prefix, method, conflict_keys=None):
@@ -373,13 +377,14 @@ def _net_debt(balance):
             "excludes": "lease liabilities"}
 
 
-def build_annual_statements(raw, *, as_of, years=5, ebit_proxy=True):
+def build_annual_statements(raw, *, as_of, years=5, ebit_proxy=True, net_debt=True):
     """Return up to `years` most recent fiscal years of annual statements.
 
     A company with no eligible annual 10-K data returns status NO_ANNUAL_PERIODS
     rather than raising, so a research report can still show the gap.
     `ebit_proxy=False` (financial or unconfirmed sector) never derives an
-    approximate operating income.
+    approximate operating income; `net_debt=False` (financial sector) leaves
+    net debt unavailable.
     """
     cutoff, cik = _validate(raw, as_of, years, MAX_YEARS, "years")
     read = _reader(raw, cutoff, ANNUAL_FORMS, (330, 400))
@@ -390,7 +395,7 @@ def build_annual_statements(raw, *, as_of, years=5, ebit_proxy=True):
         for statement in STATEMENTS:
             year[statement] = {key: _cell(read, key, period["start"], period["end"])
                                for key, spec in LINE_ITEMS.items() if spec[0] == statement}
-        _derive(year, ebit_proxy)
+        _derive(year, ebit_proxy, net_debt)
         rows.append(year)
 
     coverage = {}
@@ -405,7 +410,7 @@ def build_annual_statements(raw, *, as_of, years=5, ebit_proxy=True):
         "status": "OK" if rows else "NO_ANNUAL_PERIODS",
         "years": rows, "coverage": coverage, "conflicts": _conflicts(rows),
         "alias_gaps": _alias_gaps(rows), "approximations": _approximations(rows),
-        "fallback_concepts": _fallbacks(rows), "ebit_proxy": ebit_proxy,
+        "fallback_concepts": _fallbacks(rows), "ebit_proxy": ebit_proxy, "net_debt_derived": net_debt,
         "shares_outstanding": shares_outstanding(raw, as_of=as_of),
         "rules": [
             "Only 10-K / 10-K/A facts filed on or before as_of; fiscal years from fact dates, not SEC fy/fp",
@@ -573,7 +578,7 @@ def _quarter_cell(read, key, quarter):
     return cell
 
 
-def build_quarterly_statements(raw, *, as_of, quarters=8, ebit_proxy=True):
+def build_quarterly_statements(raw, *, as_of, quarters=8, ebit_proxy=True, net_debt=True):
     """Return up to `quarters` most recent discrete fiscal quarters.
 
     Flow items use a reported 3-month fact when one exists; otherwise the
@@ -589,7 +594,7 @@ def build_quarterly_statements(raw, *, as_of, quarters=8, ebit_proxy=True):
         for statement in STATEMENTS:
             row[statement] = {key: _quarter_cell(read, key, quarter)
                               for key, spec in LINE_ITEMS.items() if spec[0] == statement}
-        _derive(row, ebit_proxy)
+        _derive(row, ebit_proxy, net_debt)
         rows.append(row)
     result = {
         "version": VERSION, "cik": f"{cik:010d}", "company": raw.get("entityName", ""),
@@ -597,7 +602,7 @@ def build_quarterly_statements(raw, *, as_of, quarters=8, ebit_proxy=True):
         "status": "OK" if rows else "NO_QUARTERLY_PERIODS",
         "quarters": rows, "conflicts": _conflicts(rows),
         "alias_gaps": _alias_gaps(rows), "approximations": _approximations(rows),
-        "fallback_concepts": _fallbacks(rows), "ebit_proxy": ebit_proxy,
+        "fallback_concepts": _fallbacks(rows), "ebit_proxy": ebit_proxy, "net_debt_derived": net_debt,
         "shares_outstanding": shares_outstanding(raw, as_of=as_of),
         "rules": [
             "10-Q and 10-K facts filed on or before as_of; quarters from fact dates, not SEC fy/fp",

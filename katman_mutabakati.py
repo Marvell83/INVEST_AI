@@ -115,6 +115,8 @@ def _alias_spread(cell):
 
 def _securities_basis(net_debt):
     """How the latest net debt treated marketable securities."""
+    if net_debt.get("reason") == "NOT_MEANINGFUL_FOR_FINANCIAL_SECTOR":
+        return "NOT_APPLICABLE_FINANCIAL"
     if not _known(net_debt):
         return "NET_DEBT_UNAVAILABLE"
     if "liquid_investments" not in net_debt["deducted"]:

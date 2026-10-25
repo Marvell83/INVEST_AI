@@ -130,9 +130,9 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
     if ttm.get("cik") not in (None, cik):
         raise ValueError("TTM issuer differs from requested CIK")
     # The pretax + interest EBIT proxy is meaningless for banks and insurers.
-    ebit_proxy = sector == "non_financial"
-    statements = build_annual_statements(raw, as_of=as_of, ebit_proxy=ebit_proxy)
-    quarterly = build_quarterly_statements(raw, as_of=as_of, ebit_proxy=ebit_proxy)
+    ebit_proxy, net_debt = sector == "non_financial", sector != "financial"
+    statements = build_annual_statements(raw, as_of=as_of, ebit_proxy=ebit_proxy, net_debt=net_debt)
+    quarterly = build_quarterly_statements(raw, as_of=as_of, ebit_proxy=ebit_proxy, net_debt=net_debt)
     if statements["cik"] != cik or quarterly["cik"] != cik:
         raise ValueError("financial statements issuer differs from requested CIK")
     ratios = compute_ratios(statements)
