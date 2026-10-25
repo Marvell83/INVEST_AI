@@ -5,6 +5,26 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Sapma analizi v0.1 (yol haritası Ders 8)
+
+- **`sapma_analizi.py` (yeni):** Tahmin Defteri'ndeki bir şirketin tahminleri hedefledikleri mali yılla eşlenir
+  ve ortak tablolardaki **ilk bildirilen** SEC değeriyle karşılaştırılır.
+  - Desteklenen hedefler: `FY+k_AFTER_<mali yıl sonu>` (`tahmin_motoru`), `FY_END:<tarih>`
+    (`sec_reviewed_pipeline`, ±7 gün).
+  - Ölçütler: gelir, faaliyet kârı / EBIT. FCFF puanlanmaz.
+  - Çıktılar: işaretli, mutlak ve yüzde hata; senaryo ve ölçüt bazında ortalama mutlak yüzde hata ve
+    yanlılık; senaryo aralığı isabeti.
+  - `--record` ile gerçekleşen ve puan kayıtları tek işlemde, tekrar eklenmeden yazılır. Türkçe HTML rapor
+    üretilir.
+- **`tahmin_defteri.py`:**
+  - Yeni okuma yöntemleri: `tahminleri_listele(ayrintili=True)`, `gerceklesenleri_listele()`,
+    `puanlari_listele()`.
+  - `gerceklesen_kaydet` ve `puanla` dış işleme katılır; dış işlem yokken davranış aynıdır.
+- **`sirket_analiz_paneli.py`:** Sayfa stili `PAGE_STYLE` sabitine taşındı (iki rapor ortak kullanır); görünüm
+  değişmedi.
+- **Belgeler:** [docs/SAPMA_ANALIZI_V01.md](docs/SAPMA_ANALIZI_V01.md), yol haritası, README.
+- **Testler:** 12 yeni test. Toplam `tests/` 459/459.
+
 ## 2026-10-24 — Tahmin motoru v0.1 (yol haritası Ders 6)
 
 - **`tahmin_motoru.py` (yeni):**

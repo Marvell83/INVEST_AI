@@ -39,6 +39,27 @@ def _money(value, unit="USD"):
             (1e6, "milyon") if abs(value) >= 1e6 else (1, "")))
     return f"{value / scale:.2f} {label} {unit}".replace("  ", " ").strip()
 
+# Shared by every offline INVEST_AI HTML page (research report, variance report).
+PAGE_STYLE = """
+      :root{--bg:#f5f7fb;--ink:#18314b;--line:#e0e6ef;--muted:#64748b;--accent:#23508e}
+      *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
+      font:15px/1.55 system-ui,Arial,sans-serif}
+      main{max-width:1050px;margin:auto;padding:28px 20px 60px}
+      .head{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:20px}
+      .brand{font-weight:800;letter-spacing:.13em;color:var(--accent)}h1{margin:8px 0;font-size:32px}
+      h2{margin:0 0 14px;font-size:20px}p{margin:8px 0}.muted,small{color:var(--muted)}
+      .grid,.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+      .card{background:white;border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:16px}
+      strong.big{display:block;font-size:34px;margin:10px 0}
+      table{border-collapse:collapse;width:100%;font-size:13px}
+      th,td{border-bottom:1px solid var(--line);padding:10px 8px;text-align:left;vertical-align:top}
+      th{background:#f2f6fc}.scroll{overflow:auto}.yes{color:#168250;font-weight:bold}
+      .no{color:#b73b3b;font-weight:bold}.unknown{color:#ab851f;font-weight:bold}
+      .metric{background:#f3f7fc;border-radius:8px;padding:13px}.metric strong{display:block;font-size:19px}
+      .note{border-left:4px solid #bb8d24;padding:10px 16px;background:#fff9eb}
+      td.num,th.num{text-align:right;white-space:nowrap}td.group{font-weight:bold;background:#f8fafd}
+      a{color:#23508e}@media(max-width:640px){.grid,.metrics{grid-template-columns:1fr}}
+    """
 STATEMENT_TITLES = {"income": "Gelir tablosu", "cash_flow": "Nakit akışı", "balance": "Bilanço"}
 
 
@@ -426,29 +447,9 @@ def render_dashboard(quality, valuation=None):
 
     name = quality.get("company") or p.get("company") or f"CIK {cik}"
     caution = "".join(f"<li>{_safe(x)}</li>" for x in warnings)
-    style = """
-      :root{--bg:#f5f7fb;--ink:#18314b;--line:#e0e6ef;--muted:#64748b;--accent:#23508e}
-      *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
-      font:15px/1.55 system-ui,Arial,sans-serif}
-      main{max-width:1050px;margin:auto;padding:28px 20px 60px}
-      .head{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:20px}
-      .brand{font-weight:800;letter-spacing:.13em;color:var(--accent)}h1{margin:8px 0;font-size:32px}
-      h2{margin:0 0 14px;font-size:20px}p{margin:8px 0}.muted,small{color:var(--muted)}
-      .grid,.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-      .card{background:white;border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:16px}
-      strong.big{display:block;font-size:34px;margin:10px 0}
-      table{border-collapse:collapse;width:100%;font-size:13px}
-      th,td{border-bottom:1px solid var(--line);padding:10px 8px;text-align:left;vertical-align:top}
-      th{background:#f2f6fc}.scroll{overflow:auto}.yes{color:#168250;font-weight:bold}
-      .no{color:#b73b3b;font-weight:bold}.unknown{color:#ab851f;font-weight:bold}
-      .metric{background:#f3f7fc;border-radius:8px;padding:13px}.metric strong{display:block;font-size:19px}
-      .note{border-left:4px solid #bb8d24;padding:10px 16px;background:#fff9eb}
-      td.num,th.num{text-align:right;white-space:nowrap}td.group{font-weight:bold;background:#f8fafd}
-      a{color:#23508e}@media(max-width:640px){.grid,.metrics{grid-template-columns:1fr}}
-    """
     return f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>INVEST_AI | {_safe(name)}</title><style>{style}</style></head>
+<title>INVEST_AI | {_safe(name)}</title><style>{PAGE_STYLE}</style></head>
 <body><main><header class="head"><div class="brand">INVEST_AI · ARAŞTIRMA</div>
 <h1>{_safe(name)}</h1><p class="muted">CIK {_safe(cik)} · Bilgi tarihi: {_safe(quality.get('as_of', ''))}
 · Tek bileşik puan yok</p></header>
