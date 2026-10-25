@@ -921,6 +921,254 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
   secScanPrev.addEventListener("click", () => scanSecDirectory({offset:Math.max(0,secScanOffset-50)}));
   secScanNext.addEventListener("click", () => scanSecDirectory({offset:secScanOffset+50}));
 
+
+  // Excel-style fundamentals matrix: read-only, based exclusively on saved SEC research.
+  let fundamentals = {columns: [], rows: []};
+  let fundamentalsFilters = [];
+  let fundamentalsShown = new Set(["ticker", "company", "fiscal_year", "roe", "roic",
+    "revenue_growth", "revenue_cagr_3y", "operating_margin", "cash_conversion_3y",
+    "fcf_3y", "net_debt_to_ebitda", "pe", "pb", "roe_10_pb", "peg", "fcf_yield"]);
+  let fundamentalsSort = {key:"ticker",descending:false};
+  const fundamentalsPanel = document.getElementById("fundamentals-panel");
+  const fundamentalsStatus = document.getElementById("fundamentals-status");
+  const fundamentalsHead = document.getElementById("fundamentals-head");
+  const fundamentalsBody = document.getElementById("fundamentals-body");
+  const fundamentalsInfo = document.getElementById("fundamentals-page");
+  const fundamentalsColumnMap = () => new Map(fundamentals.columns.map(col => [col[0],col]));
+  const readYield = () => {
+    const raw = document.getElementById("fundamentals-yield").value.trim();
+    return raw === "" ? null : (Number.isFinite(Number(raw)) ? Number(raw) / 100 : null);
+  };
+  function screenState(row, rate) {
+    const checks = [
+      rate === null || row.roe === null ? null : row.roe > rate,
+      rate === null || row.roic === null || row.roic_warning ? null : row.roic > rate,
+      row.roe_10_pb === null ? null : row.roe_10_pb >= 1,
+      row.peg === null ? null : row.peg > 0 && row.peg <= 1,
+      row.net_debt_to_ebitda === null ? null : row.net_debt_to_ebitda <= 2,
+      row.cash_conversion_3y === null ? null : row.cash_conversion_3y >= 1,
+      row.fcf_3y === null ? null : row.fcf_3y > 0
+    ];
+    return checks.includes(false) ? "fail" : checks.includes(null) ? "pending" : "pass";
+  }
+  function screenFormat(value, type, compact=true) {
+    if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+    if (type === "percent") return (value*100).toLocaleString("tr-TR", {maximumFractionDigits:2}) + "%";
+    if (type === "usd" && compact) {
+      if (Math.abs(value) >= 1e9) return (value/1e9).toLocaleString("tr-TR",{maximumFractionDigits:2})+" Mr $";
+      if (Math.abs(value) >= 1e6) return (value/1e6).toLocaleString("tr-TR",{maximumFractionDigits:2})+" Mn $";
+    }
+    if (type === "multiple") return value.toLocaleString("tr-TR",{maximumFractionDigits:3})+"x";
+    return value.toLocaleString("tr-TR",{maximumFractionDigits:type==="number"?0:2});
+  }
+  function filteredFundamentals() {
+    const term = document.getElementById("fundamentals-search").value.trim().toLocaleLowerCase("tr");
+    const policy = document.getElementById("fundamentals-policy").value;
+    const decision = document.getElementById("fundamentals-decision").value;
+    const rate = readYield();
+    const rows = fundamentals.rows.filter(row => {
+      if (term && !(String(row.ticker)+" "+String(row.company)+" "+String(row.cik))
+                   .toLocaleLowerCase("tr").includes(term)) return false;
+      if (decision !== "all" && screenState(row,rate) !== decision) return false;
+      for (const condition of fundamentalsFilters) {
+        const value = row[condition.key];
+        if (typeof value !== "number" || !Number.isFinite(value)) {
+          if (policy === "exclude") return false;
+          continue;
+        }
+        if (condition.min !== null && value < condition.min) return false;
+        if (condition.max !== null && value > condition.max) return false;
+      }
+      return true;
+    });
+    const {key,descending} = fundamentalsSort;
+    rows.sort((a,b) => {
+      const av = a[key], bv = b[key];
+      if (av === null || av === undefined) return bv === null || bv === undefined ? 0 : 1;
+      if (bv === null || bv === undefined) return -1;
+      const result = typeof av === "number" && typeof bv === "number"
+        ? av-bv : String(av).localeCompare(String(bv),"tr",{numeric:true});
+      return descending ? -result : result;
+    });
+    return rows;
+  }
+  function drawFundamentalsColumns() {
+    const host = document.getElementById("fundamentals-columns");
+    const metricSelect = document.getElementById("fundamentals-filter-column");
+    host.replaceChildren();
+    metricSelect.replaceChildren();
+    for (const [key,label,type,group] of fundamentals.columns) {
+      const wrapper = document.createElement("label");
+      wrapper.className = "muted";
+      wrapper.style.fontSize = "12px";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = fundamentalsShown.has(key);
+      input.disabled = key === "ticker";
+      input.addEventListener("change", () => {
+        if (input.checked) fundamentalsShown.add(key);
+        else fundamentalsShown.delete(key);
+        drawFundamentals();
+      });
+      wrapper.append(input,document.createTextNode(" "+label+" · "+group));
+      host.append(wrapper);
+      if (type !== "text") {
+        const opt = document.createElement("option");
+        opt.value = key;
+        opt.textContent = label + (type === "percent" ? " (%)" : "");
+        metricSelect.append(opt);
+      }
+    }
+  }
+  function drawFundamentals() {
+    const cols = fundamentals.columns.filter(col => fundamentalsShown.has(col[0]));
+    const rows = filteredFundamentals();
+    fundamentalsHead.replaceChildren();
+    fundamentalsBody.replaceChildren();
+    const head = document.createElement("tr");
+    const decisionTitle = document.createElement("th");
+    decisionTitle.textContent = "7 koşul";
+    head.append(decisionTitle);
+    for (const [key,label] of cols) {
+      const th = document.createElement("th");
+      const sort = document.createElement("button");
+      sort.type = "button";
+      sort.className = "btn";
+      sort.style.padding = "3px 8px";
+      sort.textContent = label + (fundamentalsSort.key === key
+        ? (fundamentalsSort.descending ? " ↓" : " ↑") : " ↕");
+      sort.addEventListener("click", () => {
+        fundamentalsSort = {key,descending: fundamentalsSort.key===key ? !fundamentalsSort.descending : false};
+        drawFundamentals();
+      });
+      th.append(sort); head.append(th);
+    }
+    fundamentalsHead.append(head);
+    const rate = readYield();
+    for (const row of rows.slice(0,200)) {
+      const tr = document.createElement("tr");
+      const state = screenState(row,rate);
+      const tdState = document.createElement("td");
+      tdState.textContent = {pass:"Geçti",fail:"Elendi",pending:"Veri bekliyor"}[state];
+      tdState.className = state==="pass" ? "yes" : (state==="fail" ? "no" : "unknown");
+      tr.append(tdState);
+      for (const [key,label,type] of cols) {
+        const td = document.createElement("td");
+        const value = row[key];
+        td.textContent = type==="text" ? (value || "—") : screenFormat(value,type);
+        if (typeof value === "number") td.classList.add("num");
+        if (key==="roic" && row.roic_warning) td.title="ROIC uyarılı: küçük sermaye tabanı veya yaklaşık EBIT";
+        if (["pe","pb","roe_10_pb","ev_ebit","ev_ebitda","ps"].includes(key))
+          td.title = row.price_source ? row.price_source + " · "+ row.price_date : "Kaynaklı hisse fiyatı eksik";
+        if (key==="peg") td.title="Kaynaklı ileriye dönük EPS büyümesi henüz sisteme bağlanmadı";
+        tr.append(td);
+      }
+      fundamentalsBody.append(tr);
+    }
+    if (!rows.length) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = cols.length+1;
+      td.textContent = "Bu koşullara uyan kayıt yok. Eksik oranları filtrelerde gösterme seçeneğini deneyebilirsin.";
+      tr.append(td); fundamentalsBody.append(tr);
+    }
+    fundamentalsInfo.textContent = rows.length+" / "+fundamentals.rows.length+
+      " şirket görünümde · tabloda ilk 200 satır · CSV'de filtrelenen bütün satırlar. "+
+      "PEG veya fiyat boşsa kesin 7/7 sonucu üretilemez.";
+    const chips=document.getElementById("fundamentals-active-filters");
+    chips.replaceChildren();
+    const columnMap=fundamentalsColumnMap();
+    fundamentalsFilters.forEach((filter,i)=>{
+      const meta=columnMap.get(filter.key);
+      const button=document.createElement("button");
+      button.type="button";button.className="btn";
+      const fmt=n=>n===null?"—":(meta[2]==="percent"?(n*100).toLocaleString("tr-TR"):n.toLocaleString("tr-TR"));
+      button.textContent=meta[1]+": "+fmt(filter.min)+" .. "+fmt(filter.max)+" ×";
+      button.addEventListener("click",()=>{fundamentalsFilters.splice(i,1);drawFundamentals();});
+      chips.append(button);
+    });
+  }
+  async function openFundamentals() {
+    fundamentalsPanel.hidden=false;
+    const key=document.getElementById("analysis-key").value;
+    if(!key){fundamentalsStatus.textContent="Web analiz anahtarını gir.";return;}
+    fundamentalsStatus.textContent="Kayıtlı SEC analizleri okunuyor…";
+    const trigger=document.getElementById("fundamentals-open");
+    trigger.disabled=true;
+    try {
+      const response=await fetch("/api/screener",{
+        method:"POST",credentials:"same-origin",
+        headers:{"Content-Type":"application/json","X-Invest-AI-Key":key},
+        body:"{}"
+      });
+      const data=await response.json();
+      if(!response.ok){fundamentalsStatus.textContent=data.error||"Tarama verisi okunamadı.";return;}
+      fundamentals=data;
+      drawFundamentalsColumns();
+      drawFundamentals();
+      fundamentalsStatus.textContent=data.available+" şirketin kayıtlı analizinden finansal tablo kuruldu. "+
+        "Yeni şirketleri SEC'den analiz edip kaydettikçe buraya eklenir. Canlı fiyat indirilmedi.";
+    } catch (_) {
+      fundamentalsStatus.textContent="Tarama API'sine erişilemedi. Python sunucusunu kontrol et.";
+    } finally {trigger.disabled=false;}
+  }
+  document.getElementById("fundamentals-open").addEventListener("click",openFundamentals);
+  document.getElementById("fundamentals-refresh").addEventListener("click",openFundamentals);
+  for (const id of ["fundamentals-search","fundamentals-yield"])
+    document.getElementById(id).addEventListener("input",drawFundamentals);
+  for (const id of ["fundamentals-policy","fundamentals-decision"])
+    document.getElementById(id).addEventListener("change",drawFundamentals);
+  document.getElementById("fundamentals-add-filter").addEventListener("click",()=>{
+    const columnMap=fundamentalsColumnMap();
+    const key=document.getElementById("fundamentals-filter-column").value;
+    const meta=columnMap.get(key);
+    if(!meta)return;
+    const low=document.getElementById("fundamentals-filter-min").value.trim();
+    const high=document.getElementById("fundamentals-filter-max").value.trim();
+    if(!low&&!high){fundamentalsStatus.textContent="Alt veya üst sınır gir.";return;}
+    const min=low===""?null:Number(low)*(meta[2]==="percent"?0.01:1);
+    const max=high===""?null:Number(high)*(meta[2]==="percent"?0.01:1);
+    if ((min!==null&&!Number.isFinite(min))||(max!==null&&!Number.isFinite(max))||
+        (min!==null&&max!==null&&min>max)) {
+      fundamentalsStatus.textContent="Geçerli alt/üst eşik değerleri gir.";return;
+    }
+    fundamentalsFilters.push({key,min,max});
+    document.getElementById("fundamentals-filter-min").value="";
+    document.getElementById("fundamentals-filter-max").value="";
+    drawFundamentals();
+  });
+  document.getElementById("fundamentals-clear").addEventListener("click",()=>{
+    fundamentalsFilters=[];
+    document.getElementById("fundamentals-search").value="";
+    document.getElementById("fundamentals-decision").value="all";
+    document.getElementById("fundamentals-policy").value="exclude";
+    drawFundamentals();
+  });
+  document.getElementById("fundamentals-csv").addEventListener("click",()=>{
+    const columns=fundamentals.columns.filter(col=>fundamentalsShown.has(col[0]));
+    const quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
+    // Escape Excel formula-style prefixes from untrusted SEC issuer names.
+    const safe=value=>typeof value==="string"&&/^[\s]*[=+@\-]/.test(value)?"'"+value:value;
+    const lines=[["7 koşul",...columns.map(col=>col[1])].map(quote).join(";")];
+    for(const row of filteredFundamentals()){
+      const state={pass:"Geçti",fail:"Elendi",pending:"Veri bekliyor"}[screenState(row,readYield())];
+      const vals=columns.map(([key,label,type])=>{
+        const value=row[key];
+        if(value===null||value===undefined)return "";
+        if(type==="text")return safe(value);
+        if(type==="percent")return (value*100).toString().replace(".",",");
+        return String(value).replace(".",",");
+      });
+      lines.push([state,...vals].map(quote).join(";"));
+    }
+    const blob=new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download="invest_ai_temel_analiz_filtre.csv";
+    document.body.append(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+
   checkResearchServer();
 
   for (const button of document.querySelectorAll("[data-screen], [data-go]")) {
