@@ -158,7 +158,7 @@
   <aside class="sidebar">
     <a class="brand" href="#ana" aria-label="INVEST AI ana sayfa">
       <span class="brand-mark">IA</span>
-      <span><strong>INVEST_AI</strong><small>Araştırma Merkezi · v0.5</small></span>
+      <span><strong>INVEST_AI</strong><small>Araştırma Merkezi · v0.6</small></span>
     </a>
     <nav class="nav-list" aria-label="Ana menü">
       <button type="button" class="nav-link active" data-screen="ana"><span class="nav-ico">⌂</span> Ana sayfa</button>
@@ -219,7 +219,7 @@
         <label for="report-kind-filter">Rapor türü</label>
         <select id="report-kind-filter">
           <option value="all">Tüm raporlar</option>
-          <option value="web">Web analizleri (v0.5)</option>
+          <option value="web">Web analizleri (v0.6)</option>
           <option value="previous">Önceki / terminal raporları</option>
         </select>
       </div>
@@ -317,8 +317,13 @@
           <button id="analyze-submit" type="submit" class="btn primary">Şirketi analiz et →</button>
           <button id="sec-scan-submit" type="button" class="btn">SEC verilerini tara →</button>
           <button id="fundamentals-open" type="button" class="btn">Temel analiz tablosu →</button>
+          <button id="sec-bulk-start" type="button" class="btn">Tüm SEC finansallarını indir ve tara →</button>
         </div>
         <div id="web-analysis-result" aria-live="polite" role="status"></div>
+        <p id="sec-bulk-status" class="web-help" role="status" aria-live="polite">
+          Toplu tarama henüz başlatılmadı. Resmî SEC arşivi ~1,4 GB; disk alanı gerektirir.
+          İşleme tamamlanınca Temel analiz tablosundan şirketleri süzebilirsin.
+        </p>
       </form>
       <section id="sec-scan-panel" class="web-form" hidden aria-label="SEC şirket ve hisse listesi">
         <div class="section-top">
@@ -1169,6 +1174,56 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
 
+
+  // Explicit bulk SEC archive import; progress belongs to the local Codespaces process.
+  const bulkButton = document.getElementById("sec-bulk-start");
+  const bulkStatus = document.getElementById("sec-bulk-status");
+  let bulkTimer = null;
+  async function bulkRequest(endpoint) {
+    const key = document.getElementById("analysis-key").value;
+    if (!key) throw new Error("Önce web analiz anahtarını gir.");
+    const response = await fetch(endpoint, {method:"POST",credentials:"same-origin",
+      headers:{"Content-Type":"application/json","X-Invest-AI-Key":key},body:"{}"});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "SEC toplu tarama isteği başarısız.");
+    return data;
+  }
+  async function pollBulk() {
+    try {
+      const data = await bulkRequest("/api/bulk/status");
+      const total = typeof data.total==="number" ? data.total : null;
+      const done = typeof data.processed==="number" ? data.processed : 0;
+      const megs = typeof data.downloaded_bytes==="number"
+        ? " · İndirilen: "+(data.downloaded_bytes/1048576).toFixed(0)+" MB" : "";
+      const count = total===null ? "" : " · "+done.toLocaleString("tr-TR") +
+        " / "+total.toLocaleString("tr-TR")+" şirket";
+      const counts = data.statuses ? " · "+JSON.stringify(data.statuses) : "";
+      bulkStatus.textContent=(data.message || data.phase || "SEC durumu")+count+megs+counts;
+      bulkButton.disabled = ["starting","processing","downloading"].includes(data.phase);
+      if (["complete","partial","error"].includes(data.phase) && bulkTimer) {
+        clearInterval(bulkTimer);bulkTimer=null;
+      }
+    } catch(err) {
+      bulkStatus.textContent=err.message;
+      bulkButton.disabled=false;
+      if(bulkTimer){clearInterval(bulkTimer);bulkTimer=null;}
+    }
+  }
+  bulkButton.addEventListener("click",async()=>{
+    if(!confirm("SEC'nin resmî ~1,4 GB şirket finansalları ZIP dosyası indirilecek. "+
+       "Yeterli disk alanı (en az 4,5 GB boş alan), internet ve SEC_USER_AGENT gerekiyor. "+
+       "Binlerce şirketin işlenmesini başlatmak istiyor musun?"))return;
+    bulkButton.disabled=true;
+    bulkStatus.textContent="Toplu SEC verisi için sunucuya istek gönderiliyor…";
+    try {
+      const result=await bulkRequest("/api/bulk/start");
+      bulkStatus.textContent=result.message;
+      await pollBulk();
+      if(!bulkTimer) bulkTimer=setInterval(pollBulk,4000);
+    } catch(err) {
+      bulkStatus.textContent=err.message;bulkButton.disabled=false;
+    }
+  });
   checkResearchServer();
 
   for (const button of document.querySelectorAll("[data-screen], [data-go]")) {
