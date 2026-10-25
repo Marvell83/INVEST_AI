@@ -1,4 +1,4 @@
-# Finansal Tablolar ve Oranlar (tablolar v0.2 · oranlar v0.1)
+# Finansal Tablolar ve Oranlar (tablolar v0.3 · oranlar v0.1)
 
 `finansal_tablolar.py` ve `finansal_oranlar.py`, SEC Company Facts verisini **tek bir ortak kurallar setiyle** okuyup yıllık ve çeyreklik gelir tablosu, nakit akışı ve bilanço üretir; yıllık tablolardan kârlılık, büyüme, nakit kalitesi, getiri ve borçluluk oranlarını hesaplar. Yol haritasındaki 2., 3., 4. ve 5. derslerin veri temelidir ([YOL_HARITASI.md](YOL_HARITASI.md)).
 
@@ -16,16 +16,21 @@ Bu sürüm 27 raporlanan kalemi (brüt kâr bildirilmemişse türetilir) ve 2 t�
 | Bilgi tarihi | `filed` ve dönem sonu `as_of` tarihinden sonra olan kayıtlar görünmez |
 | Mali yıl | Kaydın kendi `start`/`end` tarihlerinden belirlenir (330–400 gün). SEC'in `fy`/`fp` alanları **dosyaya** aittir, kayda değil; bu yüzden kullanılmaz |
 | Revizyon | Aynı dönem için en son dosyalanan değer seçilir; farklı ilk değer `first_reported` alanında saklanır (`revised: true`) |
-| Etiket çelişkisi | Aynı kalemin XBRL eşanlamlıları %0,5'ten fazla ayrışırsa hücre `CONFLICT` olur, değer yazılmaz, adaylar `alternatives` alanında listelenir |
+| Etiket çelişkisi | Aynı kalemin XBRL eşanlamlıları %0,5'ten fazla ayrışırsa hücre `CONFLICT` olur, değer yazılmaz, adaylar `alternatives` alanında listelenir. **Gelir için** sınır %5'tir (aşağıya bakın) |
+| Gelir etiketleri | Gelir etiketleri tanım gereği farklı kapsamda olabilir (ör. Walmart: net satışlar ile üyelik gelirini de içeren toplam gelir). %0,5–%5 arası farkta **öncelikli etiket** kullanılır, hücre `REPORTED` kalır ve fark `alias_gap` alanında (oran, diğer etiketler ve değerleri) görünür kalır. %5'ten büyük fark `CONFLICT`'tir. Piotroski aynı kuralı uygular |
 | Eksik veri | `MISSING`, değer `null`; asla 0 kabul edilmez |
 | Türetme | Brüt kâr (gelir − satışların maliyeti), serbest nakit akışı (CFO − CapEx) ve toplam borç yalnız **aynı SEC dosyasındaki** kayıtlardan türetilir |
+| Yaklaşık faaliyet kârı | Şirket `OperatingIncomeLoss` bildirmemişse (ör. J&J, Exxon) faaliyet kârı = vergi öncesi kâr + faiz gideri, aynı SEC dosyasından. Hücre `DERIVED`, `approximate: true`, yöntem `EBIT_PROXY_PRETAX_PLUS_INTEREST`. Faiz geliri, özkaynak yöntemi sonuçları ve diğer faaliyet dışı kalemleri içerir. Raporda ≈ ile gösterilir. Girdiler yoksa veya farklı dosyalardansa hücre `MISSING` kalır ve `proxy_unavailable` nedeni taşır |
 
 Her hücre şunları taşır: `status` (`REPORTED` / `DERIVED` / `MISSING` / `CONFLICT`), `value`, `unit`, `concept`, `accession`, `form`, `filed`, `start`, `end`.
+
+Yıllık ve çeyreklik çıktılarda ayrıca `conflicts`, `alias_gaps` (öncelikli etiketle kabul edilen gelir farkları) ve `approximations` (yaklaşık değerler) listeleri bulunur.
 
 ## Kalemler
 
 - **Gelir tablosu:** gelir, satışların maliyeti, brüt kâr, Ar-Ge, faaliyet kârı, faiz gideri, vergi öncesi kâr, gelir vergisi, net kâr (ana ortaklık), seyreltilmiş ortalama hisse.
 - **Nakit akışı:** faaliyet nakit akışı, CapEx, amortisman, hisse bazlı ödeme, ödenen temettü, hisse geri alımı, serbest nakit akışı†.
+  - Hisse bazlı ödeme yalnız nakit akışı tablosundaki `ShareBasedCompensation` kaydından okunur. `AllocatedShareBasedCompensationExpense` farklı bir kavramdır (gider tablosundaki dağıtılmış tutar); v0.2'de eşanlamlı sayıldığı için Alphabet, J&J ve Coca-Cola'da yanlış çelişki üretiyordu, v0.3'te kaldırıldı.
 - **Bilanço:** nakit ve nakit benzerleri, dönen ve toplam varlıklar, kısa vadeli ve toplam yükümlülükler, ticari senet, kısa vadeli borçlanma, uzun vadeli borç (kısa vadeli kısmı ile birlikte veya ayrı), özkaynak, toplam finansal borç†.
 
 † türetilen kalem.
@@ -47,7 +52,17 @@ Her hücre şunları taşır: `status` (`REPORTED` / `DERIVED` / `MISSING` / `CO
 - **Bilanço:** Çeyrek sonundaki bildirilmiş değerdir.
 - **Brüt kâr ve serbest nakit akışı:** Yalnız iki girdi aynı SEC dosya(lar)ına dayanıyorsa türetilir.
 
-**Doğrulama:** Son dört çeyreğin toplamı, mevcut `sec_ttm.py` motorunun "FY + güncel YTD − önceki YTD" TTM sonucuyla birebir eşleşir. Bu eşleşme testlerle sınanır ve ileride TTM motorlarının ortak katmana taşınmasının temelini oluşturur.
+**Doğrulama:** Son dört çeyreğin toplamı, mevcut `sec_ttm.py` motorunun "FY + güncel YTD − önceki YTD" TTM sonucuyla birebir eşleşir. Bu eşleşme testlerle sınanır.
+
+## Son 12 ay (TTM) — her çeyrekte (v0.3)
+
+Çeyreklik çıktının `ttm` alanı ve `trailing_twelve_months(quarterly, end=None)` fonksiyonu, en son çeyrekle biten **art arda dört çeyreğin** gelir tablosu ve nakit akışı kalemlerini toplar. Son çeyrek 1., 2., 3. veya 4. çeyrek olabilir. Eski iki TTM motoru ise yalnız son dönem 9 aylık 10-Q olduğunda çalışıyordu; gerçek veri denemesinde 11 şirketin yalnız birinde TTM çıkmasının nedeni buydu.
+
+- Durum: `OK` (gelir, faaliyet kârı, CFO ve CapEx hesaplandı), `PARTIAL` (bunlardan biri eksik; `core_unavailable` listesi), `INSUFFICIENT_QUARTERS` (art arda dört çeyrek yok).
+- Her kalem `SUM_OF_FOUR_QUARTERS` yöntemiyle `DERIVED` olur; dayandığı bütün SEC dosyaları `sources` alanındadır.
+- Bir çeyrek eksik veya çelişkiliyse o kalem `MISSING` / `CONFLICT` kalır ve hangi çeyreğin eksik olduğu `quarters_unavailable` alanında yazar. Ortalama hisse sayısı toplanmaz.
+- Çeyreklerden biri yaklaşık faaliyet kârıysa TTM değeri de `approximate` işaretlenir.
+- Son dönem 9 aylıksa eski iki motor aynı dört çeyreği hâlâ bağımsız olarak karşılaştırır (katman mutabakatı). Aksi halde araştırma raporu `TTM_SINGLE_METHOD_ONLY:<durum>` açığını yazar: TTM vardır ama ikinci bir yöntemle karşılaştırılmamıştır.
 
 ## Dolaşımdaki hisse sayısı
 
@@ -62,13 +77,13 @@ Piotroski ve iki TTM motoru SEC verisini hâlâ kendi kurallarıyla okur. `katma
 | Kontrol | Nasıl karşılaştırılır | Dikkat gerektiren durum |
 |---|---|---|
 | Piotroski girdileri ↔ yıllık tablolar | Piotroski'nin kullandığı her SEC kaydı (net kâr, CFO, gelir, brüt kâr, varlıklar, borç, dönen varlık ve yükümlülükler) aynı yılın ortak hücresiyle birebir | `VALUE_DIFFERS` (tutar farklı), `SHARED_CONFLICT` (Piotroski bir değer kullandı, ortak katman etiket çelişkisi gördü) |
-| TTM ↔ son dört çeyrek | Mutabık TTM, TTM bitişinde sona eren art arda dört ortak çeyreğin toplamıyla | %0,1'i aşan fark (`VALUE_DIFFERS`); %0,1'e kadarki fark yuvarlama sayılır (`ROUNDING`) |
+| TTM ↔ son dört çeyrek | Mutabık TTM, TTM bitişinde sona eren ortak TTM ile (`trailing_twelve_months`) | %0,1'i aşan fark (`VALUE_DIFFERS`); %0,1'e kadarki fark yuvarlama sayılır (`ROUNDING`); ortak değer yaklaşık faaliyet kârıysa not (`SHARED_APPROXIMATE`) |
 
 Dikkat gerektiren bir fark araştırma raporunun açık eksiklerine eklenir:
 - `SHARED_STATEMENTS_DIFFER_FROM_PIOTROSKI_INPUTS`
 - `SHARED_QUARTERS_DIFFER_FROM_TTM`
 
-Bilinen kural farkı: Piotroski gelir etiketleri arasında **%5'e kadar** farkı kabul eder, ortak katman **%0,5'te** durur. Bu yüzden etiketleri %0,5–%5 arası ayrışan şirketlerde Piotroski girdisi `SHARED_CONFLICT` olarak işaretlenir. Piotroski'nin ortak katmana taşınması bu eşiğin hangisinde birleşeceğine bağlıdır ([YOL_HARITASI.md](YOL_HARITASI.md)).
+Gelir etiketi eşiği v0.3'te birleştirildi: Piotroski ve ortak katman %5'e kadar farkta aynı öncelikli etiketi kullanır, %5'ten büyük farkta ikisi de değeri bilinmiyor sayar. Gerçek veri denemesinde bu karar yalnız Walmart'ı (%0,95 fark) etkiledi.
 
 ## Oranlar
 
@@ -81,6 +96,8 @@ Bilinen kural farkı: Piotroski gelir etiketleri arasında **%5'e kadar** farkı
 | Bilanço | cari oran, borç / özkaynak, net borç, faiz karşılama |
 
 Her oran `formula`, kullanılan `inputs` ve hesaplanamadığında `reason` taşır. Örnekler: `INPUT_UNAVAILABLE:interest_expense`, `NONPOSITIVE_DENOMINATOR:average_equity`, `PRIOR_FISCAL_YEAR_REQUIRED`, `TAX_RATE_OUTSIDE_0%_50%`.
+
+Faaliyet kârını kullanan oranlar (faaliyet marjı, faaliyet kârı büyümesi, ROIC, faiz karşılama) yaklaşık faaliyet kârıyla hesaplandıysa `approximate: "OPERATING_INCOME_PROXY"` taşır ve raporda ≈ ile gösterilir. Tarihsel baz bu yılları `approximate_operating_income_years` alanında listeler; senaryolar, değerleme ve Tahmin Defteri kaydı aynı uyarıyı taşır. Sapma analizi yalnız bildirilmiş (`REPORTED`) gerçekleşenleri puanlar; yaklaşık bir gerçekleşen puanlanmaz.
 
 - **ROA / ROE / ROIC:** dönem sonu ile önceki dönem sonu bakiyelerinin ortalamasıyla hesaplanır.
 - **ROIC:** `faaliyet kârı × (1 − efektif vergi) / ortalama (özkaynak + toplam borç − nakit)`. Efektif vergi %0–%50 dışındaysa ROIC hesaplanmaz. Yatırılan sermayeden yalnız nakit ve nakit benzerleri düşülür; menkul kıymetler düşülmez. Bu yüzden Apple gibi büyük menkul kıymet portföyü olan şirketlerde ROIC düşük görünebilir.
@@ -105,6 +122,7 @@ quarters = build_quarterly_statements(raw_companyfacts, as_of="2026-10-24", quar
 ## Sınırlar
 
 - Oranlar şimdilik yalnız yıllık tablolardan hesaplanır; çeyreklik ve TTM oranları sonraki adımdadır.
+- Yaklaşık faaliyet kârı faaliyet dışı kalemleri içerir; özkaynak yöntemiyle büyük iştirak geliri olan şirketlerde (ör. Exxon) gerçek faaliyet kârından belirgin farklı olabilir.
 - Ara dönemde mali yıl değiştiren şirketlerde çeyrek takvimi kurulamayabilir; o çeyrekler listelenmez.
 - Seçili US-GAAP kalemleri: segment verisi, kira yükümlülükleri, menkul kıymetler, azınlık payları ve şirkete özel (extension) etiketler yoktur. IFRS / 20-F desteklenmez.
 - Bankalar ve sigorta şirketlerinde bu kalemler ve oranlar anlamlı olmayabilir.
@@ -113,7 +131,7 @@ quarters = build_quarterly_statements(raw_companyfacts, as_of="2026-10-24", quar
 
 ## Testler
 
-`tests/test_finansal_tablolar.py`, `tests/test_finansal_oranlar.py` (36 test) ve `tests/test_finansal_ceyrekler.py` (23 test). Çeyrek testleri şunları kapsar:
+`tests/test_finansal_tablolar.py`, `tests/test_finansal_oranlar.py` (36 test) ve `tests/test_finansal_ceyrekler.py` (23 test). v0.3 kuralları `tests/test_gercek_veri_kurallari.py` (19 test: hisse bazlı ödeme, gelir etiketi %5 kuralı ve sınırı, yaklaşık faaliyet kârı, oran / baz / defter / değerleme uyarıları) ve `tests/test_ortak_ttm.py` (16 test: 1., 3. ve 4. çeyrekte TTM, eksik / çelişkili çeyrek, eski motorlarla mutabakat, rapor açığı) ile sınanır. Çeyrek testleri şunları kapsar:
 - çeyrek takvimi ve devam eden mali yıl,
 - doğrudan 3 aylık değer önceliği, YTD farkı ve 4. çeyrek,
 - farklı kavramların ve ortalama hisse sayısının farkının alınmaması,

@@ -17,10 +17,14 @@ import math
 
 from sec_companyfacts import METRICS, SEC_DATA, _date, _validate_cik
 
-VERSION = "finansal-tablolar-0.2.0"
+VERSION = "finansal-tablolar-0.3.0"
 ANNUAL_FORMS = frozenset(("10-K", "10-K/A"))
 QUARTERLY_FORMS = frozenset(("10-Q", "10-Q/A", "10-K", "10-K/A"))
 ALIAS_TOLERANCE = 0.005  # ambiguity guard between XBRL aliases, not an accounting standard
+# Revenue tags differ in scope by design (e.g. net sales vs. total revenues that add
+# membership income). Up to this gap the priority alias is used and the gap stays
+# visible as `alias_gap`; piotroski_fscore applies the same 5% rule.
+ITEM_ALIAS_TOLERANCE = {"revenue": 0.05}
 MAX_YEARS = 10
 MAX_QUARTERS = 40
 STATEMENTS = ("income", "cash_flow", "balance")
@@ -52,7 +56,7 @@ LINE_ITEMS = {
     "depreciation_amortization": ("cash_flow", "flow", "USD", "Amortisman",
                                   ("DepreciationDepletionAndAmortization", "DepreciationAndAmortization")),
     "share_based_compensation": ("cash_flow", "flow", "USD", "Hisse bazlı ödeme",
-                                 ("ShareBasedCompensation", "AllocatedShareBasedCompensationExpense")),
+                                 ("ShareBasedCompensation",)),
     "dividends_paid": ("cash_flow", "flow", "USD", "Ödenen temettü",
                        ("PaymentsOfDividends", "PaymentsOfDividendsCommonStock")),
     "share_repurchases": ("cash_flow", "flow", "USD", "Hisse geri alımı",
@@ -84,6 +88,7 @@ ANCHOR_ITEMS = ("revenue", "net_income", "operating_income", "cfo")
 # Weighted-average share counts are not additive: a YTD difference is meaningless.
 NON_ADDITIVE = frozenset(("diluted_shares",))
 SHARES_OUTSTANDING_CONCEPT = "EntityCommonStockSharesOutstanding"
+TTM_CORE = ("revenue", "operating_income", "cfo", "capex")  # the items both older TTM engines require
 
 
 def _number(value):
@@ -172,11 +177,16 @@ def _cell(read, key, start, end):
         return {"status": "MISSING", "value": None, "unit": unit, "reason": "NOT_REPORTED"}
     values = [f["value"] for f in found]
     peak = max(abs(v) for v in values)
-    if peak and (max(values) - min(values)) / peak > ALIAS_TOLERANCE:
+    spread = (max(values) - min(values)) / peak if peak else 0.0
+    if spread > ITEM_ALIAS_TOLERANCE.get(key, ALIAS_TOLERANCE):
         return {"status": "CONFLICT", "value": None, "unit": unit,
                 "reason": "XBRL_ALIASES_DISAGREE", "alternatives": found}
     cell = dict(found[0], status="REPORTED")
-    if len(found) > 1:
+    if spread > ALIAS_TOLERANCE:
+        cell["alias_gap"] = {"spread": spread, "rule": "PRIORITY_ALIAS_USED",
+                             "other_aliases": [{k: f[k] for k in ("concept", "value", "accession")}
+                                               for f in found[1:]]}
+    elif len(found) > 1:
         cell["agreeing_aliases"] = [f["concept"] for f in found[1:]]
     return cell
 
@@ -205,6 +215,23 @@ def _derive(year):
                 "accession": revenue["accession"], "filed": revenue["filed"],
                 "sources": list(_sources(revenue)),
                 "derivation": {"revenue": revenue["concept"], "cost_of_revenue": cost["concept"]}}
+
+    # Some issuers (e.g. pharma, oil majors) report no operating income subtotal. An
+    # approximate EBIT is pretax income plus interest expense from one filing; it
+    # still includes non-operating items, so it is flagged and never called reported.
+    operating, pretax, interest = income["operating_income"], income["pretax_income"], income["interest_expense"]
+    if operating["status"] == "MISSING":
+        if _known(pretax) and _known(interest) and _same_filing(pretax, interest):
+            income["operating_income"] = {
+                "status": "DERIVED", "value": pretax["value"] + interest["value"], "unit": "USD",
+                "method": "EBIT_PROXY_PRETAX_PLUS_INTEREST", "approximate": True,
+                "accession": pretax["accession"], "filed": pretax["filed"], "sources": list(_sources(pretax)),
+                "derivation": {"pretax_income": pretax["concept"], "interest_expense": interest["concept"]},
+                "includes": "non-operating items such as interest income, equity-method results and other gains"}
+        else:
+            operating["proxy_unavailable"] = ("PRETAX_AND_INTEREST_FROM_DIFFERENT_FILINGS"
+                                              if _known(pretax) and _known(interest)
+                                              else "PRETAX_OR_INTEREST_UNAVAILABLE")
 
     cfo, capex = cash_flow["cfo"], cash_flow["capex"]
     if _known(cfo) and _known(capex) and _same_filing(cfo, capex):
@@ -280,12 +307,15 @@ def build_annual_statements(raw, *, as_of, years=5):
         "as_of": as_of, "source_url": SEC_DATA.format(cik=cik),
         "status": "OK" if rows else "NO_ANNUAL_PERIODS",
         "years": rows, "coverage": coverage, "conflicts": _conflicts(rows),
+        "alias_gaps": _alias_gaps(rows), "approximations": _approximations(rows),
         "shares_outstanding": shares_outstanding(raw, as_of=as_of),
         "rules": [
             "Only 10-K / 10-K/A facts filed on or before as_of; fiscal years from fact dates, not SEC fy/fp",
             "Latest filing wins for a period; earlier differing values are kept as first_reported",
-            f"XBRL aliases differing by more than {ALIAS_TOLERANCE:.1%} are a CONFLICT with no value",
+            f"XBRL aliases differing by more than {ALIAS_TOLERANCE:.1%} are a CONFLICT with no value; "
+            "revenue aliases up to 5% apart use the priority alias and keep the gap visible",
             "Missing values are null, never zero; derived values require one SEC filing",
+            "Without a reported operating income, an approximate EBIT is pretax income plus interest expense",
             "Outflows (CapEx, dividends, repurchases) are positive payments as reported",
         ],
     }
@@ -306,6 +336,23 @@ def _conflicts(rows):
              "concepts": [a["concept"] for a in cell.get("alternatives", [])]}
             for row in rows for statement in STATEMENTS
             for key, cell in row[statement].items() if cell["status"] == "CONFLICT"]
+
+
+def _alias_gaps(rows):
+    """Cells that use the priority alias although another alias differs (revenue, up to 5%)."""
+    return [{"start": row.get("start", row.get("fiscal_year_start")),
+             "end": row.get("end", row.get("fiscal_year_end")), "item": key,
+             "spread": cell["alias_gap"]["spread"], "used": cell["concept"],
+             "others": [a["concept"] for a in cell["alias_gap"]["other_aliases"]]}
+            for row in rows for statement in STATEMENTS
+            for key, cell in row[statement].items() if cell.get("alias_gap")]
+
+
+def _approximations(rows):
+    return [{"start": row.get("start", row.get("fiscal_year_start")),
+             "end": row.get("end", row.get("fiscal_year_end")), "item": key, "method": cell["method"]}
+            for row in rows for statement in STATEMENTS
+            for key, cell in row[statement].items() if cell.get("approximate")]
 
 
 def shares_outstanding(raw, *, as_of):
@@ -411,7 +458,9 @@ def _quarter_cell(read, key, quarter):
             "accession": current["accession"], "filed": current["filed"],
             "sources": [current["accession"], previous["accession"]],
             "revised": current["revised"] or previous["revised"],
-            "derivation": {"ytd_current": _brief(current), "ytd_previous": _brief(previous)}}
+            "derivation": {"ytd_current": _brief(current), "ytd_previous": _brief(previous)},
+            **({"alias_gap": current.get("alias_gap") or previous["alias_gap"]}
+               if current.get("alias_gap") or previous.get("alias_gap") else {})}
 
 
 def build_quarterly_statements(raw, *, as_of, quarters=8):
@@ -432,11 +481,12 @@ def build_quarterly_statements(raw, *, as_of, quarters=8):
                               for key, spec in LINE_ITEMS.items() if spec[0] == statement}
         _derive(row)
         rows.append(row)
-    return {
+    result = {
         "version": VERSION, "cik": f"{cik:010d}", "company": raw.get("entityName", ""),
         "as_of": as_of, "source_url": SEC_DATA.format(cik=cik),
         "status": "OK" if rows else "NO_QUARTERLY_PERIODS",
         "quarters": rows, "conflicts": _conflicts(rows),
+        "alias_gaps": _alias_gaps(rows), "approximations": _approximations(rows),
         "shares_outstanding": shares_outstanding(raw, as_of=as_of),
         "rules": [
             "10-Q and 10-K facts filed on or before as_of; quarters from fact dates, not SEC fy/fp",
@@ -444,8 +494,60 @@ def build_quarterly_statements(raw, *, as_of, quarters=8):
             "Q4 is the annual 10-K value minus the nine-month 10-Q value",
             "Weighted-average share counts are never derived from YTD differences",
             "Derived gross profit and free cash flow require the same SEC filings for both inputs",
+            "TTM is the sum of the latest four consecutive quarters, whichever fiscal quarter is latest",
         ],
     }
+    result["ttm"] = trailing_twelve_months(result)
+    return result
+
+
+def _consecutive(window):
+    return all(_date(newer["start"]) == _date(older["end"]) + dt.timedelta(days=1)
+               for newer, older in zip(window, window[1:]))
+
+
+def _ttm_cell(cells, window, unit):
+    unavailable = [q["end"] for q, c in zip(window, cells) if not _known(c)]
+    if unavailable:
+        conflict = any(c["status"] == "CONFLICT" for c in cells)
+        return {"status": "CONFLICT" if conflict else "MISSING", "value": None, "unit": unit,
+                "reason": "QUARTER_CONFLICT" if conflict else "QUARTER_UNAVAILABLE",
+                "quarters_unavailable": unavailable}
+    cell = {"status": "DERIVED", "value": math.fsum(c["value"] for c in cells), "unit": unit,
+            "method": "SUM_OF_FOUR_QUARTERS", "filed": max(c["filed"] for c in cells),
+            "sources": sorted({s for c in cells for s in _sources(c)})}
+    if any(c.get("approximate") for c in cells):
+        cell["approximate"] = True
+    return cell
+
+
+def trailing_twelve_months(quarterly, *, end=None):
+    """Flow items summed over four consecutive shared quarters ending at `end` (default: latest).
+
+    Works whichever fiscal quarter is latest. A missing or conflicting quarter
+    leaves that item unavailable; nothing is filled in. Weighted-average share
+    counts are not additive and are not summed.
+    """
+    quarters = quarterly.get("quarters", [])
+    index = 0 if end is None else next((i for i, q in enumerate(quarters) if q["end"] == end), None)
+    window = quarters[index:index + 4] if index is not None else []
+    if len(window) < 4 or not _consecutive(window):
+        return {"status": "INSUFFICIENT_QUARTERS", "reason": "NO_FOUR_CONSECUTIVE_QUARTERS",
+                "end": end if end is not None else (quarters[0]["end"] if quarters else None), "items": {}}
+    items = {}
+    for statement in ("income", "cash_flow"):
+        keys = [k for k, spec in LINE_ITEMS.items() if spec[0] == statement and k not in NON_ADDITIVE]
+        keys += [k for k, spec in DERIVED_ITEMS.items() if spec[0] == statement]
+        for key in keys:
+            unit = LINE_ITEMS[key][2] if key in LINE_ITEMS else DERIVED_ITEMS[key][1]
+            items[key] = _ttm_cell([q[statement][key] for q in window], window, unit)
+    latest = window[0]
+    unavailable = [k for k in TTM_CORE if not _known(items[k])]
+    return {"status": "PARTIAL" if unavailable else "OK", "core_unavailable": unavailable,
+            "start": window[-1]["start"], "end": latest["end"],
+            "fiscal_year_label": latest["fiscal_year_label"], "fiscal_quarter": latest["fiscal_quarter"],
+            "quarters": [q["end"] for q in window], "items": items,
+            "method": "SUM_OF_FOUR_CONSECUTIVE_DISCRETE_QUARTERS"}
 
 
 def line_item_label(key):

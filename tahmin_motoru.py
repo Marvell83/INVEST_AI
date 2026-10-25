@@ -88,8 +88,10 @@ def historical_baseline(statements, ratios):
                 reinvestment.append(row["sales_to_capital"])
         for statement, key in (("income", "revenue"), ("income", "operating_income")):
             cell = year[statement][key]
-            if cell.get("status") == "REPORTED":
-                sources.add(cell["accession"])
+            if cell.get("status") in ("REPORTED", "DERIVED"):
+                sources.update(cell.get("sources") or (cell["accession"],))
+        if year["income"]["operating_income"].get("approximate"):
+            row["operating_income_approximate"] = True
         series.append(row)
 
     cagr = None
@@ -127,6 +129,8 @@ def historical_baseline(statements, ratios):
         "effective_tax_rate": _stats(observed("effective_tax_rate")),
         "fcf_margin": _stats(observed("fcf_margin")),
         "sales_to_capital": _stats(reinvestment),
+        "approximate_operating_income_years": [row["fiscal_year_end"] for row in series
+                                               if row.get("operating_income_approximate")],
         "sources": sorted(sources),
     }
 
@@ -176,6 +180,8 @@ def project_scenarios(baseline, *, years=5, long_run_growth, long_run_growth_sou
         result["warnings"].append("HIGH_HISTORICAL_GROWTH_RARELY_PERSISTS")
     if long_run_growth > 0.05:
         result["warnings"].append("LONG_RUN_GROWTH_ABOVE_TYPICAL_NOMINAL_ECONOMY")
+    if baseline.get("approximate_operating_income_years"):
+        result["warnings"].append("OPERATING_MARGIN_FROM_APPROXIMATE_EBIT")
     today = today or dt.datetime.now(dt.timezone.utc).date()
     retrospective = dt.date.fromisoformat(baseline["as_of"]) < today
     return dict(result, status="OK", retrospective=retrospective, sources=baseline["sources"],
@@ -216,6 +222,8 @@ def record_projection(projection, *, db_path, scenarios=("baz",)):
                     # A projection built today from an old as_of date is not an out-of-sample forecast.
                     "retrospective": projection["retrospective"],
                 }
+                if "OPERATING_MARGIN_FROM_APPROXIMATE_EBIT" in projection["warnings"]:
+                    assumptions["operating_income_basis"] = "APPROXIMATE_PRETAX_PLUS_INTEREST"
                 for row in scenario["rows"]:
                     for metric in LEDGER_METRICS:
                         ids.append(ledger.tahmin_kaydet(

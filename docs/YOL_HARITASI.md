@@ -26,7 +26,7 @@ Araştırma asistanı  (yalnız rapordaki kaynaklı verilere dayanan yorum)
 |---|---|---|---|
 | 1 | Yapay zekâyı doğru konumlandırmak | Kaynak/tarih kuralları, eksik ≠ 0, birleşik puan yok, araştırma asistanı | İlkeler kodda var; asistan yok |
 | 2 | Gelir tablosu ve kârlılık | `finansal_tablolar` gelir tablosu; marjlar, büyüme | **Tamam** (yıllık + çeyreklik); çeyreklik oranlar yok |
-| 3 | Nakit akışı | CFO, CapEx, serbest nakit akışı, nakit dönüşümü; TTM motorları | **Tamam** (yıllık + çeyreklik + TTM) |
+| 3 | Nakit akışı | CFO, CapEx, serbest nakit akışı, nakit dönüşümü; TTM (ortak çeyreklerden, her çeyrekte) | **Tamam** (yıllık + çeyreklik + TTM) |
 | 4 | Bilanço ve sağlamlık | bilanço kalemleri, toplam borç, cari oran, borç / özkaynak, faiz karşılama, hisse sayısı | **Tamam** (yıllık + çeyrek sonu) |
 | 5 | Oranlarla karar | `finansal_oranlar` (ROA, ROE, ROIC …), Piotroski 9 gösterge | **v0.1 tamam**; Piotroski henüz ortak katmana bağlı değil |
 | 6 | Tahminleme | `tahmin_motoru`: tarihsel baz, temkinli / baz / iyimser gelir ve faaliyet kârı senaryoları, Tahmin Defteri kaydı | **v0.1 tamam** (CLI + web formu); nakit akışı projeksiyonu yok |
@@ -40,15 +40,13 @@ Araştırma asistanı  (yalnız rapordaki kaynaklı verilere dayanan yorum)
 1. **Ortak katmanı genişlet:**
    - ~~çeyreklik tablolar ve çeyrek türetme (Q4 = FY − 9 ay)~~ tamam (tablolar v0.2),
    - ~~hisse sayısı (dei kapak sayfası)~~ tamam (tablolar v0.2),
+   - ~~her çeyrekte TTM~~ tamam (tablolar v0.3),
    - menkul kıymetler ve kira yükümlülükleri,
    - çeyreklik ve TTM oranları.
 2. **Motorları ortak katmana taşı:**
    - ~~Önce mutabakat~~ tamam (`katman_mutabakati.py`). Her rapor Piotroski ve TTM girdilerini ortak katmanla karşılaştırır, farkları gösterir.
-   - **Açık karar:** Piotroski gelir etiketlerinde %5'e kadar farkı kabul ediyor, ortak katman %0,5'te duruyor. Taşıma bu eşiklerden birinde birleşmeyi gerektirir:
-     - %0,5'te birleşirse etiketleri %0,5–%5 arası ayrışan şirketlerde Piotroski göstergeleri "bilinmiyor" olur ve 117 şirketlik kapsam raporundaki sayılar değişir.
-     - %5'te birleşirse ortak tablolar daha fazla belirsiz değer kabul eder.
-   - Karar, gerçek SEC verisiyle mutabakat raporlarında kaç şirketin etkilendiği görüldükten sonra verilmeli.
-   - **Bunu ölçmek için tek komut hazır:** `sec_toplu_tarama.py` her şirketin katman sağlığını özetler. Hazır 11 şirketlik liste ve okuma rehberi [SEC_TOPLU_TARAMA_V01.md](SEC_TOPLU_TARAMA_V01.md) içinde. `HALF_TO_FIVE_PERCENT` sayısı kararın doğrudan girdisidir.
+   - ~~Gelir etiketi eşiği kararı~~ verildi (tablolar v0.3): 11 şirketlik gerçek veri denemesinde yalnız Walmart %0,5–%5 arasındaydı (%0,95). Gelirde %5'e kadar fark artık öncelikli etiketle ve görünür notla kabul edilir; Piotroski ile ortak katman aynı kuralı uygular. Diğer kalemler %0,5'te kalır.
+   - Gerçek veri denemesinin bulguları ve yapılan düzeltmeler [SEC_TOPLU_TARAMA_V01.md](SEC_TOPLU_TARAMA_V01.md) içinde. Sonraki taşıma adımı: Piotroski'nin girdilerini doğrudan ortak tablolardan okuması.
 3. **Tahmin motoru (Ders 6):** ~~v0.1~~ tamam ([TAHMIN_MOTORU_V01.md](TAHMIN_MOTORU_V01.md)).
    - Şirketin kendi geçmişinin çeyreklerinden başlayan, analistin kaynaklı uzun vadeli oranına sönümlenen üç senaryo üretir.
    - Projeksiyonlar istenirse Tahmin Defteri'ne yazılır.

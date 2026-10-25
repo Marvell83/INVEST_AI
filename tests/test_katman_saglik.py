@@ -34,11 +34,12 @@ class LayerHealthTests(unittest.TestCase):
         self.assertEqual((h["piotroski_reconciliation"], h["shares_status"]), ("MATCHED", "MISSING"))
         self.assertEqual(h["latest_ratios_total"], 18)
 
-    def test_gap_between_half_and_five_percent_is_the_threshold_case(self):
+    def test_gap_between_half_and_five_percent_is_noted_not_a_conflict(self):
         h = health(with_revenue_alias(1224))           # 1200 vs 1224: 1.96 %
         self.assertEqual(h["revenue_alias_bucket"], "HALF_TO_FIVE_PERCENT")
         self.assertAlmostEqual(h["revenue_alias_gap"], 24 / 1224)
-        self.assertEqual((h["statement_conflicts"], h["piotroski_attention"]), (["revenue"], ["rev_t"]))
+        self.assertEqual((h["statement_conflicts"], h["piotroski_attention"]), ([], []))
+        self.assertEqual((h["piotroski_reconciliation"], h["latest_ratios_available"]), ("MATCHED", 18))
 
     def test_gap_above_five_percent(self):
         h = health(with_revenue_alias(1320))            # 10 %: Piotroski rejects it too
@@ -46,7 +47,7 @@ class LayerHealthTests(unittest.TestCase):
         self.assertNotIn("rev_t", h["piotroski_attention"])
 
     def test_only_latest_two_years_count_for_the_threshold(self):
-        h = health(with_revenue_alias(820, year=2022))  # conflict three years back
+        h = health(with_revenue_alias(860, year=2022))  # conflict (7 %) three years back
         self.assertEqual(h["statement_conflicts"], ["revenue"])
         self.assertEqual(h["revenue_alias_bucket"], "NO_REVENUE_CONFLICT")
 
@@ -62,17 +63,19 @@ class ScanSummaryTests(unittest.TestCase):
             self.assertEqual(counts["issuers"], 2)
             self.assertEqual(counts["revenue_alias_bucket"],
                              {"HALF_TO_FIVE_PERCENT": 1, "NO_REVENUE_CONFLICT": 1})
-            self.assertEqual(counts["statement_conflict_items"], {"revenue": 1})
+            self.assertEqual(counts["statement_conflict_items"], {})
+            self.assertEqual(counts["shared_ttm_status"], {"INSUFFICIENT_QUARTERS": 2})
             out_json, out_csv = Path(folder) / "s.json", Path(folder) / "s.csv"
             _export(summary, out_json, out_csv)
             with out_csv.open(encoding="utf-8-sig", newline="") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[0]["revenue_alias_bucket"], "HALF_TO_FIVE_PERCENT")
-            self.assertEqual(rows[0]["piotroski_attention"], "rev_t")
+            self.assertEqual((rows[0]["piotroski_attention"], rows[0]["latest_operating_income"]), ("", "REPORTED"))
             self.assertEqual(json.loads(out_json.read_text(encoding="utf-8"))["layer_health_counts"], counts)
             text = "\n".join(health_summary_lines(summary))
-            self.assertIn("%0,5–%5 arası 1 (Piotroski eşik kararını etkiler)", text)
-            self.assertIn("revenue (1)", text)
+            self.assertIn("%0,5–%5 arası 1 (öncelikli etiket, notla)", text)
+            self.assertIn("Ortak çeyreklerden TTM: INSUFFICIENT_QUARTERS 2", text)
+            self.assertNotIn("En sık etiket çelişkisi", text)
 
     def test_empty_summary_line(self):
         self.assertEqual(health_summary_lines({}), ["Katman sağlığı: analiz edilen şirket yok."])

@@ -77,11 +77,13 @@ Her şirket kaydında artık bir `layer_health` alanı var. Bu alan aynı zamand
 |---|---|
 | `statement_years`, `latest_fiscal_year_end` | Bulunan yıllık 10-K yılı sayısı ve son mali yıl sonu |
 | `statement_conflicts` | XBRL etiketleri birbirini tutmayan kalemler |
-| `revenue_alias_bucket`, `revenue_alias_gap` | Son iki yılda gelir etiketleri arasındaki fark: `NO_REVENUE_CONFLICT`, `HALF_TO_FIVE_PERCENT` (Piotroski kabul ediyor, ortak tablolar çelişki görüyor), `ABOVE_FIVE_PERCENT` |
+| `revenue_alias_bucket`, `revenue_alias_gap` | Son iki yılda gelir etiketleri arasındaki fark: `NO_REVENUE_CONFLICT` (%0,5'e kadar), `HALF_TO_FIVE_PERCENT` (Piotroski ve ortak tablolar öncelikli etiketi kullanır, fark raporda notla görünür), `ABOVE_FIVE_PERCENT` (ikisinde de çelişki) |
 | `quarters` | Sınırları belirlenebilen çeyrek sayısı (en çok 8) |
 | `shares_status` | Kapak sayfası hisse sayısı: `REPORTED`, `CONFLICT` (çok sınıflı hisse), `MISSING` |
 | `piotroski_reconciliation`, `piotroski_attention` | Piotroski girdileri ↔ ortak tablolar ve fark çıkan girdiler |
-| `ttm_reconciliation` | TTM ↔ dört çeyrek toplamı |
+| `shared_ttm_status`, `shared_ttm_end` | Ortak çeyreklerden TTM: `OK`, `PARTIAL`, `INSUFFICIENT_QUARTERS`; hangi çeyrek en son olursa olsun hesaplanır |
+| `ttm_reconciliation` | Eski iki TTM motoru ↔ ortak TTM. Eski motorlar yalnız son dönem 9 aylık 10-Q olduğunda çalışır; diğer durumlarda `NOT_APPLICABLE` normaldir |
+| `latest_operating_income` | Son yılın faaliyet kârı: `REPORTED`, `APPROXIMATE` (vergi öncesi kâr + faiz gideri), `MISSING` |
 | `baseline_status` | Senaryolar için yeterli geçmiş var mı |
 | `latest_ratios_available` | Son yılda hesaplanabilen oran sayısı (18 üzerinden) |
 
@@ -98,10 +100,18 @@ python3 sec_toplu_tarama.py --universe ornekler/gercek_veri_kontrol_evreni.json 
 
 Saniyede en fazla bir istek gider; 11 şirket yaklaşık 15 saniye sürer. Bir kez indirilen dosyalar `--offline` ile ağsız yeniden kullanılabilir.
 
-**Piotroski eşik kararı nasıl okunur?**
-- `revenue_alias_bucket` sayımında `HALF_TO_FIVE_PERCENT` kaç şirkette çıktığına bakın. Ortak katmanın %0,5 eşiği Piotroski'ye taşınırsa bu şirketlerde gelirle ilgili Piotroski göstergeleri "bilinmiyor" olur.
-- Sayı küçükse %0,5'te birleşmek düşük maliyetli ve daha tutarlıdır.
-- Sayı büyükse önce etiket eşleştirme kuralları gözden geçirilmelidir.
+**İlk gerçek veri denemesi (25 Ekim 2026) ve sonrasında yapılanlar**
+
+| Bulgu | Düzeltme (tablolar v0.3) |
+|---|---|
+| Alphabet, J&J ve Coca-Cola'da hisse bazlı ödeme "çelişki" | `AllocatedShareBasedCompensationExpense` eşanlamlı listesinden çıkarıldı; yalnız nakit akışı tablosundaki `ShareBasedCompensation` okunur |
+| Walmart'ta iki gelir etiketi %0,95 ayrışıyor (net satışlar / toplam gelir): yalnız 10 oran, yetersiz baz, Piotroski farkı | Gelir etiketlerinde %5'e kadar fark: öncelikli etiket + görünür not; %5 üstü çelişki. Piotroski ile aynı kural |
+| J&J ve Exxon faaliyet kârı bildirmiyor: yetersiz baz | Yaklaşık faaliyet kârı = vergi öncesi kâr + faiz gideri (aynı dosya), ≈ ile işaretli |
+| TTM 11 şirketin yalnız birinde | Ortak çeyreklerden TTM her çeyrekte; eski motorlar 9 aylık dönemde çapraz kontrol olarak kalır |
+| Alphabet hisse sayısı yok (çok sınıflı) | Bilerek değişmedi: sınıflar toplanmaz, analist girer |
+| JPM (banka) | Bilerek değişmedi: banka muhasebesi ayrı yöntem ister |
+
+Aynı komutu yeniden çalıştırıp `layer_health_counts` sayımlarını önceki çıktıyla karşılaştırın. Beklenen: `statement_conflict_items` içinde `share_based_compensation` kalmaz, `shared_ttm_status` çoğunlukla `OK` olur, `latest_operating_income` J&J ve Exxon'da `APPROXIMATE` olur (faiz gideri bildiriyorlarsa).
 
 ## Testler
 

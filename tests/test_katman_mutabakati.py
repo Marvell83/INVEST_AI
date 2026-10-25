@@ -72,14 +72,20 @@ class PiotroskiReconciliationTests(unittest.TestCase):
         self.assertEqual(set(statuses(result).values()), {"MATCH"})
         self.assertIn("rev_t", statuses(result))
 
-    def test_alias_gap_between_half_and_five_percent_is_flagged(self):
-        # Piotroski accepts revenue aliases up to 5% apart; the shared layer stops at 0.5%.
+    def test_revenue_alias_gap_up_to_five_percent_uses_the_same_priority_alias(self):
+        # Piotroski and the shared layer both use the priority revenue alias up to 5% apart.
         data = company()
         data["facts"]["us-gaap"]["Revenues"] = {"units": {"USD": [fact(1224, 2024)]}}
         result = piotroski_layers(data)
-        self.assertEqual(result["status"], "DIFFERENCES")
-        self.assertEqual(statuses(result)["rev_t"], "SHARED_CONFLICT")
-        self.assertEqual([c["piotroski_input"] for c in result["attention"]], ["rev_t"])
+        self.assertEqual(result["status"], "MATCHED")
+        self.assertEqual(statuses(result)["rev_t"], "MATCH")
+
+    def test_revenue_alias_gap_above_five_percent_is_unknown_in_both(self):
+        data = company()
+        data["facts"]["us-gaap"]["Revenues"] = {"units": {"USD": [fact(1320, 2024)]}}
+        result = piotroski_layers(data)
+        self.assertNotIn("rev_t", statuses(result))
+        self.assertEqual(result["attention"], [])
 
     def test_piotroski_only_derivation_is_a_note(self):
         result = piotroski_layers(sample())  # noncurrent debt derived as total minus current portion

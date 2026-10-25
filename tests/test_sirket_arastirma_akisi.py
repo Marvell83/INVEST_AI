@@ -107,7 +107,7 @@ class CompanyResearchPipelineTests(unittest.TestCase):
         self.assertEqual(r["ttm_crosscheck"]["status"], "BLOCKED")
         self.assertEqual(r["quality"]["piotroski"]["known_count"], 8)
         self.assertEqual(r["ttm_crosscheck"]["primary"]["metrics"]["capex"]["value_usd"], None)
-        self.assertIn("mutabakat bekliyor", render_company_research(r))
+        self.assertIn("iki motorlu karşılaştırma yapılamadı", render_company_research(r))
 
     def test_conflicting_revenue_alias_retains_warning_and_no_false_ttm(self):
         raw = with_ttm()
@@ -220,7 +220,7 @@ class CompanyResearchPipelineTests(unittest.TestCase):
             raw["facts"]["us-gaap"][tag]["units"]["USD"][1]["filed"] = "2025-11-01"
         r = run(raw)
         self.assertNotEqual(r["ttm_crosscheck"]["status"], "RECONCILED_CALCULATIONS")
-        self.assertIn("mutabakat bekliyor", render_company_research(r))
+        self.assertIn("iki motorlu karşılaştırma yapılamadı", render_company_research(r))
 
     def test_documented_apple_transcription_stays_explicitly_manual(self):
         sample = (Path(__file__).resolve().parent.parent /

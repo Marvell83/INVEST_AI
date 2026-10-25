@@ -144,7 +144,10 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
     elif p["score"] is None:
         gaps.append("PIOTROSKI_INCOMPLETE:" + str(p["known_count"]) + "/9")
     if ttm["status"] != "RECONCILED_CALCULATIONS":
-        gaps.append("TTM_NOT_RECONCILED:" + ttm["status"])
+        # The two older engines handle nine-month periods only; the shared quarterly
+        # TTM covers any latest quarter but is then not cross-checked by a second method.
+        single = (quarterly.get("ttm") or {}).get("status") == "OK"
+        gaps.append(("TTM_SINGLE_METHOD_ONLY:" if single else "TTM_NOT_RECONCILED:") + ttm["status"])
     annual_end = annual.get("latest_any_fy_end")
     p_end = p.get("periods", {}).get("current_fy_end")
     if annual_end and p_end and p_end != annual_end:
@@ -173,7 +176,9 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         "Credit ratings require separately maintained source-cited manual observations.",
         "TTM flow arithmetic is not a future cash-flow forecast; CFO minus CapEx is not unlevered FCFF.",
         "No automatic DCF, discount rate, market price, price target, stock ranking or buy/sell recommendation.",
-        "IFRS/20-F, finance-sector-specific scoring and Q1/Q2 TTM need dedicated methodologies.",
+        "IFRS/20-F and finance-sector-specific scoring need dedicated methodologies.",
+        "The shared TTM sums four consecutive quarters for any latest quarter; the two older TTM engines "
+        "cross-check it only when the latest period is a nine-month 10-Q.",
         "Annual statements cover selected US-GAAP line items; lease liabilities, marketable securities "
         "and segment data are not included, and historical ratios are not forecasts.",
     ]
@@ -258,10 +263,12 @@ def render_company_research(report):
     else:
         discrepancy = ", ".join(x.get("reason", "UNKNOWN") for x in ttm.get("discrepancies", []))
         ttm_section = (
-            "<section class='card'><h2>TTM finansalları — mutabakat bekliyor</h2>"
+            "<section class='card'><h2>TTM — iki motorlu karşılaştırma yapılamadı</h2>"
             "<p>Durum: <strong>" + _safe(ttm["status"]) + "</strong></p>"
             "<p>Gerekçeler: " + _safe(discrepancy or "Kullanılabilir kaynak bulunamadı") + "</p>"
-            "<p class='muted'>Eksik veriler yerine tutar veya değerleme üretilmedi.</p></section>"
+            "<p class='muted'>Eski iki TTM motoru yalnız son dönem 9 aylık 10-Q olduğunda çalışır. "
+            "Ortak çeyreklerden hesaplanan TTM, çeyreklik tablolar bölümündedir. "
+            "Eksik veriler yerine tutar veya değerleme üretilmedi.</p></section>"
         )
     details = "".join("<li>" + _safe(x) + "</li>" for x in gaps) or (
         "<li>Hesap motorlarının tanımlı kapsama şartları karşılandı; kaynak bağımsız doğrulanmış değildir.</li>")

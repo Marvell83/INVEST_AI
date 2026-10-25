@@ -7,10 +7,9 @@ changes no engine output; differences are reported, never silently resolved.
 """
 from __future__ import annotations
 
-import datetime as dt
-import math
+from finansal_tablolar import ITEM_ALIAS_TOLERANCE, trailing_twelve_months
 
-VERSION = "katman-mutabakati-0.1.0"
+VERSION = "katman-mutabakati-0.2.0"
 # Piotroski provenance prefix -> (statement, shared line item)
 PIOTROSKI_ITEMS = {
     "ni": ("income", "net_income"), "cfo": ("cash_flow", "cfo"), "rev": ("income", "revenue"),
@@ -18,8 +17,7 @@ PIOTROSKI_ITEMS = {
     "d": ("balance", "long_term_debt_noncurrent"), "ca": ("balance", "current_assets"),
     "cl": ("balance", "current_liabilities"),
 }
-TTM_ITEMS = {"revenue": ("income", "revenue"), "ebit": ("income", "operating_income"),
-             "cfo": ("cash_flow", "cfo"), "capex": ("cash_flow", "capex")}
+TTM_ITEMS = {"revenue": "revenue", "ebit": "operating_income", "cfo": "cfo", "capex": "capex"}
 ROUNDING_TOLERANCE = 0.001  # quarterly 3-month values may not add up exactly to YTD totals
 ATTENTION = ("VALUE_DIFFERS", "SHARED_CONFLICT")
 
@@ -67,32 +65,31 @@ def reconcile_piotroski(piotroski, statements):
 
 
 def reconcile_ttm(ttm_audit, quarterly):
-    """Compare reconciled TTM flows with the sum of the same four shared quarters."""
+    """Compare reconciled TTM flows with the shared TTM of the same four quarters.
+
+    The two older engines only handle nine-month periods; the shared TTM itself
+    (`quarterly["ttm"]`) is available for any latest quarter.
+    """
     if ttm_audit.get("status") != "RECONCILED_CALCULATIONS":
         return {"status": "NOT_APPLICABLE", "checks": [], "reason": "TTM_ENGINES_NOT_RECONCILED"}
     end = ttm_audit["primary"]["periods"]["current_9m_end"]
-    quarters = quarterly.get("quarters", [])
-    index = next((i for i, q in enumerate(quarters) if q["end"] == end), None)
-    window = quarters[index:index + 4] if index is not None else []
-    consecutive = len(window) == 4 and all(
-        dt.date.fromisoformat(newer["start"]) == dt.date.fromisoformat(older["end"]) + dt.timedelta(days=1)
-        for newer, older in zip(window, window[1:]))
-    if not consecutive:
+    shared = trailing_twelve_months(quarterly, end=end)
+    if shared["status"] == "INSUFFICIENT_QUARTERS":
         return {"status": "NOT_COMPARABLE", "checks": [], "ttm_end": end,
                 "reason": "NO_FOUR_CONSECUTIVE_SHARED_QUARTERS_TO_TTM_END"}
     checks = []
-    for metric, (statement, item) in TTM_ITEMS.items():
-        cells = [q[statement][item] for q in window]
+    for metric, item in TTM_ITEMS.items():
+        cell = shared["items"][item]
         ttm_value = ttm_audit["primary"]["metrics"][metric]["value_usd"]
-        check = {"metric": metric, "item": item, "ttm": ttm_value,
-                 "quarters": [q["end"] for q in window]}
-        if not all(_known(c) for c in cells):
+        check = {"metric": metric, "item": item, "ttm": ttm_value, "quarters": shared["quarters"]}
+        if not _known(cell):
             check["status"] = "SHARED_INCOMPLETE"
         else:
-            check["shared"] = math.fsum(c["value"] for c in cells)
+            check["shared"] = cell["value"]
             gap = _relative_gap(check["shared"], ttm_value)
             check["difference"] = check["shared"] - ttm_value
-            check["status"] = ("MATCH" if gap <= 1e-9 else
+            check["status"] = ("SHARED_APPROXIMATE" if cell.get("approximate") else
+                               "MATCH" if gap <= 1e-9 else
                                "ROUNDING" if gap <= ROUNDING_TOLERANCE else "VALUE_DIFFERS")
         checks.append(check)
     attention = [c for c in checks if c["status"] in ATTENTION]
@@ -101,10 +98,16 @@ def reconcile_ttm(ttm_audit, quarterly):
     return {"status": status, "checks": checks, "attention": attention, "ttm_end": end}
 
 
-PIOTROSKI_ALIAS_TOLERANCE = 0.05  # piotroski_fscore accepts revenue aliases this far apart
+# piotroski_fscore and the shared statements both accept revenue aliases this far apart.
+PIOTROSKI_ALIAS_TOLERANCE = ITEM_ALIAS_TOLERANCE["revenue"]
 
 
 def _alias_spread(cell):
+    """Gap between revenue aliases: noted (priority alias used) or in conflict; None if they agree."""
+    if cell.get("alias_gap"):
+        return cell["alias_gap"]["spread"]
+    if cell.get("status") != "CONFLICT":
+        return None
     values = [a["value"] for a in cell.get("alternatives", [])]
     peak = max((abs(v) for v in values), default=0)
     return (max(values) - min(values)) / peak if peak else 0.0
@@ -113,9 +116,9 @@ def _alias_spread(cell):
 def layer_health(research):
     """Compact health of the shared layers in one research report, for multi-company real-data checks.
 
-    `revenue_alias_bucket` answers the open threshold question directly:
-    HALF_TO_FIVE_PERCENT means Piotroski accepts the revenue while the shared
-    statements report a conflict.
+    `revenue_alias_bucket`: HALF_TO_FIVE_PERCENT means revenue aliases differ
+    by 0.5%..5% and both Piotroski and the shared statements use the priority
+    alias with the gap noted; ABOVE_FIVE_PERCENT is a conflict in both.
     """
     statements = research.get("financial_statements") or {}
     years = statements.get("years", [])
@@ -124,12 +127,13 @@ def layer_health(research):
     ratio_years = (research.get("financial_ratios") or {}).get("years", [])
     latest_ratios = ratio_years[0]["ratios"] if ratio_years else {}
     # Piotroski compares the latest two fiscal years.
-    gaps = [_alias_spread(y["income"]["revenue"]) for y in years[:2]
-            if y["income"]["revenue"].get("status") == "CONFLICT"]
+    gaps = [g for g in (_alias_spread(y["income"]["revenue"]) for y in years[:2]) if g is not None]
     gap = max(gaps) if gaps else None
     bucket = ("NO_REVENUE_CONFLICT" if gap is None else
               "HALF_TO_FIVE_PERCENT" if gap <= PIOTROSKI_ALIAS_TOLERANCE else "ABOVE_FIVE_PERCENT")
     piotroski = layers.get("piotroski", {})
+    shared_ttm = quarterly.get("ttm") or {}
+    operating = years[0]["income"]["operating_income"] if years else {}
     return {
         "statement_years": len(years),
         "latest_fiscal_year_end": years[0]["fiscal_year_end"] if years else None,
@@ -140,6 +144,9 @@ def layer_health(research):
         "piotroski_reconciliation": piotroski.get("status"),
         "piotroski_attention": [c["piotroski_input"] for c in piotroski.get("attention", [])],
         "ttm_reconciliation": layers.get("ttm", {}).get("status"),
+        "shared_ttm_status": shared_ttm.get("status"),
+        "shared_ttm_end": shared_ttm.get("end"),
+        "latest_operating_income": ("APPROXIMATE" if operating.get("approximate") else operating.get("status")),
         "baseline_status": (research.get("historical_baseline") or {}).get("status"),
         "latest_ratios_available": sum(r.get("value") is not None for r in latest_ratios.values()),
         "latest_ratios_total": len(latest_ratios),
