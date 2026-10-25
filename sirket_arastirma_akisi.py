@@ -236,6 +236,46 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
     }
 
 
+def _render_financial_shell(report):
+    """Active SEC/financial research shell; no legacy score cards."""
+    company = report["company"]
+    cik, as_of = report["cik"], report["as_of"]
+    sector = report.get("sector_assumption", "unknown")
+    credit = report["quality"].get("credit")
+    rows = []
+    if credit is not None:
+        for agency, entry in sorted(credit.get("agency_ratings", {}).items()):
+            url = entry.get("source_url", "")
+            source = (f'<a href="{_safe(url)}" rel="noopener noreferrer">Kaynak</a>'
+                      if isinstance(url, str) and url.startswith("https://") else "Kaynak eksik")
+            grade = entry.get("investment_grade")
+            klass = ("Yatırım yapılabilir" if grade is True else
+                     "Spekülatif" if grade is False else "Not yok / geri çekildi")
+            rows.append(f"<tr><td>{_safe(agency)}</td><td>{_safe(entry.get('rating', ''))}</td>"
+                        f"<td>{_safe(entry.get('outlook', ''))}</td><td>{_safe(klass)}</td>"
+                        f"<td>{_safe(entry.get('published_date', ''))}</td><td>{source}</td></tr>")
+    if not rows:
+        rows.append("<tr><td colspan='6'>Kaynaklı kredi notu kaydı verilmedi.</td></tr>")
+    return (
+        '<!doctype html><html lang="tr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f"<title>INVEST_AI | {_safe(company)}</title><style>{PAGE_STYLE}</style></head>"
+        '<body><main><header class="head"><div class="brand">INVEST_AI · ŞİRKET ARAŞTIRMASI</div>'
+        f"<h1>{_safe(company)}</h1><p class='muted'>CIK {_safe(cik)} · Bilgi tarihi: {_safe(as_of)} "
+        "· Tek bileşik puan yok</p></header>"
+        "<section class='card'><h2>Araştırma kapsamı</h2>"
+        f"<p>Muhasebe sektörü (analist seçimi): {_safe(sector)}</p>"
+        "<p>Yıllık/çeyreklik finansallar, finansal oranlar, SEC kaynak denetimi ve TTM. "
+        "Eksik veriler sıfır sayılmaz.</p></section>"
+        "<section class='card'><h2>Moody's / S&amp;P / Fitch — kredi kalitesi</h2>"
+        "<div class='scroll'><table><thead><tr><th>Kuruluş</th><th>Not</th><th>Görünüm</th>"
+        "<th>Sınıf</th><th>Tarih</th><th>Kaynak</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table></div></section>"
+        "<p class='muted'>Kredi notları, varsa, manuel kaynaklı kayıtlardır. "
+        "Birleşik yatırım puanı üretilmez.</p></main></body></html>"
+    )
+
+
 def render_company_research(report):
     if not isinstance(report, dict) or report.get("version") != VERSION:
         raise ValueError("supported INVEST_AI company research report required")
