@@ -100,7 +100,9 @@ def _ratio_text(key, value):
     if kind == "percent":
         return f"{value * 100:.1f}%"
     if kind == "multiple":
-        return f"{value:.2f}x"
+        # The Piotroski cash-quality signal uses a strict CFO > net-income test.
+        # 1.00x can hide a 0.995x value and appear inconsistent with a zero signal.
+        return f"{value:.4f}x" if key == "cash_conversion" else f"{value:.2f}x"
     return f"{value / 1e6:,.0f}"
 
 
@@ -151,11 +153,34 @@ def render_financial_sections(statements, ratios):
                 title = f" title='{_safe(' · '.join(notes))}'" if notes else ""
                 cells.append(f"<td class='num'{title}>{_safe(text)}</td>")
         ratio_rows.append(f"<tr><td title='{_safe(formula)}'>{_safe(label)}</td>{''.join(cells)}</tr>")
+    # Extremely high ROIC can come from a tiny equity + net-debt denominator,
+    # particularly after subtracting large cash / marketable security holdings.
+    # Explain the actual denominator; do not present these ratios as a reliable
+    # cross-company operating-efficiency comparison.
+    roic_capital = []
+    for item in ratios["years"]:
+        entry = item["ratios"]["roic"]
+        cap = entry.get("inputs", {}).get("average_invested_capital")
+        if entry.get("caution") == "VERY_SMALL_INVESTED_CAPITAL" and isinstance(cap, (int, float)) and cap > 0:
+            roic_capital.append(f"{item['fiscal_year_end']}: {cap / 1e6:,.1f} milyon USD")
+    roic_note = (
+        "<div class='note'><strong>ROIC yöntem uyarısı:</strong> Bu oran faaliyet kârı × "
+        "(1 − efektif vergi) / ortalama (özkaynak + net borç) olarak hesaplanır. "
+        "Net borç nakit ve menkul kıymetleri düşürdüğü için Apple gibi yüksek likit varlığı olan "
+        "şirketlerde sermaye tabanı küçülebilir ve ROIC aşırı yükselebilir. "
+        "İşletme sermayesi tanımına ve menkul kıymet sınıflamasına duyarlıdır; "
+        "tek başına sürdürülebilir faaliyet getirisi veya şirketler arası üstünlük kanıtı değildir. "
+        "<strong>Yüksek ROIC dönemlerindeki ortalama sermaye:</strong> " +
+        _safe("; ".join(roic_capital)) + ".</div>"
+        if roic_capital else ""
+    )
     ratio_table = (
         "<section class='card'><h2>Finansal oranlar</h2>"
         "<div class='scroll'><table><thead><tr><th>Oran</th>" + head + "</tr></thead><tbody>" +
-        "".join(ratio_rows) + "</tbody></table></div>"
-        "<p class='muted'>Oran adının üzerine gelince formül, — işaretinin üzerine gelince hesaplanamama "
+        "".join(ratio_rows) + "</tbody></table></div>" + roic_note +
+        "<p class='muted'>Nakit dönüşümü CFO / net kâr, Piotroski'nin kesin CFO > net kâr "
+        "karşılaştırmasıyla karışmaması için dört ondalıkla gösterilir. "
+        "Oran adının üzerine gelince formül, — işaretinin üzerine gelince hesaplanamama "
         "nedeni görünür. ≈ yaklaşık faaliyet kârıyla hesaplandı · ! ROIC %100'ün üstünde: yatırılan sermaye "
         "çok küçük, oran tek başına yorumlanmamalı. Net borç milyon USD'dir: toplam borç − nakit − bildirilmişse menkul kıymetler; "
         "kira yükümlülükleri dahil değildir. "
