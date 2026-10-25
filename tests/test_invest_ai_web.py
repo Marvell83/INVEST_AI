@@ -276,6 +276,20 @@ class HTTPTests(unittest.TestCase):
         self.assertIn(b"Apple", page)
         self.assertEqual(self.request("GET", answer["report_url"].replace(".html", ".json"))[0], 404)
 
+
+    def test_sec_scanner_http_requires_key_and_same_origin(self):
+        self.service.user_agent = "INVEST_AI test@example.com"
+        status, body = self.request("POST", "/api/sec-scan", payload={})
+        self.assertEqual(status, 200)
+        result = json.loads(body)
+        self.assertEqual(result["total"], 1)
+        self.assertFalse(result["financial_facts_downloaded"])
+        self.assertEqual(self.request("POST", "/api/sec-scan", payload={}, secret="wrong")[0], 403)
+        self.assertEqual(self.request("POST", "/api/sec-scan", payload={},
+                                      origin="https://evil.example")[0], 403)
+        self.assertEqual(self.request("POST", "/api/sec-scan", payload={"offset": -1})[0], 422)
+        self.assertEqual(self.request("GET", "/api/sec-scan")[0], 404)
+
     def test_unauthorized_post_forbidden(self):
         payload = {"ticker": "AAPL", "mode": "demo", "sector": "unknown"}
         status, data = self.request("POST", "/api/analyze", payload=payload, secret="wrong")
