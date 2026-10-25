@@ -29,7 +29,13 @@ F/K, PD/DD, fiyat/satışlar, (ROE/10)/PD/DD, EV/EBIT, EV/FAVÖK*, FCF getirisi 
 
 **PEG:** İleriye dönük hisse başına kâr büyüme tahmini, fiyat ve F/K dönemi uyumlu olana kadar **boş**. 3 yıllık ciro CAGR otomatik olarak PEG büyüme oranı yapılmaz.
 
-**Hisse sayısı değişimi (3Y):** SEC'den yıllar bazında karşılaştırılabilir pay adedi serisi kurulana kadar boş.
+**Hisse sayısı değişimi (3Y):** son mali yılın ağırlıklı ortalama seyreltilmiş hisse sayısı ÷ 3 yıl önceki aynı değer − 1. Kapak sayfasındaki güncel adet değil, iki mali yılın aynı türden sayısı kullanılır.
+
+**Seyreltilmiş EPS ve EPS CAGR (3Y):** EPS = ana ortaklık net kârı ÷ ağırlıklı ortalama seyreltilmiş hisse (aynı mali yıl). Şirketin bildirdiği EPS rakamı değildir; imtiyazlı hisse temettüleri düşülmez. 3 yıllık CAGR yalnız iki yılın EPS'i de pozitifse hesaplanır. Bu tarihsel bir büyümedir; ileriye dönük analist EPS beklentisi değildir.
+
+**Net kâr büyümesi (1Y):** yalnız bir önceki mali yıl 330–400 gün önce bitmişse ve o yılın net kârı pozitifse.
+
+**Son mali yıl yaşı (gün):** SEC bilgi tarihi ile son mali yıl sonu arasındaki gün. 456 günü aşan şirketlerin finansalları güncel değildir (yeni 10-K vermemiş, el değiştirmiş veya kapanmış olabilir); bugünkü fiyatla çarpan hesaplamak yanıltır. Tabloda bu sütuna "en fazla 456" filtresi koymak güncel dosyalayıcıları bırakır.
 
 ## Ölçüt kısıtları
 

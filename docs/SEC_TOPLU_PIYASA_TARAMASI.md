@@ -125,3 +125,30 @@ SQLite/Excel finansal satırları şunları içerir: ROE, ROIC, ROA, gelir/kâr 
 `python3 -m unittest discover -s tests -v`
 
 Güncel SEC arşiv bağlantısı: [SEC EDGAR APIs](https://www.sec.gov/search-filings/edgar-application-programming-interfaces) · [resmî companyfacts.zip](https://www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip)
+
+
+## Kapsam raporu ve yeniden hesaplama (v0.7)
+
+**Hangi oran kaç şirkette dolu?** Veritabanını değiştirmeden:
+
+```bash
+python3 sec_piyasa_toplu_tarama.py --coverage
+```
+
+Çıktı Türkçedir ve yalnız `OK` şirketleri sayar:
+- her sayısal sütunda değeri olan şirket sayısı ve yüzdesi,
+- 7 koşulun her girdisinin kaç şirkette hazır olduğu; ROIC yalnız uyarısızsa sayılır,
+- fiyat gerektirmeyen 5 girdinin (ROE, ROIC, net borç/FAVÖK, 3Y CFO/net kâr, 3Y FCF) hepsi dolu şirket sayısı,
+- son mali yılı 456 günden eski (güncel olmayan) şirket sayısı,
+- eski sürümle hesaplanmış ve yeni sütunları boş kalan satır sayısı.
+
+**Yeni sütunlar için yeniden hesaplama (indirme yok):** Tabloya SEC'den türetilen yeni bir sütun eklendiğinde, daha önce işlenmiş satırlarda o sütun boş görünür. Aynı yerel `veri/companyfacts.zip` ve aynı bilgi tarihiyle bütün şirketleri yeniden hesaplamak için:
+
+```bash
+python3 sec_piyasa_toplu_tarama.py --rebuild
+python3 sec_piyasa_toplu_tarama.py --coverage
+```
+
+- İnternete bağlanmaz, `SEC_USER_AGENT` gerekmez.
+- Kesilirse aynı komut kaldığı yerden devam eder; o sırada tablo eski satırları göstermeye devam eder.
+- Farklı bir ZIP veya farklı bilgi tarihiyle çalıştırılmaz; `--retry-errors` ile birlikte kullanılmaz.

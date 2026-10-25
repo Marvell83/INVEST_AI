@@ -20,7 +20,8 @@ import zipfile
 
 from finansal_tablolar import build_annual_statements
 from finansal_oranlar import compute_ratios
-from hisse_tarama_tablosu import COLUMNS, COLUMN_KEYS, _lineup
+from hisse_tarama_tablosu import (COLUMNS, COLUMN_KEYS, ROW_SCHEMA, STALE_FINANCIALS_DAYS, _lineup,
+                                  financials_age_days)
 from sec_arsiv import (SECThrottle, atomic_write, canonical_bytes,
                        download_ticker_map, load_json, ticker_mapping)
 
@@ -146,13 +147,20 @@ def _empty_row(cik, ticker, name, as_of, status, reason):
                as_of=as_of, source_mode="SEC_BULK_ZIP", sector="unknown",
                report_url=None, roic_warning=False, ebitda_approximate=False,
                price_source=None, price_date=None, screening_status=status,
-               screening_reason=reason)
+               screening_reason=reason, row_schema=ROW_SCHEMA)
     return row
 
 
 def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
-               progress=None, retry_errors=False):
-    """Checkpoint each 25 SEC issuers; optionally retry errors without deleting OK rows."""
+               progress=None, retry_errors=False, rebuild=False):
+    """Checkpoint each 25 SEC issuers; optionally retry errors without deleting OK rows.
+
+    `rebuild` recomputes every issuer of the same local ZIP and as-of date (for
+    new screener columns) without downloading anything; an interrupted rebuild
+    continues on the next run, and old rows stay visible until replaced.
+    """
+    if rebuild and retry_errors:
+        raise ValueError("rebuild already reprocesses every issuer; do not combine with retry_errors")
     root = Path(root).resolve()
     zip_path = Path(archive_path).resolve() if archive_path else root / ZIP_REL
     ticker_path = root / TICKER_REL
@@ -188,8 +196,8 @@ def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
     for item in values:
         names[item["ticker"].strip().upper()] = str(item.get("title", ""))[:300]
     signature = f"{zip_path.stat().st_size}|{zip_path.stat().st_mtime_ns}|{as_of}"
-    if retry_errors and old_snapshot != signature:
-        raise ValueError("Cannot retry errors across a different SEC ZIP/as-of snapshot")
+    if (retry_errors or rebuild) and old_snapshot != signature:
+        raise ValueError("Cannot retry or rebuild across a different SEC ZIP/as-of snapshot")
     processed = 0
     failed = 0
     with zipfile.ZipFile(zip_path) as source, closing(_connect(db)) as conn:
@@ -204,6 +212,8 @@ def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
                 conn.execute("DELETE FROM companies")
                 conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('snapshot',?)", (signature,))
                 conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('as_of',?)", (as_of,))
+            elif rebuild:
+                conn.execute("UPDATE companies SET status='PENDING'")
             conn.executemany(
                 "INSERT OR IGNORE INTO companies(cik,ticker,company,status,snapshot) VALUES(?,?,?,'PENDING',?)",
                 ((cik, ticker, names.get(ticker, ""), signature) for cik,ticker in issuers.items()))
@@ -348,6 +358,81 @@ def diagnose_database(root, *, sample_limit=12):
             "snapshot_as_of":meta.get("as_of"),"snapshot":meta.get("snapshot")}
 
 
+def _ok_rows(conn):
+    return [json.loads(payload) for (payload,) in conn.execute(
+        "SELECT payload FROM companies WHERE status='OK' AND payload IS NOT NULL")]
+
+
+# Inputs of the seven-condition pre-screen; ROIC counts only without a caution flag.
+SCREEN_INPUTS = (("roe", "ROE"), ("roic", "ROIC (uyarısız)"), ("roe_10_pb", "(ROE / 10) / PD/DD"),
+                 ("peg", "PEG"), ("net_debt_to_ebitda", "Net borç / FAVÖK*"),
+                 ("cash_conversion_3y", "CFO / net kâr (3Y)"), ("fcf_3y", "3 yıllık toplam FCF"))
+SEC_ONLY_INPUTS = ("roe", "roic", "net_debt_to_ebitda", "cash_conversion_3y", "fcf_3y")
+
+
+def _usable(row, key):
+    value = row.get(key)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    return not (key == "roic" and row.get("roic_warning"))
+
+
+def coverage_report(root):
+    """Read-only: how many OK issuers have each screener value, without reprocessing SEC files."""
+    db = Path(root).resolve() / DB_REL
+    if not db.is_file():
+        raise FileNotFoundError("No local SEC screener database found")
+    with closing(sqlite3.connect(db.as_uri() + "?mode=ro", uri=True)) as conn:
+        tally = dict(conn.execute("SELECT status,count(*) FROM companies GROUP BY status").fetchall())
+        rows = _ok_rows(conn)
+        meta = dict(conn.execute("SELECT key,value FROM metadata").fetchall())
+    total = len(rows)
+
+    def share(count):
+        return round(count / total, 4) if total else 0.0
+    columns = []
+    for key, label, unit, group in COLUMNS:
+        if unit == "text":
+            continue
+        count = sum(_usable(r, key) for r in rows)
+        columns.append({"key": key, "label": label, "group": group, "available": count, "share": share(count)})
+    ages = [r.get("financials_age_days", financials_age_days(r.get("as_of"), r.get("fiscal_year")))
+            for r in rows]
+    stale = sum(age is not None and age > STALE_FINANCIALS_DAYS for age in ages)
+    screen = [{"key": key, "label": label, "available": sum(_usable(r, key) for r in rows)}
+              for key, label in SCREEN_INPUTS]
+    for item in screen:
+        item["share"] = share(item["available"])
+    return {
+        "snapshot_as_of": meta.get("as_of"), "status_counts": tally, "ok_issuers": total,
+        "columns": columns, "screen_inputs": screen,
+        "all_sec_only_inputs": sum(all(_usable(r, k) for k in SEC_ONLY_INPUTS) for r in rows),
+        "roic_with_caution": sum(r.get("roic") is not None and bool(r.get("roic_warning")) for r in rows),
+        "stale_financials": stale, "stale_threshold_days": STALE_FINANCIALS_DAYS,
+        "rows_needing_rebuild": sum(r.get("row_schema", 1) < ROW_SCHEMA for r in rows),
+    }
+
+
+def coverage_lines(report):
+    """Turkish reading of coverage_report, printed by --coverage."""
+    total = report["ok_issuers"]
+    lines = [f"Finansalları işlenmiş şirket (OK): {total} · SEC bilgi tarihi {report['snapshot_as_of']}"]
+    if report["rows_needing_rebuild"]:
+        lines.append(f"! {report['rows_needing_rebuild']} satır eski sürümle hesaplanmış; yeni sütunlar için "
+                     "bir kez `--rebuild` çalıştır (indirme yapmaz).")
+    lines.append(f"Son mali yılı {report['stale_threshold_days']} günden eski (güncel olmayan): "
+                 f"{report['stale_financials']}")
+    lines.append(f"ROIC var ama uyarılı (küçük sermaye veya yaklaşık EBIT): {report['roic_with_caution']}")
+    lines.append("7 koşulun girdileri:")
+    for item in report["screen_inputs"]:
+        lines.append(f"  {item['label']:<24} {item['available']:>6}  %{item['share'] * 100:5.1f}")
+    lines.append(f"Fiyat gerektirmeyen 5 girdinin hepsi dolu: {report['all_sec_only_inputs']}")
+    lines.append("Bütün sayısal sütunlar (dolu şirket sayısı):")
+    for item in report["columns"]:
+        lines.append(f"  {item['label']:<44} {item['available']:>6}  %{item['share'] * 100:5.1f}")
+    return lines
+
+
 def load_bulk_grid(root):
     """Read a large saved SEC universe without loading raw SEC JSONs again."""
     path = Path(root).resolve() / DB_REL
@@ -356,9 +441,14 @@ def load_bulk_grid(root):
     from hisse_tarama_tablosu import VERSION
     con = sqlite3.connect(path.as_uri()+"?mode=ro", uri=True)
     try:
-        rows = [json.loads(item[0]) if item[0] else
+        # Rows saved by an older screener version lack newer columns: show them as missing.
+        blank = dict.fromkeys(COLUMN_KEYS)
+        rows = [{**blank, **json.loads(item[0])} if item[0] else
                 _empty_row(item[1], item[2], item[3], None, item[4], "NOT_PROCESSED")
                 for item in con.execute("SELECT payload,cik,ticker,company,status FROM companies ORDER BY ticker")]
+        for row in rows:
+            if row.get("financials_age_days") is None:
+                row["financials_age_days"] = financials_age_days(row.get("as_of"), row.get("fiscal_year"))
         tally = dict(con.execute("SELECT status,count(*) FROM companies GROUP BY status"))
     finally:
         con.close()
@@ -386,7 +476,7 @@ def load_bulk_grid(root):
 
 
 def run(root, *, zip_path=None, limit=None, progress=None, user_agent=None,
-        retry_errors=False):
+        retry_errors=False, rebuild=False):
     root = Path(root).resolve()
     archive = Path(zip_path).resolve() if zip_path else root / ZIP_REL
     mapping = root / TICKER_REL
@@ -398,7 +488,7 @@ def run(root, *, zip_path=None, limit=None, progress=None, user_agent=None,
     if not archive.is_file():
         fetch_bulk_zip(archive, user_agent=user_agent, progress=progress)
     return ingest_zip(root, archive_path=archive, max_companies=limit, progress=progress,
-                      retry_errors=retry_errors)
+                      retry_errors=retry_errors, rebuild=rebuild)
 
 
 def main(argv=None):
@@ -409,14 +499,21 @@ def main(argv=None):
     parser.add_argument("--diagnose", action="store_true", help="Print status and errors without processing")
     parser.add_argument("--retry-errors", action="store_true",
                         help="Reprocess ERROR rows only; preserve successful analyses")
+    parser.add_argument("--coverage", action="store_true",
+                        help="Print how many processed issuers have each ratio (read-only)")
+    parser.add_argument("--rebuild", action="store_true",
+                        help="Recompute every issuer from the same local ZIP (new columns); no download")
     args = parser.parse_args(argv)
     if args.diagnose:
         print(json.dumps(diagnose_database(args.root),ensure_ascii=False,indent=2))
         return 0
+    if args.coverage:
+        print("\n".join(coverage_lines(coverage_report(args.root))))
+        return 0
     def status(info):
         print(json.dumps(info,ensure_ascii=False),flush=True)
     run(args.root, zip_path=args.zip, limit=args.limit, retry_errors=args.retry_errors,
-        user_agent=os.getenv("SEC_USER_AGENT",""), progress=status)
+        rebuild=args.rebuild, user_agent=os.getenv("SEC_USER_AGENT",""), progress=status)
 
 
 if __name__ == "__main__":

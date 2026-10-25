@@ -5,6 +5,18 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Toplu tarama: kapsam raporu, yerel yeniden hesaplama ve yeni SEC sütunları (v0.7)
+
+- **`--coverage`:** 5.003 `OK` şirkette her oranın kaç şirkette dolu olduğunu, 7 koşulun girdilerinin hazır olma
+  sayısını, güncel olmayan (son mali yılı 456 günden eski) şirketleri ve yeniden hesaplanması gereken satırları
+  gösterir. Salt okunur.
+- **`--rebuild`:** Aynı yerel `companyfacts.zip` ve aynı bilgi tarihiyle bütün şirketleri yeniden hesaplar; indirme
+  yapmaz, kesilirse devam eder.
+- **Yeni sütunlar:** seyreltilmiş EPS (net kâr / ortalama seyreltilmiş hisse), 3 yıllık EPS CAGR, 1 yıllık net kâr
+  büyümesi, 3 yıllık hisse adedi değişimi (önceden hep boştu), pay adedi tarihi, son mali yıl yaşı (gün).
+- Eski sürümle kaydedilmiş satırlar tabloda yeni sütunları boş gösterir; mali yıl yaşı yükleme sırasında hesaplanır.
+- **Testler:** 9 yeni test (`tests/test_kapsam_raporu.py`). Toplam `tests/` 610/610.
+
 ## 2026-10-25 — Bilanço etiket çeşitleri ve ROIC uyarısı (tablolar v0.5)
 
 Dördüncü gerçek veri denemesinin etiket kontrolünden.
