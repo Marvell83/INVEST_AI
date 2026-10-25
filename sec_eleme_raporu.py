@@ -19,9 +19,9 @@ import sqlite3
 
 from hisse_tarama_tablosu import STALE_FINANCIALS_DAYS, financials_age_days
 from sec_piyasa_toplu_tarama import DB_REL
-from sec_sirket_profili import load_profiles
+from sec_sirket_profili import load_profiles, primary_ticker
 
-VERSION = "invest-ai-sec-quality-screen-0.1.0"
+VERSION = "invest-ai-sec-quality-screen-0.2.0"
 DEFAULT_MIN_REVENUE = 50_000_000
 # (key, Turkish label, test); the reference rate enters ROE and ROIC.
 CONDITIONS = (
@@ -39,6 +39,31 @@ TABLE = (("ticker", "Hisse", "text"), ("company", "Şirket", "text"), ("sector",
          ("cash_conversion_3y", "CFO / net kâr 3Y", "multiple"), ("fcf_3y", "FCF 3Y", "usd"),
          ("fcf_margin", "FCF marjı", "percent"), ("eps_cagr_3y", "EPS CAGR 3Y", "percent"),
          ("shares_change_3y", "Hisse adedi 3Y", "percent"))
+
+
+# Turkish reading of the most common reasons an input is missing (others are shown as codes).
+REASON_LABELS = {
+    "INPUT_UNAVAILABLE:average_invested_capital": "yatırılan sermaye (iki yıl) hesaplanamadı",
+    "INPUT_UNAVAILABLE:operating_income": "faaliyet kârı bildirilmemiş",
+    "INPUT_UNAVAILABLE:effective_tax_rate": "efektif vergi oranı hesaplanamadı",
+    "INPUT_UNAVAILABLE:operating_income,average_invested_capital": "faaliyet kârı ve yatırılan sermaye yok",
+    "INPUT_UNAVAILABLE:effective_tax_rate,average_invested_capital": "vergi oranı ve yatırılan sermaye yok",
+    "INPUT_UNAVAILABLE:average_equity": "özkaynak (iki yıl) yok",
+    "NONPOSITIVE_DENOMINATOR:average_equity": "özkaynak negatif",
+    "NONPOSITIVE_DENOMINATOR:average_invested_capital": "yatırılan sermaye negatif",
+    "PRIOR_FISCAL_YEAR_REQUIRED": "önceki mali yıl yok",
+    "NET_DEBT:TOTAL_DEBT:NO_DEBT_COMPONENT_REPORTED": "hiç borç kalemi bildirilmemiş (borçsuz olabilir)",
+    "NET_DEBT:TOTAL_DEBT:DEBT_COMPONENTS_FROM_DIFFERENT_FILINGS": "borç kalemleri revize edilmiş farklı dosyalarda",
+    "NET_DEBT:CASH:NOT_REPORTED": "nakit bildirilmemiş",
+    "EBITDA:DEPRECIATION_AMORTIZATION_MISSING": "amortisman bildirilmemiş (FAVÖK yok)",
+    "EBITDA:OPERATING_INCOME_MISSING": "faaliyet kârı bildirilmemiş (FAVÖK yok)",
+    "EBITDA_NOT_POSITIVE": "FAVÖK sıfır veya negatif",
+    "NET_INCOME_3Y_NOT_POSITIVE": "3 yıllık toplam net kâr sıfır veya negatif",
+    "CFO_OR_NET_INCOME_MISSING_IN_A_YEAR": "bir yılda CFO veya net kâr eksik",
+    "FCF_MISSING_IN_A_YEAR": "bir yılda FCF eksik (CapEx veya CFO yok)",
+    "FEWER_THAN_3_CONSECUTIVE_FISCAL_YEARS": "art arda 3 mali yıl yok",
+    "OLD_ROW_REBUILD_NEEDED": "satır eski sürümle hesaplanmış (--rebuild)",
+}
 
 
 def _number(value):
@@ -80,7 +105,8 @@ def screen(rows, profiles, *, rate, min_revenue=DEFAULT_MIN_REVENUE, max_age=STA
             unknown_sector += 1
         elif profile["financial"]:
             continue
-        operating.append(dict(row, sector=(profile or {}).get("sic_description") or "Sektör bilinmiyor",
+        operating.append(dict(row, ticker=primary_ticker(profile, row.get("ticker")),
+                              sector=(profile or {}).get("sic_description") or "Sektör bilinmiyor",
                               division=(profile or {}).get("division") or "Bilinmiyor",
                               sic=(profile or {}).get("sic"), exchanges=(profile or {}).get("exchanges")))
     funnel.append({"step": "Finans / sigorta / gayrimenkul (SIC 6000–6799) hariç", "count": len(operating),
@@ -89,11 +115,16 @@ def screen(rows, profiles, *, rate, min_revenue=DEFAULT_MIN_REVENUE, max_age=STA
     funnel.append({"step": f"Yıllık gelir en az {min_revenue / 1e6:,.0f} milyon $", "count": len(sized)})
 
     per_condition = {key: {"PASS": 0, "FAIL": 0, "PENDING": 0} for key, _, _ in CONDITIONS}
+    pending_reasons = {key: {} for key, _, _ in CONDITIONS}
     results = {"PASS": [], "FAIL": [], "PENDING": []}
     for row in sized:
         checks, overall = judge(row, rate)
         for key, state in checks.items():
             per_condition[key][state] += 1
+            if state == "PENDING" and not (key in ("roe", "roic") and rate is None):
+                reasons = row.get("pending_reasons")
+                reason = "OLD_ROW_REBUILD_NEEDED" if reasons is None else reasons.get(key, "NOT_COMPUTED")
+                pending_reasons[key][reason] = pending_reasons[key].get(reason, 0) + 1
         results[overall].append(dict(row, checks=checks, overall=overall))
     funnel.append({"step": "5 SEC koşulunun hepsini geçen", "count": len(results["PASS"])})
     passed = sorted(results["PASS"], key=lambda r: -(_number(r.get("roic")) or 0))
@@ -113,11 +144,14 @@ def screen(rows, profiles, *, rate, min_revenue=DEFAULT_MIN_REVENUE, max_age=STA
     return {
         "version": VERSION, "rate": rate, "min_revenue": min_revenue, "max_age_days": max_age,
         "funnel": funnel,
-        "conditions": [{"key": k, "label": label, **per_condition[k]} for k, label, _ in CONDITIONS],
+        "conditions": [{"key": k, "label": label, **per_condition[k],
+                        "pending_reasons": dict(sorted(pending_reasons[k].items(), key=lambda kv: -kv[1]))}
+                       for k, label, _ in CONDITIONS],
         "overall": {state: len(items) for state, items in results.items()},
         "by_division": dict(sorted(by_division.items(), key=lambda kv: -kv[1])),
         "by_sector": dict(sorted(by_sector.items(), key=lambda kv: -kv[1])[:20]),
         "roic_cautions_among_passed": sum(bool(r.get("roic_warning")) for r in passed),
+        "roe_cautions_among_passed": sum(bool(r.get("roe_warning")) for r in passed),
         "passed": passed,
         "highlights": {
             "Kalite + büyüme: ROIC ≥ %15, 3Y gelir CAGR ≥ %10, hisse adedi 3Y artışı ≤ %5": quality_growth,
@@ -142,6 +176,20 @@ def _fmt(value, kind):
         if abs(value_) >= scale:
             return f"{value_ / scale:,.1f}{unit}".replace(",", " ").replace(".", ",")
     return f"{value_:,.0f} $"
+
+
+def _marker(row, key):
+    """'!' for a value distorted by a tiny denominator, '?' for one that may be a split or merger."""
+    value = _number(row.get(key))
+    if key == "roic" and row.get("roic_warning") or key == "roe" and row.get("roe_warning"):
+        return " !"
+    if key == "shares_change_3y" and row.get("shares_change_unusual"):
+        return " ?"
+    if key == "eps_cagr_3y" and value is not None and value > 1:
+        return " ?"
+    if key == "cash_conversion_3y" and value is not None and value > 5:
+        return " ?"
+    return ""
 
 
 def passed_csv(result):
@@ -171,7 +219,7 @@ def render_html(result, *, as_of):
         for row in rows[:limit] if limit else rows:
             cells = []
             for key, _, kind in TABLE:
-                text = _fmt(row.get(key), kind) + (" !" if key == "roic" and row.get("roic_warning") else "")
+                text = _fmt(row.get(key), kind) + _marker(row, key)
                 cells.append(f"<td class='{'' if kind == 'text' else 'num'}'>{esc(text)}</td>")
             body.append("<tr>" + "".join(cells) + "</tr>")
         return f"<div class='scroll'><table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table></div>"
@@ -181,6 +229,11 @@ def render_html(result, *, as_of):
                      f"</td><td class='num'>{count(s['count'])}</td></tr>" for s in result["funnel"])
     conditions = "".join(f"<tr><td>{esc(c['label'])}</td><td class='num'>{c['PASS']}</td><td class='num'>{c['FAIL']}</td>"
                          f"<td class='num'>{c['PENDING']}</td></tr>" for c in result["conditions"])
+    reasons = "".join(
+        f"<h3>{esc(c['label'])} — {c['PENDING']} şirket veri bekliyor</h3><table><tbody>" +
+        "".join(f"<tr><td>{esc(REASON_LABELS.get(code, code))}</td><td class='num'>{n}</td></tr>"
+                for code, n in list(c.get("pending_reasons", {}).items())[:8]) + "</tbody></table>"
+        for c in result["conditions"] if c.get("pending_reasons"))
     sectors = "".join(f"<tr><td>{esc(name)}</td><td class='num'>{n}</td></tr>" for name, n in result["by_division"].items())
     highlights = "".join(f"<h3>{esc(title)} ({len(rows)})</h3>" + table(rows, 25)
                          for title, rows in result["highlights"].items())
@@ -194,11 +247,15 @@ padding:6px;text-align:left}}th{{background:#f2f6fc}}td.num{{text-align:right;wh
 small{{color:#64748b}}</style></head><body><main>
 <h1>Yalnız SEC verisiyle eleme</h1>
 <p>SEC bilgi tarihi {esc(str(as_of))} · referans faiz {esc(rate)} · fiyat ve PEG kullanılmadı. Eksik veri elenme sebebi
-sayılmaz, "veri bekliyor" olarak ayrılır. ROIC yanında ! işareti: yatırılan sermaye çok küçük (oran %100'ün üstünde).</p>
+sayılmaz, "veri bekliyor" olarak ayrılır. <b>!</b> ROIC veya ROE %100'ün üstünde: sermaye / özkaynak çok küçük,
+oran tek başına yorumlanmamalı. <b>?</b> şüpheli değer: hisse adedi 3 yılda %60'ın altına düşmüş veya %60'tan fazla
+artmış (bölünme ya da birleşme olabilir), EPS CAGR %100'ün üstünde veya CFO / net kâr 5'in üstünde (küçük kâr tabanı).
+Bildirilmiş bir hisse bölünmesi varsa hisse adedi değişimi ve EPS CAGR hesaplanmaz.</p>
 <section class="card"><h2>Huni</h2><table><tbody>{funnel}</tbody></table></section>
 <section class="card"><h2>Koşullar</h2><table><thead><tr><th>Koşul</th><th>Geçti</th><th>Elendi</th><th>Veri bekliyor</th></tr></thead>
 <tbody>{conditions}</tbody></table><p>Sonuç: {result['overall']['PASS']} geçti · {result['overall']['FAIL']} elendi ·
 {result['overall']['PENDING']} veri bekliyor.</p></section>
+<section class="card"><h2>Neden veri bekliyor?</h2>{reasons}</section>
 <section class="card"><h2>Geçenlerin sektörleri (SIC bölümü)</h2><table><tbody>{sectors}</tbody></table></section>
 <section class="card"><h2>Öne çıkanlar</h2>{highlights}</section>
 <section class="card"><h2>5 koşulu geçen bütün şirketler ({len(result['passed'])})</h2>{table(result['passed'])}</section>

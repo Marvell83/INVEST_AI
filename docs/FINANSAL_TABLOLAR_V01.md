@@ -1,4 +1,4 @@
-# Finansal Tablolar ve Oranlar (tablolar v0.5 · oranlar v0.1)
+# Finansal Tablolar ve Oranlar (tablolar v0.6 · oranlar v0.1)
 
 `finansal_tablolar.py` ve `finansal_oranlar.py`, SEC Company Facts verisini **tek bir ortak kurallar setiyle** okuyup yıllık ve çeyreklik gelir tablosu, nakit akışı ve bilanço üretir; yıllık tablolardan kârlılık, büyüme, nakit kalitesi, getiri ve borçluluk oranlarını hesaplar. Yol haritasındaki 2., 3., 4. ve 5. derslerin veri temelidir ([YOL_HARITASI.md](YOL_HARITASI.md)).
 
@@ -37,6 +37,8 @@ Yıllık ve çeyreklik çıktılarda ayrıca `conflicts`, `alias_gaps` (öncelik
 † türetilen kalem.
 
 **Toplam borç:** raporlanan bileşenlerin toplamıdır. `LongTermDebt` kısa vadeli kısmı zaten içerdiği için yalnız `LongTermDebtNoncurrent` yoksa kullanılır, çift sayım yapılmaz. Toplanan ve bildirilmeyen bileşenler `components` / `components_not_reported` alanlarında listelenir. Kira yükümlülükleri dahil değildir.
+
+**Borç etiketleri (v0.6):** Uzun vadeli borcu finansal kiralamayla birlikte bildiren şirketler için `LongTermDebtAndCapitalLeaseObligations` (uzun vadeli), `...Current` (kısa vadeli kısım) ve `...IncludingCurrentMaturities` (toplam) yedek etiket olarak okunur (Coca-Cola). Şirket kısa vadeli finansal borcunun toplamını `DebtCurrent` ile bildirmişse toplam borç = uzun vadeli kısım + `DebtCurrent` olur; kısa vadeli borçlanma, ticari senet ve uzun vadeli borcun kısa vadeli kısmı ayrıca eklenmez (çift sayım olmaz). Amortisman için `DepreciationAmortizationAndOther` ve `DepreciationAmortizationAndAccretionNet` yedek etikettir.
 
 **Menkul kıymetler (v0.4):** Üç bilanço kalemi okunur: kısa vadeli yatırımlar (`ShortTermInvestments`), kısa vadeli ve uzun vadeli menkul kıymetler (`MarketableSecuritiesCurrent`, `MarketableSecuritiesNoncurrent`). Toplamları `liquid_investments` (yalnız aynı SEC dosyasından, bildirilmeyen bileşen 0 sayılmaz). Kısa vadeli yatırımlar kalemi bazı şirketlerde kısa vadeli menkul kıymetleri zaten içerir; ikisi birlikte bildirilmişse **toplanmaz**, büyük olan kullanılır ve sonuç alt sınır olarak işaretlenir (`overlap.lower_bound`). Bu, iki kalemin gerçekten ayrı olduğu şirketlerde (ör. Coca-Cola) menkul kıymetleri olduğundan az gösterir; çift saymaktan daha güvenlidir.
 
@@ -113,7 +115,7 @@ Her oran `formula`, kullanılan `inputs` ve hesaplanamadığında `reason` taş�
 Faaliyet kârını kullanan oranlar (faaliyet marjı, faaliyet kârı büyümesi, ROIC, faiz karşılama) yaklaşık faaliyet kârıyla hesaplandıysa `approximate: "OPERATING_INCOME_PROXY"` taşır ve raporda ≈ ile gösterilir. Tarihsel baz bu yılları `approximate_operating_income_years` alanında listeler; senaryolar, değerleme ve Tahmin Defteri kaydı aynı uyarıyı taşır. Sapma analizi yalnız bildirilmiş (`REPORTED`) gerçekleşenleri puanlar; yaklaşık bir gerçekleşen puanlanmaz.
 
 - **ROA / ROE / ROIC:** dönem sonu ile önceki dönem sonu bakiyelerinin ortalamasıyla hesaplanır.
-- **ROIC:** `faaliyet kârı × (1 − efektif vergi) / ortalama (özkaynak + net borç)`. Efektif vergi %0–%50 dışındaysa ROIC hesaplanmaz. v0.4'ten itibaren net borçtan menkul kıymetler de düşülür; Apple gibi büyük menkul kıymet portföyü olan şirketlerde ROIC artık olduğundan düşük görünmez. ROIC %100'ün üstündeyse `caution: VERY_SMALL_INVESTED_CAPITAL` taşır ve raporda ! ile gösterilir: hesap doğrudur ama sermaye tabanı o kadar küçüktür ki oran tek başına yorumlanmamalıdır (ör. Apple).
+- **ROIC:** `faaliyet kârı × (1 − efektif vergi) / ortalama (özkaynak + net borç)`. Efektif vergi %0–%50 dışındaysa ROIC hesaplanmaz. v0.4'ten itibaren net borçtan menkul kıymetler de düşülür; Apple gibi büyük menkul kıymet portföyü olan şirketlerde ROIC artık olduğundan düşük görünmez. ROIC %100'ün üstündeyse `caution: VERY_SMALL_INVESTED_CAPITAL`, ROE %100'ün üstündeyse `caution: VERY_SMALL_EQUITY` taşır ve raporda ! ile gösterilir: hesap doğrudur ama sermaye tabanı o kadar küçüktür ki oran tek başına yorumlanmamalıdır (ör. Apple).
 - **Negatif özkaynak:** ROE ve borç / özkaynak hesaplanmaz.
 
 ## Kullanım

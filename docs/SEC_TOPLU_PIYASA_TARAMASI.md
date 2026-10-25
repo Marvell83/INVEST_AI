@@ -171,3 +171,18 @@ python3 sec_eleme_raporu.py --rate 4.3        # 10 yıllık ABD tahvil getirisin
 - **5 koşul:** ROE > referans faiz, ROIC > referans faiz, net borç / FAVÖK* ≤ 2, 3 yıllık CFO / net kâr ≥ 1, 3 yıllık FCF > 0. Her biri geçti / elendi / veri bekliyor; eksik değer elenme sebebi değildir. Çok küçük sermaye nedeniyle uyarılı ROIC (! işareti) koşulu geçer ama işaretlenir.
 - **Çıktı:** `reports/sec_eleme.html` (huni, koşul sayıları, sektör dağılımı, öne çıkanlar, geçenlerin tam listesi), `reports/sec_eleme.csv` (Excel, `;` ayraçlı), `reports/sec_eleme.json`.
 - SEC profili (SIC) yoksa şirket "Sektör bilinmiyor" olarak dahil tutulur ve sayısı huni notunda yazar.
+
+### İlk tam eleme sonrası düzeltmeler (v0.9)
+
+İlk tam çalıştırma (25 Ekim 2026, referans faiz %4,3): 5.003 → 4.772 güncel → 3.642 finans dışı → 2.122 gelir ≥ 50 milyon $ → **222 geçti**, 1.231 elendi, 669 veri bekliyor. Liste incelenince bulunan sorunlar ve düzeltmeleri:
+
+| Sorun | Düzeltme |
+|---|---|
+| Birden çok kodu olan şirkette alfabetik ilk kod seçiliyordu (Amcor `AMCCF`, MSA `MNESP`, Victoria's Secret `VSXY`) | SEC listesinin kendi sırası korunur; raporda SEC profilindeki NYSE / Nasdaq kodu kullanılır |
+| Coca-Cola'nın ~42 milyar $ uzun vadeli borcu okunmuyordu (`LongTermDebtAndCapitalLeaseObligations`) | Bu etiket ailesi yedek etiket; `DebtCurrent` (kısa vadeli toplam) bildirilmişse kısa vadeli parçaların yerine kullanılır |
+| FAVÖK amortismanı farklı etiketle bildiren şirketlerde yoktu (Microsoft tipi) | `DepreciationAmortizationAndOther`, `DepreciationAmortizationAndAccretionNet` yedek etiket |
+| ROE %1.603 (Colgate) gibi küçük özkaynak değerleri | ROE %100'ün üstünde `VERY_SMALL_EQUITY` uyarısı, raporda ! |
+| Hisse bölünmesi hisse adedi değişimini (Fastenal +%99,8) ve EPS CAGR'ı bozuyordu | SEC'e bildirilmiş bölünme 3 yıllık pencerede ise ikisi hesaplanmaz; bildirilmemiş ama 0,6–1,6 bandı dışındaki değişim ? ile işaretlenir |
+| "Veri bekliyor"un nedeni görünmüyordu | Raporda her koşul için neden dökümü (ör. "amortisman bildirilmemiş", "hiç borç kalemi bildirilmemiş") |
+
+Yeni sütunlar ve nedenler için bir kez `--rebuild`, kodlar için bir kez `python3 sec_sirket_profili.py` (ZIP zaten indirildiyse yeniden indirmez) çalıştırılır.
