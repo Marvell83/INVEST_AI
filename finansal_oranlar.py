@@ -155,6 +155,9 @@ def _year_ratios(statements, index):
 
     if out["roic"]["value"] is not None and out["roic"]["value"] > ROIC_CAUTION:
         out["roic"]["caution"] = "VERY_SMALL_INVESTED_CAPITAL"
+    # Buybacks can shrink equity until ROE is meaningless (Colgate, Verisk): same 100% guard.
+    if out["roe"]["value"] is not None and out["roe"]["value"] > ROIC_CAUTION:
+        out["roe"]["caution"] = "VERY_SMALL_EQUITY"
 
     out["current_ratio"] = _ratio(
         "current_ratio", {"current_assets": get("current_assets"),

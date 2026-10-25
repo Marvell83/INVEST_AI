@@ -136,9 +136,10 @@ def _connect(db):
 
 def _placeholders(mapping):
     companies = {}
-    for ticker, cik in sorted(mapping.items()):
-        padded = f"{cik:010d}"
-        companies.setdefault(padded, ticker)  # multiple tickers on one CIK share issuer facts
+    # SEC lists an issuer's primary ticker first (AMCR before AMCCF); keep the file order,
+    # never an alphabetical one. Multiple tickers on one CIK share issuer facts.
+    for ticker, cik in mapping.items():
+        companies.setdefault(f"{cik:010d}", ticker)
     return companies
 
 
@@ -150,6 +151,35 @@ def _empty_row(cik, ticker, name, as_of, status, reason):
                price_source=None, price_date=None, screening_status=status,
                screening_reason=reason, row_schema=ROW_SCHEMA)
     return row
+
+
+SPLIT_CONCEPT = "StockholdersEquityNoteStockSplitConversionRatio1"
+
+
+def _check_stock_split(row, raw):
+    """A split reported within the 3-year window distorts share-count change and EPS growth.
+
+    The oldest year's diluted shares come from a filing before the split, the newest
+    from one after it, so both comparisons are withheld rather than left misleading.
+    """
+    try:
+        newest = datetime.fromisoformat(row["fiscal_year"]).date()
+    except (TypeError, ValueError):
+        return
+    start = newest.replace(year=newest.year - 3) if not (newest.month == 2 and newest.day == 29) \
+        else newest.replace(year=newest.year - 3, day=28)
+    facts = raw["facts"].get("us-gaap", {}).get(SPLIT_CONCEPT, {}).get("units", {}).get("pure", [])
+    for fact in facts:
+        try:
+            end, ratio = datetime.fromisoformat(fact["end"]).date(), float(fact["val"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if start < end <= newest and ratio > 0 and abs(ratio - 1) > 1e-9:
+            row["stock_split"] = {"ratio": ratio, "date": end.isoformat()}
+            row["shares_change_3y"] = row["eps_cagr_3y"] = None
+            row["shares_change_unusual"] = False
+            row.setdefault("pending_reasons", {})["shares_change_3y"] = "STOCK_SPLIT_IN_WINDOW"
+            return
 
 
 def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
@@ -281,6 +311,7 @@ def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
                         row = _lineup(report,ticker=ticker,path=None)
                         if row is None:
                             raise ValueError("Financial ratio row missing despite eligible annual years")
+                        _check_stock_split(row, raw)
                         status, why = "OK", ""
                         row.update(screening_status=status, screening_reason=why)
             except SourceCIKMismatch as exc:

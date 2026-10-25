@@ -58,13 +58,31 @@ def parse_profile(raw):
 
     def text(value, limit):
         return str(value).strip()[:limit] if value not in (None, "") else None
-    exchanges = [str(x) for x in raw.get("exchanges") or [] if x]
-    tickers = [str(x) for x in raw.get("tickers") or [] if x]
+    # SEC aligns tickers[i] with exchanges[i]; keep the pairs, an exchange may be empty.
+    raw_tickers, raw_exchanges = raw.get("tickers") or [], raw.get("exchanges") or []
+    pairs = [(str(t).strip().upper(), str(raw_exchanges[i] or "").strip() if i < len(raw_exchanges) else "")
+             for i, t in enumerate(raw_tickers) if t]
     return {"cik": cik, "name": text(raw.get("name"), 300), "sic": sic,
             "sic_description": text(raw.get("sicDescription"), 200), "division": sic_division(sic),
             "financial": is_financial(sic), "entity_type": text(raw.get("entityType"), 60),
-            "category": text(raw.get("category"), 120), "exchanges": ",".join(exchanges)[:200] or None,
-            "tickers": ",".join(tickers)[:200] or None, "fiscal_year_end": text(raw.get("fiscalYearEnd"), 8)}
+            "category": text(raw.get("category"), 120),
+            "exchanges": ",".join(e for _, e in pairs if e)[:200] or None,
+            "tickers": ",".join(t for t, _ in pairs)[:200] or None,
+            "listings": ",".join(f"{t}:{e}" for t, e in pairs)[:300] or None,
+            "fiscal_year_end": text(raw.get("fiscalYearEnd"), 8)}
+
+
+# Exchanges where common stock trades on a listed market (not over the counter).
+LISTED_EXCHANGES = ("NYSE", "Nasdaq", "NYSE American", "NYSE MKT", "NYSE Arca", "CBOE", "BATS")
+
+
+def primary_ticker(profile, fallback=None):
+    """The issuer's listed ticker: first SEC listing on a listed exchange, else its first ticker."""
+    listings = [item.rsplit(":", 1) for item in ((profile or {}).get("listings") or "").split(",") if item]
+    for ticker, exchange in listings:
+        if exchange in LISTED_EXCHANGES:
+            return ticker
+    return listings[0][0] if listings else fallback
 
 
 def _connect(db):
@@ -74,7 +92,7 @@ def _connect(db):
         CREATE TABLE IF NOT EXISTS profiles (
             cik TEXT PRIMARY KEY, name TEXT, sic INTEGER, sic_description TEXT, division TEXT,
             financial INTEGER, entity_type TEXT, category TEXT, exchanges TEXT, tickers TEXT,
-            fiscal_year_end TEXT, source TEXT NOT NULL, imported_utc TEXT NOT NULL
+            listings TEXT, fiscal_year_end TEXT, source TEXT NOT NULL, imported_utc TEXT NOT NULL
         );
     """)
     return conn
@@ -116,10 +134,14 @@ def import_profiles(root, *, archive_path=None, progress=None):
             found.append(dict(profile, financial=int(profile["financial"]), source=source, imported_utc=stamp))
             if progress and number % 500 == 0:
                 progress({"phase": "profiles", "read": number, "total": len(members)})
+    # Every import rebuilds the table from the ZIP, so a newer column layout needs no migration.
+    (root / DB_REL).parent.mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(root / DB_REL)) as conn, conn:
+        conn.execute("DROP TABLE IF EXISTS profiles")
     with closing(_connect(root / DB_REL)) as conn, conn:
         conn.executemany(
             "INSERT OR REPLACE INTO profiles VALUES(:cik,:name,:sic,:sic_description,:division,:financial,"
-            ":entity_type,:category,:exchanges,:tickers,:fiscal_year_end,:source,:imported_utc)", found)
+            ":entity_type,:category,:exchanges,:tickers,:listings,:fiscal_year_end,:source,:imported_utc)", found)
     return {"issuers": len(wanted), "profiles": len(found), "not_in_zip": len(wanted) - len(members),
             "skipped": skipped, "database": DB_REL}
 

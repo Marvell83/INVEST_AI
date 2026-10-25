@@ -17,7 +17,7 @@ import math
 
 from sec_companyfacts import METRICS, SEC_DATA, _date, _validate_cik
 
-VERSION = "finansal-tablolar-0.5.1"
+VERSION = "finansal-tablolar-0.6.0"
 ANNUAL_FORMS = frozenset(("10-K", "10-K/A"))
 QUARTERLY_FORMS = frozenset(("10-Q", "10-Q/A", "10-K", "10-K/A"))
 ALIAS_TOLERANCE = 0.005  # ambiguity guard between XBRL aliases, not an accounting standard
@@ -30,6 +30,12 @@ ITEM_ALIAS_TOLERANCE = {"revenue": 0.05}
 # P&G its balance-sheet cash including restricted cash, some issuers only total equity.
 FALLBACK_ALIASES = {
     "capex": ("PaymentsToAcquireProductiveAssets",),
+    # Coca-Cola and others tag long-term debt together with finance-lease obligations.
+    "long_term_debt_noncurrent": ("LongTermDebtAndCapitalLeaseObligations",),
+    "long_term_debt_current": ("LongTermDebtAndCapitalLeaseObligationsCurrent",),
+    "long_term_debt": ("LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",),
+    # Microsoft-style "depreciation, amortization and other" and accretion-inclusive totals.
+    "depreciation_amortization": ("DepreciationAmortizationAndAccretionNet", "DepreciationAmortizationAndOther"),
     "cash": ("CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",),
     "stockholders_equity": ("StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",),
 }
@@ -90,6 +96,7 @@ LINE_ITEMS = {
                               ("ShortTermBorrowings",)),
     "long_term_debt_current": ("balance", "instant", "USD", "Uzun vadeli borcun kısa vadeli kısmı",
                                ("LongTermDebtCurrent",)),
+    "debt_current": ("balance", "instant", "USD", "Kısa vadeli finansal borç (toplam)", ("DebtCurrent",)),
     "long_term_debt_noncurrent": ("balance", "instant", "USD", "Uzun vadeli borç (uzun vadeli kısım)",
                                   ("LongTermDebtNoncurrent",)),
     "long_term_debt": ("balance", "instant", "USD", "Uzun vadeli borç (kısa vadeli kısım dahil)",
@@ -114,7 +121,7 @@ DERIVED_ITEMS = {
     "net_debt": ("balance", "USD", "Net borç (toplam borç − nakit − menkul kıymetler)"),
 }
 DEBT_COMPONENTS = ("long_term_debt_noncurrent", "long_term_debt_current", "long_term_debt",
-                   "commercial_paper", "short_term_borrowings")
+                   "commercial_paper", "short_term_borrowings", "debt_current")
 SECURITIES_COMPONENTS = ("short_term_investments", "other_short_term_investments",
                          "marketable_securities_current", "marketable_securities_noncurrent")
 ROIC_CAUTION = 1.0  # above 100% the invested capital base is too small to read the ratio plainly
@@ -292,12 +299,16 @@ def _derive(year, ebit_proxy=True, net_debt=True):
     # Total debt never treats an unreported component as zero: it lists what was
     # summed and what was not reported. LongTermDebt already includes the current
     # portion, so it is only a fallback when the noncurrent line is absent.
+    # DebtCurrent is the issuer's own total of short-term borrowings, commercial paper
+    # and current maturities: when reported it replaces those parts, never adds to them.
     if balance["long_term_debt_noncurrent"]["status"] == "REPORTED":
-        used = ["long_term_debt_noncurrent", "long_term_debt_current"]
+        current = (["debt_current"] if balance["debt_current"]["status"] == "REPORTED"
+                   else ["long_term_debt_current", "commercial_paper", "short_term_borrowings"])
+        used = ["long_term_debt_noncurrent"] + current
     else:
-        used = ["long_term_debt"]
-    debt = _component_sum(balance, used + ["commercial_paper", "short_term_borrowings"], "DEBT",
-                          "SUM_OF_REPORTED_DEBT_COMPONENTS_SAME_FILING", conflict_keys=DEBT_COMPONENTS)
+        used = ["long_term_debt", "commercial_paper", "short_term_borrowings"]
+    debt = _component_sum(balance, used, "DEBT", "SUM_OF_REPORTED_DEBT_COMPONENTS_SAME_FILING",
+                          conflict_keys=DEBT_COMPONENTS)
     if debt["status"] == "DERIVED":
         debt["excludes"] = "operating and finance lease liabilities"
     balance["total_debt"] = debt

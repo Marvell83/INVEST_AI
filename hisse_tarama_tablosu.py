@@ -24,10 +24,12 @@ USD = "usd"
 MULTIPLE = "multiple"
 PER_SHARE = "per_share"
 # Bump when rows gain SEC-derived columns; rows saved by an older version need a rebuild.
-ROW_SCHEMA = 3
+ROW_SCHEMA = 4
 STALE_FINANCIALS_DAYS = 456  # latest fiscal year more than ~15 months before the data date
 PRICE_WINDOW_DAYS = 10       # bulk screen: price date within this many days of the SEC data date
 SHARES_MAX_AGE_DAYS = 200    # cover-page share count at most this old at the price date
+# A 3-year share count ratio outside this band is more likely a split or a merger than issuance.
+UNUSUAL_SHARE_RATIO = (0.6, 1.6)
 
 # (key, display title, unit, group); price-based fields stay blank without price.
 COLUMNS = [
@@ -196,6 +198,19 @@ def apply_market_price(row, record):
     return row
 
 
+def _net_debt_reason(balance):
+    """The first missing input behind an unavailable net debt (total debt, cash or securities)."""
+    net = balance.get("net_debt", {})
+    if net.get("reason") != "DEBT_CASH_OR_SECURITIES_UNAVAILABLE":
+        return net.get("reason") or "NOT_COMPUTED"
+    for key, label in (("total_debt", "TOTAL_DEBT"), ("cash", "CASH"), ("liquid_investments", "SECURITIES")):
+        cell = balance.get(key, {})
+        if cell.get("status") not in ("REPORTED", "DERIVED") and not (
+                key == "liquid_investments" and cell.get("reason") == "NO_SECURITIES_COMPONENT_REPORTED"):
+            return f"{label}:{cell.get('reason') or 'MISSING'}"
+    return "UNKNOWN"
+
+
 def _eps(year):
     """Diluted EPS as parent net income / weighted diluted shares of the same fiscal year."""
     return _division(_cell(year, "income", "net_income"), _cell(year, "income", "diluted_shares"), positive=True)
@@ -237,6 +252,7 @@ def _lineup(report, *, ticker=None, path=None):
         row[key] = _cell(latest, statement, item)
     row["roic_warning"] = bool(current_ratios.get("roic", {}).get("caution")) or bool(
         current_ratios.get("roic", {}).get("approximate"))
+    row["roe_warning"] = bool(current_ratios.get("roe", {}).get("caution"))
     # Do not apply ROIC as a clean filter pass if the small-capital or EBIT-proxy flag is present.
     row["ebitda_approximate"] = bool(latest.get("income", {}).get("operating_income", {}).get("approximate"))
     depreciation = _cell(latest, "cash_flow", "depreciation_amortization")
@@ -247,6 +263,17 @@ def _lineup(report, *, ticker=None, path=None):
     row["ebitda"] = ebitda
     row["net_debt_to_ebitda"] = _division(row["net_debt"], ebitda, positive=True)
     row["ev_ebitda"] = None
+    # Why a screening input is missing, so a report can count causes instead of guessing.
+    why = {}
+    for key in ("roe", "roic"):
+        if row[key] is None:
+            why[key] = current_ratios.get(key, {}).get("reason") or "NOT_COMPUTED"
+    if row["net_debt_to_ebitda"] is None:
+        why["net_debt_to_ebitda"] = (
+            "NET_DEBT:" + _net_debt_reason(latest["balance"]) if row["net_debt"] is None else
+            "EBITDA:OPERATING_INCOME_MISSING" if row["operating_income"] is None else
+            "EBITDA:DEPRECIATION_AMORTIZATION_MISSING" if depreciation is None else "EBITDA_NOT_POSITIVE")
+    row["pending_reasons"] = why
 
     row["eps_diluted"] = _eps(latest)
     gap = _days_between(row["fiscal_year"], years[1]["fiscal_year_end"]) if len(years) >= 2 else None
@@ -269,6 +296,9 @@ def _lineup(report, *, ticker=None, path=None):
             # Weighted diluted share counts of the two years, not the current cover-page count.
             row["shares_change_3y"] = _growth(_cell(latest, "income", "diluted_shares"),
                                               _cell(years[3], "income", "diluted_shares"))
+            low, high = UNUSUAL_SHARE_RATIO
+            if row["shares_change_3y"] is not None and not low <= 1 + row["shares_change_3y"] <= high:
+                row["shares_change_unusual"] = True
 
     # Three consecutive annual years: direct FY values, no interpolation.
     if len(years) >= 3:
@@ -285,8 +315,17 @@ def _lineup(report, *, ticker=None, path=None):
             fcfs = [_cell(y, "cash_flow", "free_cash_flow") for y in first_three]
             if all(x is not None for x in cash + income) and sum(income) > 0:
                 row["cash_conversion_3y"] = _finite(sum(cash) / sum(income))
+            elif all(x is not None for x in cash + income):
+                why["cash_conversion_3y"] = "NET_INCOME_3Y_NOT_POSITIVE"
+            else:
+                why["cash_conversion_3y"] = "CFO_OR_NET_INCOME_MISSING_IN_A_YEAR"
             if all(x is not None for x in fcfs):
                 row["fcf_3y"] = sum(fcfs)
+            else:
+                why["fcf_3y"] = "FCF_MISSING_IN_A_YEAR"
+    for key in ("cash_conversion_3y", "fcf_3y"):
+        if row[key] is None:
+            why.setdefault(key, "FEWER_THAN_3_CONSECUTIVE_FISCAL_YEARS")
 
     shares = statements.get("shares_outstanding", {})
     row["shares"] = _finite(shares.get("value")) if shares.get("status") == "REPORTED" else None

@@ -5,6 +5,24 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — İlk tam SEC elemesinden sonra veri kalitesi düzeltmeleri (v0.9, tablolar v0.6)
+
+İlk gerçek çalıştırma 2.122 şirketten 222'sini geçirdi; liste incelenince bulunan sorunlar:
+
+- **Hisse kodu:** Birden çok kodu olan şirkette alfabetik ilk kod seçiliyordu (Amcor `AMCCF`, MSA `MNESP`). SEC
+  listesinin sırası korunur; profil kod–borsa eşlerini (`listings`) saklar, rapor NYSE / Nasdaq kodunu gösterir.
+  Profil tablosu her içe aktarımda ZIP'ten yeniden kurulur.
+- **Borç:** `LongTermDebtAndCapitalLeaseObligations` ailesi yedek etiket (Coca-Cola'nın uzun vadeli borcu okunmuyordu);
+  `DebtCurrent` bildirilmişse kısa vadeli parçaların yerine kullanılır.
+- **Amortisman:** `DepreciationAmortizationAndOther`, `DepreciationAmortizationAndAccretionNet` yedek etiket.
+- **ROE uyarısı:** %100'ün üstünde `VERY_SMALL_EQUITY` (Colgate %1.603, Verisk %444).
+- **Hisse bölünmesi:** SEC'e bildirilmiş bölünme 3 yıllık penceredeyse hisse adedi değişimi ve EPS CAGR hesaplanmaz;
+  0,6–1,6 bandı dışındaki değişim işaretlenir (Fastenal +%99,8).
+- **Rapor:** her koşul için "neden veri bekliyor" dökümü; ! (küçük payda) ve ? (şüpheli değer) işaretleri.
+- Satır şeması 4: bir kez `--rebuild`.
+- **Testler:** 15 yeni test (`tests/test_eleme_veri_kalitesi.py`). Toplam `tests/` 657/657. 18 hedefli mutasyonun
+  hepsi yakalanıyor.
+
 ## 2026-10-25 — Yalnız SEC verisiyle eleme raporu ve SEC sektör kodları (v0.8)
 
 - **`sec_sirket_profili.py`:** SEC'in toplu `submissions.zip` arşivinden (tek istek) taranan her şirketin SIC sektör
