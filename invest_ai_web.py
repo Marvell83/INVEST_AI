@@ -1,6 +1,6 @@
 """INVEST_AI v0.3: authenticated local web research (Python stdlib only).
 
-A local browser POST executes existing SEC/TTM/Piotroski engines and, when the
+A local browser POST executes SEC/TTM/financial-statements engines and, when the
 analyst supplies sourced rates, the scenario projection and scenario DCF.
 Requires a session API key printed in the terminal, no user-facing shell input,
 no trading. SEC requests are serialised/throttled and archived with a content hash.
@@ -212,7 +212,7 @@ class ResearchService:
             as_of = self.clock().date().isoformat()
 
         result = build_company_research(raw, expected_cik=cik, as_of=as_of,
-                                        sector=sector,
+                                        sector=sector, include_piotroski=False,
                                         input_mode="sec_direct_download" if mode == "live" else "offline_file",
                                         **scenario)
         result["source"]["web_data_mode"] = mode
@@ -223,7 +223,7 @@ class ResearchService:
         digest = result["source"]["canonical_json_sha256"][:12]
         # A different analyst sector assumption must not overwrite an earlier report
         # generated from the same SEC snapshot with another classification.
-        basename = f"{ticker}_{mode.upper()}_{as_of}_{sector}_{digest}"
+        basename = f"{ticker}_{mode.upper()}_{as_of}_{sector}_{digest}_fundamentals"
         if any(value is not None for value in scenario.values()):
             # Different analyst scenario inputs must not overwrite each other either.
             basename += "_s" + hashlib.sha256(canonical_bytes(scenario)).hexdigest()[:8]
@@ -233,13 +233,7 @@ class ResearchService:
         atomic_write(out_json, json.dumps(result, ensure_ascii=False,
                                           indent=2, allow_nan=False).encode("utf-8"))
         atomic_write(out_html, page.encode("utf-8"))
-        p = result["quality"]["piotroski"]
         ttm = result["ttm_crosscheck"]
-        reasons = p.get("missing_reasons", {})
-        annual_history_missing = (
-            p.get("known_count") == 0 and len(reasons) == 9
-            and set(reasons.values()) == {"TWO_COMPARABLE_ANNUAL_INCOME_PERIODS_REQUIRED"}
-        )
         projection, valuation = result.get("projection") or {}, result.get("scenario_valuation") or {}
         implied = result.get("implied_growth") or {}
         return {
@@ -251,11 +245,8 @@ class ResearchService:
             "source": source, "coverage_status": result["coverage_status"],
             "annual_end": result["annual_source_audit"].get("latest_any_fy_end"),
             "ttm_end": ttm.get("primary", {}).get("periods", {}).get("current_9m_end"),
-            "ttm_status": ttm["status"], "piotroski_score": p["score"],
-            "piotroski_status": p["status"], "sector": sector,
-            "piotroski_known_count": p["known_count"],
-            "piotroski_missing_annual_history": annual_history_missing,
-            "piotroski_range": p["score_range"], "research_gaps": result["research_gaps"],
+            "ttm_status": ttm["status"], "sector": sector,
+            "research_gaps": result["research_gaps"],
             "report_url": "/" + out_html.relative_to(self.root).as_posix(),
             "no_investment_advice": True,
         }
