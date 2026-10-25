@@ -6,8 +6,8 @@ without extraction. Restarting the same archive resumes completed CIKs.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 from datetime import datetime, timezone
-import io
 import json
 import os
 from pathlib import Path
@@ -164,7 +164,7 @@ def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None, progr
     db = root / DB_REL
     processed = 0
     failed = 0
-    with zipfile.ZipFile(zip_path) as source, _connect(db) as conn:
+    with zipfile.ZipFile(zip_path) as source, closing(_connect(db)) as conn:
         paths = {}
         for meta in source.infolist():
             match = ZIP_NAME.search(meta.filename)
