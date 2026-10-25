@@ -193,8 +193,8 @@ class ResearchService:
             try:
                 self.bulk_progress({"phase":"starting","message":"SEC resmi toplu ZIP ve ticker dizini hazırlanıyor"})
                 run_sec_bulk(self.root, user_agent=self.user_agent, progress=self.bulk_progress)
-            except (OSError, ValueError, TypeError, KeyError, RuntimeError,
-                    urllib.error.URLError, urllib.error.HTTPError) as exc:
+            except Exception as exc:
+                # A worker must always expose a terminal error and release the mutex.
                 self.log_bulk_error(exc)
             finally:
                 self.lock.release()
