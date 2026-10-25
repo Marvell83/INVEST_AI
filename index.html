@@ -930,7 +930,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
   // Excel-style fundamentals matrix: read-only, based exclusively on saved SEC research.
   let fundamentals = {columns: [], rows: []};
   let fundamentalsFilters = [];
-  let fundamentalsShown = new Set(["ticker", "company", "fiscal_year", "roe", "roic",
+  let fundamentalsShown = new Set(["ticker", "company", "screening_status", "fiscal_year", "roe", "roic",
     "revenue_growth", "revenue_cagr_3y", "operating_margin", "cash_conversion_3y",
     "fcf_3y", "net_debt_to_ebitda", "pe", "pb", "roe_10_pb", "peg", "fcf_yield"]);
   let fundamentalsSort = {key:"ticker",descending:false};
