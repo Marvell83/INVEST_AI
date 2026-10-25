@@ -5,6 +5,26 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Web formu v0.3: senaryo ve değerleme girdileri
+
+- **`index.html`:** Analiz formuna isteğe bağlı "Senaryo ve değerleme girdileri" bölümü eklendi: uzun vadeli
+  nominal büyüme (%) ve iskonto oranı (%), her biri kaynağıyla.
+  - İstemci tarafında eşleşme ve kaynak uzunluğu kontrol edilir; yüzdeler orana çevrilir.
+  - Sonuç kutusunda senaryo ve DCF durumu gösterilir.
+  - Rapor listesi senaryo girdili raporları "Analist senaryo girdili" olarak tanır.
+- **`invest_ai_web.py` (v0.3.0):**
+  - Girdiler analizden önce doğrulanır: aralıklar, 8–300 karakter kaynak, değer ve kaynağın birlikte
+    verilmesi, iskontonun büyüme olmadan kullanılamaması, değerlemede %4 uç büyüme tavanı. Hatalar Türkçe
+    mesajla döner.
+  - Senaryo girdili raporların dosya adına `_s<hash>` eklenir; farklı varsayımlar birbirinin üzerine yazılmaz.
+  - İstek gövdesi sınırı 512 → 4096 bayt. Yanıta `projection_status`, `valuation_status`,
+    `valuation_missing` eklendi.
+- **Doğrulama:** Gerçek tarayıcıda (Playwright / Chromium) form doldurulup gönderildi. Web üzerinden üretilen
+  senaryo değerleri komut satırıyla birebir aynı çıktı.
+- **Belgeler:** [docs/WEB_SIRKET_ANALIZI_V02.md](docs/WEB_SIRKET_ANALIZI_V02.md), tahmin motoru, yol haritası,
+  README.
+- **Testler:** 9 yeni test. Toplam `tests/` 485/485.
+
 ## 2026-10-25 — Senaryo değerlemesi v0.1 (yol haritası Ders 7)
 
 - **`senaryo_degerleme.py` (yeni):** Tahmin motorunun her senaryosu, aynı gelir ve faaliyet marjı yoluyla

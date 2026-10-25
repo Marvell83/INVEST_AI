@@ -123,6 +123,9 @@
       border-radius:10px;padding:12px 13px;outline-offset:2px;}
     .web-input:focus{border-color:#76b6fa;}
     .web-help{font-size:12px;color:var(--muted);margin-top:11px;}
+    .web-details{margin-top:16px;border:1px solid #3d5879;border-radius:12px;padding:12px 15px;}
+    .web-details summary{cursor:pointer;font-size:14px;color:#cfe0f3;}
+    .web-details[open] summary{margin-bottom:10px;}
     .web-result{background:#102941;border:1px solid #467aab;border-radius:13px;
       padding:15px;margin-top:16px;overflow-wrap:anywhere;}
     .web-result.error{background:#322025;border-color:#8d4353;color:#ffd9df;}
@@ -261,6 +264,36 @@
               placeholder="Sunucu terminalinde gösterilen anahtar" autocomplete="off" required>
           </div>
         </div>
+        <details class="web-details" id="scenario-inputs">
+          <summary>Senaryo ve değerleme girdileri (isteğe bağlı)</summary>
+          <p class="web-help">Sistem bu oranları kendisi seçmez. Boş bırakırsan raporda yalnız şirketin tarihsel
+            bazı gösterilir. Büyüme girersen temkinli / baz / iyimser senaryolar, ayrıca iskonto girersen deneysel
+            DCF ve duyarlılık tablosu eklenir. Her oran için kaynağını yaz (8–300 karakter).</p>
+          <div class="field-grid">
+            <div class="form-field">
+              <label for="analysis-growth">Uzun vadeli nominal büyüme (%)</label>
+              <input id="analysis-growth" class="web-input" type="number" step="0.1" min="-5" max="8"
+                inputmode="decimal" placeholder="yüzde olarak, -5 ile 8 arası">
+            </div>
+            <div class="form-field">
+              <label for="analysis-growth-source">Büyüme oranının kaynağı</label>
+              <input id="analysis-growth-source" class="web-input" maxlength="300"
+                placeholder="hangi rapor / tahmin, tarihiyle">
+            </div>
+            <div class="form-field">
+              <label for="analysis-discount">İskonto oranı (%)</label>
+              <input id="analysis-discount" class="web-input" type="number" step="0.1" min="4" max="20"
+                inputmode="decimal" placeholder="yüzde olarak, 4 ile 20 arası">
+            </div>
+            <div class="form-field">
+              <label for="analysis-discount-source">İskonto oranının kaynağı</label>
+              <input id="analysis-discount-source" class="web-input" maxlength="300"
+                placeholder="sermaye maliyeti hesabı veya kaynağı">
+            </div>
+          </div>
+          <p class="web-help">Değerlemede uzun vadeli büyüme en fazla %4 olabilir. Net borç ve hisse sayısı SEC
+            dosyalarından alınır; menkul kıymetler ve kiralar net borca dahil değildir. Sonuçlar hedef fiyat değildir.</p>
+        </details>
         <p class="web-help">Örnek mod yalnız AAPL ile çalışır ve 2026-10-21 tarihli manuel aktarımı kullanır.
           Güncel SEC modu internete ve gerçek iletişim adresiyle yapılandırılmış SEC_USER_AGENT'a ihtiyaç duyar.
           Sektör seçimini otomatik tahmin etmiyoruz. Anahtar tarayıcıda kaydedilmez.</p>
@@ -371,14 +404,15 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     if (!path.startsWith("reports/research/")) {
       return {kind:"previous", label:"Önceki / terminal", detail:"Önceden oluşturulmuş rapor · sürümünü raporun içinden kontrol et", asOf:""};
     }
-    const match = /^([A-Z][A-Z0-9.\-]{0,14})_(DEMO|LIVE|CACHE)_(\d{4}-\d{2}-\d{2})_(?:(unknown|financial|non_financial)_)?([a-f0-9]{12})\.html?$/i.exec(filename);
+    const match = /^([A-Z][A-Z0-9.\-]{0,14})_(DEMO|LIVE|CACHE)_(\d{4}-\d{2}-\d{2})_(?:(unknown|financial|non_financial)_)?([a-f0-9]{12})(_s[a-f0-9]{8})?\.html?$/i.exec(filename);
     if (!match) {
       return {kind:"web", label:"Web analizi", detail:"Kaynak türü dosya isminden doğrulanamadı", asOf:""};
     }
     const mode = match[2].toUpperCase();
     const names = {DEMO:"Örnek / manuel aktarım", LIVE:"SEC üzerinden indirme", CACHE:"Yerel SEC arşivi"};
     return {kind:"web", mode, label: names[mode], asOf:match[3],
-      detail:"Bilgi kesme tarihi: "+match[3]+(match[4]?" · Sektör: "+match[4]:" · Önceki web sürümü")};
+      detail:"Bilgi kesme tarihi: "+match[3]+(match[4]?" · Sektör: "+match[4]:" · Önceki web sürümü")+
+        (match[6]?" · Analist senaryo girdili":"")};
   }
 
   function insideReports(url) {
@@ -577,6 +611,15 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       reason.textContent = "Piotroski hesaplanmadı: finans kuruluşları için ayrı değerlendirme yöntemi gerekli.";
       container.append(reason);
     }
+    if (!isError && data.projection_status) {
+      const texts = {OK:"üretildi", INSUFFICIENT_HISTORY:"geçmiş yetersiz",
+        PROJECTION_UNAVAILABLE:"senaryo olmadığı için yapılmadı",
+        INPUTS_MISSING:"eksik girdi (" + (data.valuation_missing || []).join(", ") + ")"};
+      const scenario = document.createElement("p");
+      scenario.textContent = "Senaryolar: " + (texts[data.projection_status] || data.projection_status) +
+        (data.valuation_status ? " | Deneysel DCF: " + (texts[data.valuation_status] || data.valuation_status) : "");
+      container.append(scenario);
+    }
     if (!isError && typeof data.report_url === "string" &&
         /^\/reports\/[A-Za-z0-9_./-]+\.html$/.test(data.report_url)) {
       const url = new URL(data.report_url, document.baseURI);
@@ -596,6 +639,28 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     host.append(container);
   }
 
+  // Optional analyst rates: entered in percent, sent as fractions, always with a citation.
+  function scenarioInputs() {
+    const read = id => document.getElementById(id).value.trim();
+    const pairs = [["long_run_growth", "analysis-growth", "analysis-growth-source", "Uzun vadeli büyüme"],
+                   ["discount_rate", "analysis-discount", "analysis-discount-source", "İskonto oranı"]];
+    const body = {};
+    for (const [name, valueId, sourceId, label] of pairs) {
+      const value = read(valueId), source = read(sourceId);
+      if (!value && !source) continue;
+      if (!value || !source) return {error: label + " ve kaynağı birlikte girilmeli."};
+      const percent = Number(value.replace(",", "."));
+      if (!Number.isFinite(percent)) return {error: label + " bir sayı olmalı."};
+      if (source.length < 8) return {error: label + " kaynağı en az 8 karakter olmalı."};
+      body[name] = Math.round(percent * 1000) / 100000;
+      body[name + "_source"] = source;
+    }
+    if ("discount_rate" in body && !("long_run_growth" in body)) {
+      return {error: "Değerleme için önce uzun vadeli büyüme ve kaynağı girilmeli."};
+    }
+    return {body};
+  }
+
   const analysisForm = document.getElementById("web-analysis-form");
   analysisForm.addEventListener("submit", async event => {
     event.preventDefault();
@@ -608,13 +673,18 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       showAnalysisResult({error:"Geçerli bir hisse kodu ve terminalden alınmış anahtar gerekli."}, true);
       return;
     }
+    const scenario = scenarioInputs();
+    if (scenario.error) {
+      showAnalysisResult({error: scenario.error}, true);
+      return;
+    }
     submit.disabled = true;
     submit.textContent = "Finansallar inceleniyor…";
     try {
       const response = await fetch("/api/analyze", {
         method: "POST", credentials: "same-origin",
         headers: {"Content-Type":"application/json", "X-Invest-AI-Key":key},
-        body: JSON.stringify({ticker,mode,sector}),
+        body: JSON.stringify(Object.assign({ticker,mode,sector}, scenario.body)),
       });
       const data = await response.json();
       showAnalysisResult(data, !response.ok);

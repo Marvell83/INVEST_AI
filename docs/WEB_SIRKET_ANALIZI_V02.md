@@ -69,7 +69,8 @@ Web sunucusu:
 - Hisse kodu sınırlı bir biçimde doğrulanır. Shell/subprocess veya kullanıcı yolundan dosya çalıştırma yoktur.
 - Aynı anda yalnız bir şirket analizi başlatılır.
 - Dosya arşivi kaynağın gerçekten SEC elektronik imzasını taşıdığını kanıtlamaz. İki hesap motorunun uyuşması kaynakların muhasebe kapsamını onaylayan insan denetimi değildir.
-- F-Score eksikse kesin puan üretilemez; DCF ve ters DCF modelleri **otomatik bağlanmaz**, yatırım önerisi veya canlı hisse fiyatı yoktur.
+- F-Score eksikse kesin puan üretilemez. DCF **otomatik çalışmaz**: yalnız analist kaynaklı iskonto oranı girerse deneysel senaryo DCF'si eklenir. Ters DCF bağlı değildir; yatırım önerisi veya canlı hisse fiyatı yoktur.
+- İstek gövdesi en çok 4096 bayttır (kaynak metinleri sığsın diye 512 bayttan büyütüldü).
 
 ## Testler
 
@@ -81,6 +82,23 @@ python3 -m unittest discover -s tests -v
 Sentetik SEC kayıtlarıyla (gerçek SEC internet erişimi olmadan) şu durumlar doğrulanır: HTML formu ve API, anahtar/Origin kontrolleri, kaynak dosyalarının internete açılmaması, ücretsiz demo, resmî ticker CIK eşlemesi, tek kaynaktan tarihli çıktı, çevrimdışı önbellek, 429 devre kesici, eksik sektörün puanlanmaması ve eşzamanlı analiz engeli.
 
 **Önemli kabul sınırı:** Testler gerçek SEC erişiminin Codespaces ağında başarılı olduğunu garantilemez. İlk canlı çalıştırmada SEC erişim yanıtını, 10-K/10-Q dönemlerini ve analiz raporunda "kaynak eksikleri" bölümünü kontrol et.
+
+## Senaryo ve değerleme girdileri (v0.3)
+
+Formdaki **"Senaryo ve değerleme girdileri (isteğe bağlı)"** bölümü, tahmin motorunu ([TAHMIN_MOTORU_V01.md](TAHMIN_MOTORU_V01.md)) ve senaryo değerlemesini ([SENARYO_DEGERLEME_V01.md](SENARYO_DEGERLEME_V01.md)) tarayıcıdan çalıştırır.
+
+| Alan | Kural |
+|---|---|
+| Uzun vadeli nominal büyüme (%) | −5 ile 8 arası; girilirse temkinli / baz / iyimser senaryolar eklenir |
+| İskonto oranı (%) | 4 ile 20 arası; yalnız büyüme de girildiyse çalışır ve deneysel DCF ile duyarlılık tablosunu ekler |
+| Her oranın kaynağı | zorunlu, 8–300 karakter |
+
+- Oranlar yüzde olarak girilir ve sunucuya oran olarak gönderilir (3 → 0,03).
+- Değerlemede uzun vadeli büyüme en fazla %4 olabilir (sonsuz büyüme tavanı).
+- Eksik veya hatalı girdi, analiz başlamadan Türkçe mesajla reddedilir.
+- Alanlar boşsa rapor yalnız şirketin tarihsel bazını gösterir. Sistem bu oranları hiçbir zaman kendisi seçmez.
+- Senaryo girdili raporların dosya adı `_s<8 hane>` ile biter. Böylece aynı SEC verisinden farklı varsayımlarla üretilen raporlar birbirinin üzerine yazılmaz. Rapor listesi bunları "Analist senaryo girdili" olarak gösterir.
+- Sonuç kutusunda senaryo ve DCF durumu görünür: üretildi / geçmiş yetersiz / eksik girdi. Apple örnek verisinde tek mali yıl olduğu için senaryo "geçmiş yetersiz" çıkar; senaryolar için "Güncel SEC" modunu kullan.
 
 ## Sonraki hedef
 

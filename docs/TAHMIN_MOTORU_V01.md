@@ -70,7 +70,7 @@ python tahmin_motoru.py --companyfacts CIK0000320193.json --as-of 2026-10-24 --y
   --ledger tahminler.sqlite --record-scenarios temkinli,baz,iyimser --out reports/aapl_senaryo.json
 ```
 
-Web formu bu sürümde yalnız tarihsel bazı gösterir; uzun vadeli oran girişi henüz yok.
+Web formunda da "Senaryo ve değerleme girdileri" bölümünden uzun vadeli oran ve kaynağı girilebilir ([WEB_SIRKET_ANALIZI_V02.md](WEB_SIRKET_ANALIZI_V02.md)).
 
 ## Sınırlar
 

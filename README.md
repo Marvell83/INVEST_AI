@@ -62,7 +62,7 @@ SEC Company Facts (ham JSON, SHA-256 ile arşiv: sec_arsiv)
 | | `sec_toplu_tarama.py` | Çoklu şirket indirme / arşiv / tarama |
 | | `sec_finansal_degisim.py`, `sec_degisim_raporu.py` | İki SEC arşivi arasındaki değişiklik ve revizyonlar |
 | **Portföy** | `portfoy_risk.py`, `portfoy_raporu.py` | Ağırlık, HHI, tema yoğunlaşması, analist tanımlı stres |
-| **Arayüz** | `index.html`, `invest_ai_web.py` | Rapor listesi; anahtarla korunan yerel analiz formu |
+| **Arayüz** | `index.html`, `invest_ai_web.py` | Rapor listesi; anahtarla korunan yerel analiz formu; isteğe bağlı kaynaklı büyüme ve iskonto girdileriyle senaryo ve deneysel DCF |
 
 ## Hızlı başlangıç
 
@@ -103,7 +103,7 @@ Ayrıntılı kullanım: [web analizi](docs/WEB_SIRKET_ANALIZI_V02.md) · [şirke
 
 | Paket | Komut | Sonuç |
 |---|---|---|
-| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **476/476** |
+| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **485/485** |
 | Dondurulmuş v0.1 kabul | `dogrulama/kabul_testi.py` | **17/17** |
 | Kabul altyapısı + v0.2 modülleri | `unittest test_dogrulama_seti test_moduller_v02` | **9/9** (2 + 7) |
 
