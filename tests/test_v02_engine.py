@@ -25,6 +25,15 @@ class TestV02Engine(unittest.TestCase):
         a=degerle_v02(p)
         self.assertAlmostEqual(a['tablo'][0]['faaliyet_marji'],.15)
         self.assertAlmostEqual(a['tablo'][1]['faaliyet_marji'],.175)
+    def test_explicit_margin_path(self):
+        a=degerle_v02(dict(BASE, marj_yolu=[.1, .3, .25]))
+        self.assertEqual([r['faaliyet_marji'] for r in a['tablo']], [.1, .3, .25])
+        self.assertAlmostEqual(a['tablo'][1]['ebit'], 121*.3)
+        self.assertAlmostEqual(a['uc_nopat_normalize'], 133.1*1.02*.25*.75)
+    def test_invalid_margin_path(self):
+        for bad in ([.1, .2], [.1, .2, 1.5], [.1, float('nan'), .2], 'x'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                degerle_v02(dict(BASE, marj_yolu=bad))
     def test_roiic_diagnostic(self):
         a=degerle_v02(BASE)
         self.assertIsNone(a['tablo'][0]['roiic'])

@@ -147,7 +147,7 @@ def project_scenarios(baseline, *, years=5, long_run_growth, long_run_growth_sou
         raise ValueError("long_run_growth_source: a citation of at least 8 characters is required")
     result = {"version": VERSION, "cik": baseline["cik"], "company": baseline.get("company", ""),
               "as_of": baseline["as_of"], "base_fiscal_year_end": baseline["base_fiscal_year_end"],
-              "years": years, "scenarios": {}, "warnings": []}
+              "base": baseline["base"], "years": years, "scenarios": {}, "warnings": []}
     if baseline["status"] != "OK":
         return dict(result, status="INSUFFICIENT_HISTORY", reasons=baseline["reasons"])
 
