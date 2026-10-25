@@ -152,3 +152,7 @@ python3 sec_piyasa_toplu_tarama.py --coverage
 - İnternete bağlanmaz, `SEC_USER_AGENT` gerekmez.
 - Kesilirse aynı komut kaldığı yerden devam eder; o sırada tablo eski satırları göstermeye devam eder.
 - Farklı bir ZIP veya farklı bilgi tarihiyle çalıştırılmaz; `--retry-errors` ile birlikte kullanılmaz.
+
+## Fiyat ve değerleme çarpanları (v0.7)
+
+SEC verisi fiyat içermez. Ücretsiz Nasdaq hisse tarayıcısı CSV'sini (veya `ticker,date,close` dosyasını) `fiyat_katmani.py` ile içeri aldıktan sonra tablo F/K, PD/DD, (ROE/10)/PD/DD, EV/EBIT, EV/FAVÖK*, FCF getirisi ve tarihsel PEG'i bütün şirketler için hesaplar. Adımlar ve eşleştirme kuralları: [TEMEL_ANALIZ_EXCEL_TARAYICI.md](TEMEL_ANALIZ_EXCEL_TARAYICI.md#fiyat-gerektirenler). Fiyattan önce bir kez `--rebuild` çalıştır: pay adedi tarihi ve FAVÖK* sütunları yeni satırlarda bulunur.

@@ -5,6 +5,21 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Fiyat katmanı: kaynaklı fiyatla bütün şirketlerde değerleme çarpanları (v0.7)
+
+- **`fiyat_katmani.py`:** Ücretsiz Nasdaq hisse tarayıcısı CSV'si veya `ticker,date,close` dosyası (Türkçe Excel `;`
+  ayracı ve virgül ondalığı dahil) tarih ve kaynakla `veri/invest_ai_fiyat.sqlite3`'e alınır. Gelecek tarihli,
+  imtiyazlı / birim, sıfır fiyatlı ve tekrarlanan satırlar nedenleriyle atlanır. Ağ isteği yoktur.
+- **Toplu tablo:** Her hisse kodu kendi fiyatını alır; F/K, PD/DD, fiyat/satış, (ROE/10)/PD/DD, EV/EBIT, EV/FAVÖK*,
+  fiyat/FCF, FCF getirisi ve **tarihsel PEG** (F/K ÷ 3Y EPS CAGR) hesaplanır. Çarpanlar yalnız fiyat tarihi SEC bilgi
+  tarihine 10 gün içinde, finansallar güncel (456 gün) ve pay adedi en çok 200 gün eskiyse üretilir; "Değerleme
+  durumu" nedenini söyler. SEC tarihine en yakın uygun fiyat seçilir.
+- **Arayüz:** 7 koşulda PEG türü seçimi (ileri / tarihsel), fiyat kaynağının sektör filtresi ("Finance hariç"),
+  değerleme durumunun Türkçe gösterimi. Hata düzeltmesi: değeri hiç olmayan (eski satır) bir oran şirketi
+  "Elendi" sayıyordu; artık "Veri bekliyor".
+- **Kapsam raporu:** fiyat ve değerleme durum sayıları. Satır şeması 3: yeni sütunlar için bir kez `--rebuild`.
+- **Testler:** 14 yeni test (`tests/test_fiyat_katmani.py`). Toplam `tests/` 624/624. Tarayıcıda uçtan uca denendi.
+
 ## 2026-10-25 — Toplu tarama: kapsam raporu, yerel yeniden hesaplama ve yeni SEC sütunları (v0.7)
 
 - **`--coverage`:** 5.003 `OK` şirkette her oranın kaç şirkette dolu olduğunu, 7 koşulun girdilerinin hazır olma

@@ -391,6 +391,16 @@
           <div class="form-field"><label for="fundamentals-yield">Referans faiz (%) — opsiyonel</label>
             <input id="fundamentals-yield" class="web-input" type="number" min="0" max="100" step="any"
                    placeholder="Örn. 4,5 (kendin doğrula)"></div>
+          <div class="form-field"><label for="fundamentals-peg-basis">7 koşulda PEG türü</label>
+            <select id="fundamentals-peg-basis" class="web-input">
+              <option value="peg">İleri (kaynaklı analist EPS büyümesi)</option>
+              <option value="peg_historical">Tarihsel (şirketin 3 yıllık EPS CAGR'ı)</option>
+            </select></div>
+          <div class="form-field"><label for="fundamentals-sector">Sektör (fiyat kaynağı)</label>
+            <select id="fundamentals-sector" class="web-input">
+              <option value="all">Bütün sektörler</option>
+              <option value="no-finance">Finans (Finance) hariç</option>
+            </select></div>
           <div class="form-field"><label for="fundamentals-decision">7 koşullu ön eleme sonucu</label>
             <select id="fundamentals-decision" class="web-input">
               <option value="all">Hepsi (geçen / elenen / veri bekleyen)</option>
@@ -410,9 +420,10 @@
         </details>
         <p class="web-help">ROIC, küçük yatırılan sermaye veya yaklaşık faaliyet kârı nedeniyle dikkat gerektirebilir.
           FAVÖK* burada faaliyet kârı + amortisman tahminidir. F/K, PD/DD, EV/EBIT, FCF getirisi ve
-          (ROE/10)/PD/DD, yalnız kaynaklı ve tarihli fiyat mevcutsa hesaplanır.
-          PEG için ileri EPS büyümesi henüz bağlı değildir; eksik kalır. Bu liste yalnız daha önce
-          analiz edilip diske kaydedilmiş şirketlerden oluşur; SEC şirket dizini tek başına finansal rasyo içermez.</p>
+          (ROE/10)/PD/DD yalnız içeri alınmış kaynaklı ve tarihli fiyatla hesaplanır (<code>fiyat_katmani.py</code>);
+          fiyat tarihi SEC bilgi tarihinden en çok 10 gün uzak ve finansallar güncel olmalıdır. "Değerleme durumu"
+          sütunu çarpanın neden boş kaldığını söyler. İleri PEG için kaynaklı EPS beklentisi henüz bağlı değildir;
+          tarihsel PEG şirketin kendi 3 yıllık EPS büyümesidir ve ayrı sütundadır.</p>
         <div class="scroll" style="margin-top:14px;max-height:68vh;overflow:auto">
           <table id="fundamentals-table" style="min-width:1250px">
             <thead id="fundamentals-head"></thead>
@@ -943,7 +954,15 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
   let fundamentalsFilters = [];
   let fundamentalsShown = new Set(["ticker", "company", "screening_status", "fiscal_year", "roe", "roic",
     "revenue_growth", "revenue_cagr_3y", "operating_margin", "cash_conversion_3y",
-    "fcf_3y", "net_debt_to_ebitda", "pe", "pb", "roe_10_pb", "peg", "fcf_yield"]);
+    "fcf_3y", "net_debt_to_ebitda", "market_price", "valuation_status", "pe", "pb", "roe_10_pb",
+    "peg", "peg_historical", "fcf_yield", "source_sector"]);
+  const VALUATION_LABELS = {
+    OK:"Uyumlu fiyat", NO_PRICE:"Fiyat yok", NO_SEC_FINANCIALS:"SEC finansalı yok",
+    ROW_NEEDS_REBUILD:"Satır eski: --rebuild çalıştır", STALE_FINANCIALS:"Finansallar güncel değil",
+    PRICE_DATE_OUTSIDE_WINDOW:"Fiyat tarihi SEC tarihinden 10 günden uzak",
+    NO_SHARE_COUNT:"Pay adedi yok (çok sınıflı olabilir)", SHARE_COUNT_DATE_NOT_ALIGNED:"Pay adedi tarihi uyumsuz",
+    PRICE_SHARES_DATES_NOT_ALIGNED:"Fiyat ve pay adedi tarihleri uyumsuz"};
+  const textValue = (key, value) => key === "valuation_status" ? (VALUATION_LABELS[value] || value || "") : value;
   let fundamentalsSort = {key:"ticker",descending:false};
   const fundamentalsPanel = document.getElementById("fundamentals-panel");
   const fundamentalsStatus = document.getElementById("fundamentals-status");
@@ -955,15 +974,20 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     const raw = document.getElementById("fundamentals-yield").value.trim();
     return raw === "" ? null : (Number.isFinite(Number(raw)) ? Number(raw) / 100 : null);
   };
+  // A missing (null or absent) value is "data pending", never a fail.
+  const num = value => typeof value === "number" && Number.isFinite(value) ? value : null;
   function screenState(row, rate) {
+    const peg = num(row[document.getElementById("fundamentals-peg-basis").value]);
+    const roe = num(row.roe), roic = num(row.roic), roePb = num(row.roe_10_pb);
+    const leverage = num(row.net_debt_to_ebitda), cash3 = num(row.cash_conversion_3y), fcf3 = num(row.fcf_3y);
     const checks = [
-      rate === null || row.roe === null ? null : row.roe > rate,
-      rate === null || row.roic === null || row.roic_warning ? null : row.roic > rate,
-      row.roe_10_pb === null ? null : row.roe_10_pb >= 1,
-      row.peg === null ? null : row.peg > 0 && row.peg <= 1,
-      row.net_debt_to_ebitda === null ? null : row.net_debt_to_ebitda <= 2,
-      row.cash_conversion_3y === null ? null : row.cash_conversion_3y >= 1,
-      row.fcf_3y === null ? null : row.fcf_3y > 0
+      rate === null || roe === null ? null : roe > rate,
+      rate === null || roic === null || row.roic_warning ? null : roic > rate,
+      roePb === null ? null : roePb >= 1,
+      peg === null ? null : peg > 0 && peg <= 1,
+      leverage === null ? null : leverage <= 2,
+      cash3 === null ? null : cash3 >= 1,
+      fcf3 === null ? null : fcf3 > 0
     ];
     return checks.includes(false) ? "fail" : checks.includes(null) ? "pending" : "pass";
   }
@@ -983,8 +1007,11 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     const policy = document.getElementById("fundamentals-policy").value;
     const decision = document.getElementById("fundamentals-decision").value;
     const coverage = document.getElementById("fundamentals-coverage").value;
+    const sector = document.getElementById("fundamentals-sector").value;
     const rate = readYield();
     const rows = fundamentals.rows.filter(row => {
+      if (sector === "no-finance" && row.source_sector === "Finance") return false;
+      if (sector !== "all" && sector !== "no-finance" && row.source_sector !== sector) return false;
       if (term && !(String(row.ticker)+" "+String(row.company)+" "+String(row.cik))
                    .toLocaleLowerCase("tr").includes(term)) return false;
       if (decision !== "all" && screenState(row,rate) !== decision) return false;
@@ -1074,12 +1101,14 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       for (const [key,label,type] of cols) {
         const td = document.createElement("td");
         const value = row[key];
-        td.textContent = type==="text" ? (value || "—") : screenFormat(value,type);
+        td.textContent = type==="text" ? (textValue(key,value) || "—") : screenFormat(value,type);
         if (typeof value === "number") td.classList.add("num");
         if (key==="roic" && row.roic_warning) td.title="ROIC uyarılı: küçük sermaye tabanı veya yaklaşık EBIT";
-        if (["pe","pb","roe_10_pb","ev_ebit","ev_ebitda","ps"].includes(key))
-          td.title = row.price_source ? row.price_source + " · "+ row.price_date : "Kaynaklı hisse fiyatı eksik";
+        if (["market_cap","pe","pb","roe_10_pb","ev_ebit","ev_ebitda","ps","p_fcf","fcf_yield","peg_historical"].includes(key))
+          td.title = row.valuation_status === "OK" ? row.price_source + " · " + row.price_date
+            : (VALUATION_LABELS[row.valuation_status] || "Kaynaklı hisse fiyatı eksik");
         if (key==="peg") td.title="Kaynaklı ileriye dönük EPS büyümesi henüz sisteme bağlanmadı";
+        if (key==="peg_historical") td.title += " · tarihsel: F/K ÷ (3Y EPS CAGR × 100), ileri tahmin değildir";
         tr.append(td);
       }
       fundamentalsBody.append(tr);
@@ -1123,10 +1152,18 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       const data=await response.json();
       if(!response.ok){fundamentalsStatus.textContent=data.error||"Tarama verisi okunamadı.";return;}
       fundamentals=data;
+      const sectorSelect=document.getElementById("fundamentals-sector");
+      sectorSelect.querySelectorAll("option.dynamic").forEach(option=>option.remove());
+      for(const name of [...new Set(data.rows.map(r=>r.source_sector).filter(Boolean))].sort()){
+        const option=document.createElement("option");
+        option.value=name;option.textContent=name;option.className="dynamic";sectorSelect.append(option);
+      }
       drawFundamentalsColumns();
       drawFundamentals();
-      fundamentalsStatus.textContent=data.available+" şirketin kayıtlı analizinden finansal tablo kuruldu. "+
-        "Yeni şirketleri SEC'den analiz edip kaydettikçe buraya eklenir. Canlı fiyat indirilmedi.";
+      const priced=data.priced_rows||0;
+      fundamentalsStatus.textContent=data.available+" satır yüklendi · "+priced+" satırda içeri alınmış fiyat var, "+
+        ((data.valuation_counts||{}).OK||0)+" satırda çarpanlar hesaplandı. Canlı fiyat indirilmedi; "+
+        "fiyat yalnız fiyat_katmani.py ile içeri alınan kaynaklı dosyadan gelir.";
     } catch (_) {
       fundamentalsStatus.textContent="Tarama API'sine erişilemedi. Python sunucusunu kontrol et.";
     } finally {trigger.disabled=false;}
@@ -1135,7 +1172,8 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
   document.getElementById("fundamentals-refresh").addEventListener("click",openFundamentals);
   for (const id of ["fundamentals-search","fundamentals-yield"])
     document.getElementById(id).addEventListener("input",drawFundamentals);
-  for (const id of ["fundamentals-policy","fundamentals-decision","fundamentals-coverage"])
+  for (const id of ["fundamentals-policy","fundamentals-decision","fundamentals-coverage",
+                    "fundamentals-peg-basis","fundamentals-sector"])
     document.getElementById(id).addEventListener("change",drawFundamentals);
   document.getElementById("fundamentals-add-filter").addEventListener("click",()=>{
     const columnMap=fundamentalsColumnMap();
@@ -1162,6 +1200,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
     document.getElementById("fundamentals-decision").value="all";
     document.getElementById("fundamentals-coverage").value="all";
     document.getElementById("fundamentals-policy").value="exclude";
+    document.getElementById("fundamentals-sector").value="all";
     drawFundamentals();
   });
   document.getElementById("fundamentals-csv").addEventListener("click",()=>{
@@ -1175,7 +1214,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       const vals=columns.map(([key,label,type])=>{
         const value=row[key];
         if(value===null||value===undefined)return "";
-        if(type==="text")return safe(value);
+        if(type==="text")return safe(textValue(key,value));
         if(type==="percent")return (value*100).toString().replace(".",",");
         return String(value).replace(".",",");
       });

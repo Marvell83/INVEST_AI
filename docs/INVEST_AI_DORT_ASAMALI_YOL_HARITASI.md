@@ -21,7 +21,7 @@ Kaynaklı yıllık ve TTM finansallarla şirketleri incele:
 - Gelir büyümesi ve istikrarı; brüt, faaliyet ve net marj; büyümenin sürekliliği.
 - CFO, CapEx, CFO−CapEx ve nakit dönüşümü; hisse bazlı ödemeler ve geri alımlar.
 - Cari oran, borçluluk, net borç; anormal ROE/ROIC paydası ve veri kalitesi uyarıları.
-- Şirketin olası değeri ile piyasa fiyatını ayrı tut; **canlı fiyat ve ileri dönem varsayımları şu an otomatik sağlanmıyor**.
+- Şirketin olası değeri ile piyasa fiyatını ayrı tut. Fiyat, kaynaklı ve tarihli bir dosyadan içeri alınır (`fiyat_katmani.py`, ücretsiz Nasdaq tarayıcı CSV'si); canlı fiyat indirilmez. **İleri dönem EPS beklentileri (ileri PEG) henüz bağlı değil**; tarihsel PEG ayrı sütundadır.
 - Eşikler açık, değiştirilebilir ve nedenleri açıklanabilir olmalı. `GEÇTİ`, `ELENDİ`, `VERİ EKSİK / İNCELEME GEREKLİ` ayrı durumlar. **Tek bileşik hisse puanı ve Piotroski yok.**
 
 **Mevcut:** `finansal_tablolar.py`, `finansal_oranlar.py`, `sec_ttm_crosscheck.py`, `katman_mutabakati.py`. **Eksik:** evren çapında kayıtlı, tekrarlanabilir eşik tabanlı eleme ve eleme nedenleri.
