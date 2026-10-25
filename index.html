@@ -757,6 +757,112 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       submit.textContent = "Şirketi analiz et →";
     }
   });
+
+  // SEC ticker/CIK directory browser. No Company Facts downloads from this control.
+  let secScanOffset = 0;
+  let secScanQuery = "";
+  let secScanSerial = 0;
+  let secScanSearchTimer = null;
+  const secScanButton = document.getElementById("sec-scan-submit");
+  const secScanRefresh = document.getElementById("sec-scan-refresh");
+  const secScanPanel = document.getElementById("sec-scan-panel");
+  const secScanSummary = document.getElementById("sec-scan-summary");
+  const secScanBody = document.getElementById("sec-scan-rows");
+  const secScanPrev = document.getElementById("sec-scan-prev");
+  const secScanNext = document.getElementById("sec-scan-next");
+
+  async function scanSecDirectory({refresh=false, offset=0} = {}) {
+    const key = document.getElementById("analysis-key").value;
+    secScanPanel.hidden = false;
+    if (!key) {
+      secScanSummary.textContent = "Önce Web analiz anahtarı alanına sunucu anahtarını gir.";
+      return;
+    }
+    const serial = ++secScanSerial;
+    secScanButton.disabled = true;
+    secScanRefresh.disabled = true;
+    secScanPrev.disabled = true;
+    secScanNext.disabled = true;
+    secScanSummary.textContent = "SEC şirket listesi okunuyor…";
+    try {
+      const response = await fetch("/api/sec-scan", {
+        method: "POST", credentials: "same-origin",
+        headers: {"Content-Type":"application/json", "X-Invest-AI-Key":key},
+        body: JSON.stringify({query:secScanQuery, offset, refresh}),
+      });
+      const data = await response.json();
+      if (serial !== secScanSerial) return;
+      if (!response.ok || !data.ok) {
+        secScanSummary.textContent = data.error || "SEC şirket listesi alınamadı.";
+        return;
+      }
+      secScanOffset = data.offset;
+      secScanBody.replaceChildren();
+      for (const item of data.rows) {
+        const tr = document.createElement("tr");
+        for (const value of [item.ticker, item.company, item.cik]) {
+          const td = document.createElement("td");
+          td.textContent = value;
+          tr.append(td);
+        }
+        const actionCell = document.createElement("td");
+        const choose = document.createElement("button");
+        choose.type = "button";
+        choose.className = "btn";
+        choose.textContent = "Seç";
+        choose.addEventListener("click", () => {
+          document.getElementById("analysis-ticker").value = item.ticker;
+          document.getElementById("analysis-mode").value = "live";
+          document.getElementById("analysis-ticker").focus();
+          document.getElementById("web-analysis-form").scrollIntoView({behavior:"smooth",block:"start"});
+        });
+        actionCell.append(choose);
+        tr.append(actionCell);
+        secScanBody.append(tr);
+      }
+      if (!data.rows.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 4;
+        td.textContent = "Aramana uygun şirket bulunamadı.";
+        tr.append(td);
+        secScanBody.append(tr);
+      }
+      const location = data.source === "SEC_DOWNLOAD" ? "SEC'den güncellendi" : "yerel SEC dizini";
+      secScanSummary.textContent = data.total.toLocaleString("tr-TR") +
+        " ticker kaydı · " + data.matched.toLocaleString("tr-TR") +
+        " eşleşme · " + location + " · kayıt: " + data.snapshot_updated_utc.slice(0,10);
+      document.getElementById("sec-scan-page").textContent =
+        data.matched ? (offset + 1) + "–" + (offset + data.rows.length) +
+        " / " + data.matched : "0 sonuç";
+      secScanPrev.disabled = offset === 0;
+      secScanNext.disabled = !data.has_more;
+    } catch (_) {
+      if (serial === secScanSerial) secScanSummary.textContent =
+        "Python SEC liste API'sine bağlanılamadı. Sunucu terminalini kontrol et.";
+    } finally {
+      if (serial === secScanSerial) {
+        secScanButton.disabled = false;
+        secScanRefresh.disabled = false;
+      }
+    }
+  }
+  secScanButton.addEventListener("click", () => {
+    secScanQuery = document.getElementById("sec-scan-search").value.trim();
+    scanSecDirectory({offset:0});
+  });
+  secScanRefresh.addEventListener("click", () => {
+    secScanQuery = document.getElementById("sec-scan-search").value.trim();
+    scanSecDirectory({refresh:true, offset:0});
+  });
+  document.getElementById("sec-scan-search").addEventListener("input", event => {
+    clearTimeout(secScanSearchTimer);
+    secScanQuery = event.target.value.trim();
+    secScanSearchTimer = setTimeout(() => scanSecDirectory({offset:0}), 300);
+  });
+  secScanPrev.addEventListener("click", () => scanSecDirectory({offset:Math.max(0,secScanOffset-50)}));
+  secScanNext.addEventListener("click", () => scanSecDirectory({offset:secScanOffset+50}));
+
   checkResearchServer();
 
   for (const button of document.querySelectorAll("[data-screen], [data-go]")) {
