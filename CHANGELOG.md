@@ -5,6 +5,17 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Yalnız SEC verisiyle eleme raporu ve SEC sektör kodları (v0.8)
+
+- **`sec_sirket_profili.py`:** SEC'in toplu `submissions.zip` arşivinden (tek istek) taranan her şirketin SIC sektör
+  kodunu, açıklamasını, şirket türünü ve borsalarını `veri/sec_sirket_profili.sqlite3`'e alır. Finans / sigorta /
+  gayrimenkul (SIC 6000–6799) işaretlenir. ZIP içindeki CIK ile JSON CIK'i farklıysa profil alınmaz.
+- **`sec_eleme_raporu.py`:** Fiyat ve PEG olmadan beş SEC koşuluyla (ROE, ROIC, net borç / FAVÖK*, 3Y CFO / net kâr,
+  3Y FCF) bütün şirketleri eler. Huni (güncel finansallar, finans dışı, gelir ≥ 50 milyon $), koşul bazında geçti /
+  elendi / veri bekliyor sayıları, sektör dağılımı, öne çıkan listeler ve geçenlerin tam tablosu; HTML, CSV, JSON.
+- `fetch_bulk_zip` başka bir SEC toplu arşivinin adresini de alabilir.
+- **Testler:** 14 yeni test (`tests/test_sec_eleme_raporu.py`). Toplam `tests/` 642/642.
+
 ## 2026-10-25 — Bankalarda net borç hesaplanmıyor (tablolar v0.5.1)
 
 - Beşinci gerçek veri denemesinde v0.5'in nakit yedek etiketi JPM'de merkez bankası rezervlerini "nakit" yaptı ve

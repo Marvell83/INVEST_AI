@@ -50,8 +50,8 @@ def _utc():
     return datetime.now(timezone.utc).isoformat()
 
 
-def fetch_bulk_zip(target, *, user_agent, progress=None, opener=urllib.request.urlopen):
-    """Stream official bulk ZIP with Range resume if supported; never buffer whole ZIP."""
+def fetch_bulk_zip(target, *, user_agent, progress=None, opener=urllib.request.urlopen, url=BULK_URL):
+    """Stream an official SEC bulk ZIP with Range resume if supported; never buffer whole ZIP."""
     if not re.search(r"\S+@\S+\.\S+", user_agent or ""):
         raise ValueError("SEC_USER_AGENT requires your actual contact email")
     target = Path(target)
@@ -71,7 +71,7 @@ def fetch_bulk_zip(target, *, user_agent, progress=None, opener=urllib.request.u
                "Accept-Encoding": "identity"}
     if offset:
         headers["Range"] = f"bytes={offset}-"
-    request = urllib.request.Request(BULK_URL, headers=headers)
+    request = urllib.request.Request(url, headers=headers)
     try:
         response = opener(request, timeout=90)
     except urllib.error.HTTPError as exc:

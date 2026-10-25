@@ -156,3 +156,18 @@ python3 sec_piyasa_toplu_tarama.py --coverage
 ## Fiyat ve değerleme çarpanları (v0.7)
 
 SEC verisi fiyat içermez. Ücretsiz Nasdaq hisse tarayıcısı CSV'sini (veya `ticker,date,close` dosyasını) `fiyat_katmani.py` ile içeri aldıktan sonra tablo F/K, PD/DD, (ROE/10)/PD/DD, EV/EBIT, EV/FAVÖK*, FCF getirisi ve tarihsel PEG'i bütün şirketler için hesaplar. Adımlar ve eşleştirme kuralları: [TEMEL_ANALIZ_EXCEL_TARAYICI.md](TEMEL_ANALIZ_EXCEL_TARAYICI.md#fiyat-gerektirenler). Fiyattan önce bir kez `--rebuild` çalıştır: pay adedi tarihi ve FAVÖK* sütunları yeni satırlarda bulunur.
+
+## Yalnız SEC verisiyle eleme raporu (v0.8)
+
+Fiyat ve PEG olmadan, yalnız şirketlerin kendi SEC tablolarıyla kalite elemesi:
+
+```bash
+export SEC_USER_AGENT="INVEST_AI Research GERCEK_ADRES@ALAN.COM"
+python3 sec_sirket_profili.py                 # SEC submissions.zip: SIC sektör kodu, borsa (bir kez)
+python3 sec_eleme_raporu.py --rate 4.3        # 10 yıllık ABD tahvil getirisini kendin doğrula
+```
+
+- **Huni:** OK şirketler → son mali yılı güncel olanlar (456 gün) → finans / sigorta / gayrimenkul (SIC 6000–6799) hariç → yıllık gelir en az 50 milyon $ (`--min-revenue`) → 5 koşul.
+- **5 koşul:** ROE > referans faiz, ROIC > referans faiz, net borç / FAVÖK* ≤ 2, 3 yıllık CFO / net kâr ≥ 1, 3 yıllık FCF > 0. Her biri geçti / elendi / veri bekliyor; eksik değer elenme sebebi değildir. Çok küçük sermaye nedeniyle uyarılı ROIC (! işareti) koşulu geçer ama işaretlenir.
+- **Çıktı:** `reports/sec_eleme.html` (huni, koşul sayıları, sektör dağılımı, öne çıkanlar, geçenlerin tam listesi), `reports/sec_eleme.csv` (Excel, `;` ayraçlı), `reports/sec_eleme.json`.
+- SEC profili (SIC) yoksa şirket "Sektör bilinmiyor" olarak dahil tutulur ve sayısı huni notunda yazar.
