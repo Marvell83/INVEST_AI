@@ -41,7 +41,7 @@ Araştırma asistanı  (yalnız rapordaki kaynaklı verilere dayanan yorum)
    - ~~çeyreklik tablolar ve çeyrek türetme (Q4 = FY − 9 ay)~~ tamam (tablolar v0.2),
    - ~~hisse sayısı (dei kapak sayfası)~~ tamam (tablolar v0.2),
    - ~~her çeyrekte TTM~~ tamam (tablolar v0.3),
-   - menkul kıymetler ve kira yükümlülükleri,
+   - ~~menkul kıymetler ve kira yükümlülükleri~~ tamam (tablolar v0.4: net borçtan menkul kıymetler düşülür, kira gösterilir),
    - çeyreklik ve TTM oranları.
 2. **Motorları ortak katmana taşı:**
    - ~~Önce mutabakat~~ tamam (`katman_mutabakati.py`). Her rapor Piotroski ve TTM girdilerini ortak katmanla karşılaştırır, farkları gösterir.

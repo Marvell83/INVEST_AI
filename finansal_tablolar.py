@@ -17,7 +17,7 @@ import math
 
 from sec_companyfacts import METRICS, SEC_DATA, _date, _validate_cik
 
-VERSION = "finansal-tablolar-0.3.0"
+VERSION = "finansal-tablolar-0.4.0"
 ANNUAL_FORMS = frozenset(("10-K", "10-K/A"))
 QUARTERLY_FORMS = frozenset(("10-Q", "10-Q/A", "10-K", "10-K/A"))
 ALIAS_TOLERANCE = 0.005  # ambiguity guard between XBRL aliases, not an accounting standard
@@ -66,6 +66,11 @@ LINE_ITEMS = {
                           ("PaymentsForRepurchaseOfCommonStock",)),
     "cash": ("balance", "instant", "USD", "Nakit ve nakit benzerleri",
              ("CashAndCashEquivalentsAtCarryingValue",)),
+    "short_term_investments": ("balance", "instant", "USD", "Kısa vadeli yatırımlar", ("ShortTermInvestments",)),
+    "marketable_securities_current": ("balance", "instant", "USD", "Menkul kıymetler (kısa vadeli)",
+                                      ("MarketableSecuritiesCurrent",)),
+    "marketable_securities_noncurrent": ("balance", "instant", "USD", "Menkul kıymetler (uzun vadeli)",
+                                         ("MarketableSecuritiesNoncurrent",)),
     "current_assets": ("balance", "instant", "USD", "Dönen varlıklar", ("AssetsCurrent",)),
     "total_assets": ("balance", "instant", "USD", "Toplam varlıklar", ("Assets",)),
     "current_liabilities": ("balance", "instant", "USD", "Kısa vadeli yükümlülükler",
@@ -80,13 +85,31 @@ LINE_ITEMS = {
                                   ("LongTermDebtNoncurrent",)),
     "long_term_debt": ("balance", "instant", "USD", "Uzun vadeli borç (kısa vadeli kısım dahil)",
                        ("LongTermDebt",)),
+    "operating_lease_liability_current": ("balance", "instant", "USD", "Faaliyet kiralaması yükümlülüğü (kısa vadeli)",
+                                          ("OperatingLeaseLiabilityCurrent",)),
+    "operating_lease_liability_noncurrent": ("balance", "instant", "USD",
+                                             "Faaliyet kiralaması yükümlülüğü (uzun vadeli)",
+                                             ("OperatingLeaseLiabilityNoncurrent",)),
+    "finance_lease_liability_current": ("balance", "instant", "USD", "Finansal kiralama yükümlülüğü (kısa vadeli)",
+                                        ("FinanceLeaseLiabilityCurrent",)),
+    "finance_lease_liability_noncurrent": ("balance", "instant", "USD", "Finansal kiralama yükümlülüğü (uzun vadeli)",
+                                           ("FinanceLeaseLiabilityNoncurrent",)),
     "stockholders_equity": ("balance", "instant", "USD", "Özkaynak (ana ortaklık)",
                             ("StockholdersEquity",)),
 }
 DERIVED_ITEMS = {
     "free_cash_flow": ("cash_flow", "USD", "Serbest nakit akışı (CFO − CapEx; FCFF değildir)"),
     "total_debt": ("balance", "USD", "Toplam finansal borç (kira yükümlülükleri hariç)"),
+    "liquid_investments": ("balance", "USD", "Menkul kıymetler ve kısa vadeli yatırımlar (toplam)"),
+    "lease_liabilities": ("balance", "USD", "Kira yükümlülükleri (faaliyet + finansal; net borca dahil değil)"),
+    "net_debt": ("balance", "USD", "Net borç (toplam borç − nakit − menkul kıymetler)"),
 }
+DEBT_COMPONENTS = ("long_term_debt_noncurrent", "long_term_debt_current", "long_term_debt",
+                   "commercial_paper", "short_term_borrowings")
+SECURITIES_COMPONENTS = ("short_term_investments", "marketable_securities_current",
+                         "marketable_securities_noncurrent")
+LEASE_COMPONENTS = ("operating_lease_liability_current", "operating_lease_liability_noncurrent",
+                    "finance_lease_liability_current", "finance_lease_liability_noncurrent")
 ANCHOR_ITEMS = ("revenue", "net_income", "operating_income", "cfo")
 # Weighted-average share counts are not additive: a YTD difference is meaningless.
 NON_ADDITIVE = frozenset(("diluted_shares",))
@@ -259,34 +282,72 @@ def _derive(year, ebit_proxy=True):
     # Total debt never treats an unreported component as zero: it lists what was
     # summed and what was not reported. LongTermDebt already includes the current
     # portion, so it is only a fallback when the noncurrent line is absent.
-    reported = {k: balance[k] for k in ("long_term_debt_noncurrent", "long_term_debt_current",
-                                        "long_term_debt", "commercial_paper", "short_term_borrowings")
-                if balance[k]["status"] == "REPORTED"}
-    conflicts = [k for k in ("long_term_debt_noncurrent", "long_term_debt_current",
-                             "long_term_debt", "commercial_paper", "short_term_borrowings")
-                 if balance[k]["status"] == "CONFLICT"]
-    if "long_term_debt_noncurrent" in reported:
+    if balance["long_term_debt_noncurrent"]["status"] == "REPORTED":
         used = ["long_term_debt_noncurrent", "long_term_debt_current"]
     else:
         used = ["long_term_debt"]
-    used += ["commercial_paper", "short_term_borrowings"]
-    summed = [k for k in used if k in reported]
+    debt = _component_sum(balance, used + ["commercial_paper", "short_term_borrowings"], "DEBT",
+                          "SUM_OF_REPORTED_DEBT_COMPONENTS_SAME_FILING", conflict_keys=DEBT_COMPONENTS)
+    if debt["status"] == "DERIVED":
+        debt["excludes"] = "operating and finance lease liabilities"
+    balance["total_debt"] = debt
+    balance["liquid_investments"] = _liquid_investments(balance)
+    # Shown, not added to net debt: GAAP operating income already deducts operating lease
+    # cost, and some issuers include finance leases in their reported debt.
+    balance["lease_liabilities"] = _component_sum(balance, LEASE_COMPONENTS, "LEASE",
+                                                  "SUM_OF_REPORTED_LEASE_LIABILITIES_SAME_FILING")
+    balance["net_debt"] = _net_debt(balance)
+
+
+def _component_sum(balance, keys, prefix, method, conflict_keys=None):
+    """Sum of the reported components among `keys`; an unreported one is listed, never counted as zero."""
+    conflicts = [k for k in (conflict_keys or keys) if balance[k]["status"] == "CONFLICT"]
+    reported = [k for k in keys if balance[k]["status"] == "REPORTED"]
     if conflicts:
-        balance["total_debt"] = {"status": "MISSING", "value": None, "unit": "USD",
-                                 "reason": "DEBT_COMPONENT_CONFLICT", "components_in_conflict": conflicts}
-    elif not summed:
-        balance["total_debt"] = {"status": "MISSING", "value": None, "unit": "USD",
-                                 "reason": "NO_DEBT_COMPONENT_REPORTED"}
-    elif not _same_filing(*(reported[k] for k in summed)):
-        balance["total_debt"] = {"status": "MISSING", "value": None, "unit": "USD",
-                                 "reason": "DEBT_COMPONENTS_FROM_DIFFERENT_FILINGS"}
-    else:
-        balance["total_debt"] = {
-            "status": "DERIVED", "value": sum(reported[k]["value"] for k in summed), "unit": "USD",
-            "method": "SUM_OF_REPORTED_DEBT_COMPONENTS_SAME_FILING", "components": summed,
-            "accession": reported[summed[0]]["accession"], "filed": reported[summed[0]]["filed"],
-            "components_not_reported": [k for k in used if k not in reported],
-            "excludes": "operating and finance lease liabilities"}
+        return {"status": "MISSING", "value": None, "unit": "USD",
+                "reason": f"{prefix}_COMPONENT_CONFLICT", "components_in_conflict": conflicts}
+    if not reported:
+        return {"status": "MISSING", "value": None, "unit": "USD", "reason": f"NO_{prefix}_COMPONENT_REPORTED"}
+    cells = [balance[k] for k in reported]
+    if not _same_filing(*cells):
+        return {"status": "MISSING", "value": None, "unit": "USD",
+                "reason": f"{prefix}_COMPONENTS_FROM_DIFFERENT_FILINGS"}
+    return {"status": "DERIVED", "value": math.fsum(c["value"] for c in cells), "unit": "USD",
+            "method": method, "components": reported,
+            "components_not_reported": [k for k in keys if k not in reported],
+            "accession": cells[0]["accession"], "filed": cells[0]["filed"]}
+
+
+def _liquid_investments(balance):
+    """Securities that offset debt. ShortTermInvestments may already include current
+    marketable securities, so when both are reported only the larger one is used:
+    the total is then a lower bound, never a double count."""
+    cell = _component_sum(balance, SECURITIES_COMPONENTS, "SECURITIES", "SUM_OF_REPORTED_SECURITIES_SAME_FILING")
+    short_term, marketable = balance["short_term_investments"], balance["marketable_securities_current"]
+    if cell["status"] == "DERIVED" and short_term["status"] == marketable["status"] == "REPORTED":
+        smaller = min((short_term, marketable), key=lambda c: c["value"])
+        cell["value"] -= smaller["value"]
+        cell["overlap"] = {"rule": "LARGER_OF_POSSIBLY_OVERLAPPING_CURRENT_LINES", "lower_bound": True,
+                           "not_added": smaller["concept"], "not_added_value": smaller["value"]}
+    return cell
+
+
+def _net_debt(balance):
+    """Total debt minus cash and, where reported, securities. Lease liabilities are excluded."""
+    debt, cash, liquid = balance["total_debt"], balance["cash"], balance["liquid_investments"]
+    none_reported = liquid.get("reason") == "NO_SECURITIES_COMPONENT_REPORTED"
+    if not (_known(debt) and _known(cash)) or not (_known(liquid) or none_reported):
+        return {"status": "MISSING", "value": None, "unit": "USD", "reason": "DEBT_CASH_OR_SECURITIES_UNAVAILABLE"}
+    parts = [debt, cash] + ([liquid] if _known(liquid) else [])
+    deducted = liquid["value"] if _known(liquid) else 0.0
+    return {"status": "DERIVED", "value": debt["value"] - cash["value"] - deducted, "unit": "USD",
+            "method": ("TOTAL_DEBT_MINUS_CASH_AND_SECURITIES" if _known(liquid)
+                       else "TOTAL_DEBT_MINUS_CASH_NO_SECURITIES_REPORTED"),
+            "deducted": ["cash", "liquid_investments"] if _known(liquid) else ["cash"],
+            "securities_lower_bound": bool(liquid.get("overlap")),
+            "accession": debt["accession"], "filed": max(c["filed"] for c in parts),
+            "sources": sorted({src for c in parts for src in _sources(c)}),
+            "excludes": "lease liabilities"}
 
 
 def build_annual_statements(raw, *, as_of, years=5, ebit_proxy=True):
@@ -332,6 +393,7 @@ def build_annual_statements(raw, *, as_of, years=5, ebit_proxy=True):
             "Without a reported operating income, an approximate EBIT is pretax income plus interest expense",
             "A broader fallback concept (CapEx: productive assets) is read only when no alias is reported",
             "Outflows (CapEx, dividends, repurchases) are positive payments as reported",
+            "Net debt = total debt - cash - reported securities; lease liabilities are shown but not included",
         ],
     }
 

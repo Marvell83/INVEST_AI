@@ -213,11 +213,12 @@ def scan_universe(records, *, as_of, archive_dir, reports_dir, offline=False,
 
 
 HEALTH_COUNTED = ("revenue_alias_bucket", "piotroski_reconciliation", "ttm_reconciliation",
-                  "shared_ttm_status", "latest_operating_income", "shares_status", "baseline_status")
+                  "shared_ttm_status", "latest_operating_income", "net_debt_securities", "shares_status",
+                  "baseline_status")
 HEALTH_COLUMNS = ("statement_years", "latest_fiscal_year_end", "statement_conflicts", "revenue_alias_bucket",
                   "revenue_alias_gap", "quarters", "shares_status", "piotroski_reconciliation",
                   "piotroski_attention", "ttm_reconciliation", "shared_ttm_status", "shared_ttm_end",
-                  "latest_operating_income", "baseline_status", "latest_ratios_available")
+                  "latest_operating_income", "net_debt_securities", "baseline_status", "latest_ratios_available")
 
 
 def _layer_health_counts(records):
@@ -249,6 +250,7 @@ def health_summary_lines(summary):
         f"- Ortak çeyreklerden TTM: {spread('shared_ttm_status')}",
         f"- Eski TTM motorları ↔ dört çeyrek (yalnız 9 aylık dönemde): {spread('ttm_reconciliation')}",
         f"- Son yıl faaliyet kârı: {spread('latest_operating_income')}",
+        f"- Net borçta menkul kıymetler: {spread('net_debt_securities')}",
         f"- Kapak sayfası hisse sayısı: {spread('shares_status')}",
         f"- Senaryo için tarihsel baz: {spread('baseline_status')}",
     ]

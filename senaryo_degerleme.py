@@ -83,11 +83,15 @@ def valuation_inputs(projection, baseline, statements, *, discount_rate, discoun
 
     year = _latest_year(statements)
     if year and "net_debt" not in inputs:
-        debt, cash = year["balance"]["total_debt"], year["balance"]["cash"]
-        if debt.get("status") in ("REPORTED", "DERIVED") and cash.get("status") == "REPORTED":
-            inputs["net_debt"] = {"value": debt["value"] - cash["value"], "origin": "SEC_FILING",
-                                  "source": f"{year['fiscal_year_end']} itibarıyla toplam borç − nakit "
-                                            f"({debt.get('accession')}, {cash.get('accession')})"}
+        net = year["balance"].get("net_debt", {})
+        if net.get("status") == "DERIVED":
+            deducted = ("nakit − menkul kıymetler" if "liquid_investments" in net["deducted"]
+                        else "nakit (menkul kıymet bildirilmemiş)")
+            inputs["net_debt"] = {"value": net["value"], "origin": "SEC_FILING",
+                                  "source": f"{year['fiscal_year_end']} itibarıyla toplam borç − {deducted} "
+                                            f"({', '.join(net['sources'])})",
+                                  "securities_deducted": "liquid_investments" in net["deducted"],
+                                  "securities_lower_bound": net["securities_lower_bound"]}
     shares = statements.get("shares_outstanding", {})
     if shares.get("status") == "REPORTED" and "shares" not in inputs:
         inputs["shares"] = {"value": shares["value"], "origin": "SEC_FILING",
@@ -159,8 +163,13 @@ def value_scenarios(projection, baseline, statements, *, discount_rate, discount
         grid.append(line)
     result["sensitivity"] = {"scenario": base, "discount_rates": discounts, "terminal_growths": growths,
                              "per_share": grid}
-    if inputs["net_debt"]["origin"] == "SEC_FILING":
-        result["warnings"].append("NET_DEBT_EXCLUDES_SECURITIES_AND_LEASES")
+    net_debt = inputs["net_debt"]
+    if net_debt["origin"] == "SEC_FILING":
+        result["warnings"].append("NET_DEBT_EXCLUDES_LEASES")
+        if not net_debt["securities_deducted"]:
+            result["warnings"].append("NET_DEBT_NO_SECURITIES_REPORTED")
+        elif net_debt["securities_lower_bound"]:
+            result["warnings"].append("NET_DEBT_SECURITIES_LOWER_BOUND")
     if inputs["terminal_roic"]["origin"] == "METHOD_DEFAULT":
         result["warnings"].append("TERMINAL_RONIC_NEUTRAL_DEFAULT")
     if projection.get("retrospective"):

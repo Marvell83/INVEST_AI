@@ -84,6 +84,7 @@ Her şirket kaydında artık bir `layer_health` alanı var. Bu alan aynı zamand
 | `shared_ttm_status`, `shared_ttm_end` | Ortak çeyreklerden TTM: `OK`, `PARTIAL`, `INSUFFICIENT_QUARTERS`; hangi çeyrek en son olursa olsun hesaplanır |
 | `ttm_reconciliation` | Eski iki TTM motoru ↔ ortak TTM. Eski motorlar yalnız son dönem 9 aylık 10-Q olduğunda çalışır; diğer durumlarda `NOT_APPLICABLE` normaldir |
 | `latest_operating_income` | Son yılın faaliyet kârı: `REPORTED`, `APPROXIMATE` (vergi öncesi kâr + faiz gideri), `MISSING` |
+| `net_debt_securities` | Son yıl net borcunda menkul kıymetler: `DEDUCTED`, `LOWER_BOUND` (iki kısa vadeli kalem birbirini içerebilir, büyüğü düşüldü), `NONE_REPORTED` (yalnız nakit düşüldü), `NET_DEBT_UNAVAILABLE` |
 | `baseline_status` | Senaryolar için yeterli geçmiş var mı |
 | `latest_ratios_available` | Son yılda hesaplanabilen oran sayısı (18 üzerinden) |
 

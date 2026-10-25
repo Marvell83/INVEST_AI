@@ -181,8 +181,8 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         "IFRS/20-F and finance-sector-specific scoring need dedicated methodologies.",
         "The shared TTM sums four consecutive quarters for any latest quarter; the two older TTM engines "
         "cross-check it only when the latest period is a nine-month 10-Q.",
-        "Annual statements cover selected US-GAAP line items; lease liabilities, marketable securities "
-        "and segment data are not included, and historical ratios are not forecasts.",
+        "Annual statements cover selected US-GAAP line items; segment data is not included, lease "
+        "liabilities are shown but not in net debt, and historical ratios are not forecasts.",
     ]
     complete = not gaps
     return {

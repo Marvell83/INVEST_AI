@@ -38,7 +38,8 @@ RATIOS = {
              "faaliyet kârı × (1 − efektif vergi) / ortalama (özkaynak + toplam borç − nakit)"),
     "current_ratio": ("Cari oran", "Bilanço", "multiple", "dönen varlıklar / kısa vadeli yükümlülükler"),
     "debt_to_equity": ("Borç / özkaynak", "Bilanço", "multiple", "toplam borç / özkaynak (özkaynak > 0)"),
-    "net_debt": ("Net borç", "Bilanço", "usd", "toplam borç − nakit ve nakit benzerleri"),
+    "net_debt": ("Net borç", "Bilanço", "usd",
+                 "toplam borç − nakit − menkul kıymetler (bildirilmişse); kira yükümlülükleri hariç"),
     "interest_coverage": ("Faiz karşılama", "Bilanço", "multiple", "faaliyet kârı / faiz gideri"),
 }
 
@@ -144,8 +145,8 @@ def _year_ratios(statements, index):
     tax_rate = out["effective_tax_rate"]["value"]
 
     def invested(source):
-        parts = [source("stockholders_equity"), source("total_debt"), source("cash")]
-        return None if None in parts else parts[0] + parts[1] - parts[2]
+        parts = [source("stockholders_equity"), source("net_debt")]
+        return None if None in parts else parts[0] + parts[1]
     out["roic"] = _ratio(
         "roic", {"operating_income": get("operating_income"), "effective_tax_rate": tax_rate,
                  "average_invested_capital": _avg(invested(get), invested(before) if prior else None)},
@@ -159,9 +160,7 @@ def _year_ratios(statements, index):
     out["debt_to_equity"] = _ratio(
         "debt_to_equity", {"total_debt": get("total_debt"), "stockholders_equity": get("stockholders_equity")},
         lambda i: i["total_debt"] / i["stockholders_equity"], _positive("stockholders_equity"))
-    out["net_debt"] = _ratio(
-        "net_debt", {"total_debt": get("total_debt"), "cash": get("cash")},
-        lambda i: i["total_debt"] - i["cash"])
+    out["net_debt"] = _ratio("net_debt", {"net_debt": get("net_debt")}, lambda i: i["net_debt"])
     out["interest_coverage"] = _ratio(
         "interest_coverage", {"operating_income": get("operating_income"),
                               "interest_expense": get("interest_expense")},
@@ -188,9 +187,8 @@ def compute_ratios(statements):
         "notes": [
             "Averages use the fiscal year-end and the prior fiscal year-end balances",
             "ROIC uses the reported effective tax rate only when it lies within "
-            f"{TAX_RATE_BOUNDS[0]:.0%}..{TAX_RATE_BOUNDS[1]:.0%}; invested capital subtracts "
-            "cash and cash equivalents only, not marketable securities",
-            "Net debt excludes lease liabilities and marketable securities",
+            f"{TAX_RATE_BOUNDS[0]:.0%}..{TAX_RATE_BOUNDS[1]:.0%}; invested capital is equity plus net debt",
+            "Net debt subtracts cash and reported marketable securities; lease liabilities are excluded",
             "Historical ratios are not forecasts, scores or investment advice",
         ],
     }

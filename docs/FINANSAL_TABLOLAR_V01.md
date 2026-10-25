@@ -1,4 +1,4 @@
-# Finansal Tablolar ve Oranlar (tablolar v0.3 · oranlar v0.1)
+# Finansal Tablolar ve Oranlar (tablolar v0.4 · oranlar v0.1)
 
 `finansal_tablolar.py` ve `finansal_oranlar.py`, SEC Company Facts verisini **tek bir ortak kurallar setiyle** okuyup yıllık ve çeyreklik gelir tablosu, nakit akışı ve bilanço üretir; yıllık tablolardan kârlılık, büyüme, nakit kalitesi, getiri ve borçluluk oranlarını hesaplar. Yol haritasındaki 2., 3., 4. ve 5. derslerin veri temelidir ([YOL_HARITASI.md](YOL_HARITASI.md)).
 
@@ -37,6 +37,14 @@ Yıllık ve çeyreklik çıktılarda ayrıca `conflicts`, `alias_gaps` (öncelik
 † türetilen kalem.
 
 **Toplam borç:** raporlanan bileşenlerin toplamıdır. `LongTermDebt` kısa vadeli kısmı zaten içerdiği için yalnız `LongTermDebtNoncurrent` yoksa kullanılır, çift sayım yapılmaz. Toplanan ve bildirilmeyen bileşenler `components` / `components_not_reported` alanlarında listelenir. Kira yükümlülükleri dahil değildir.
+
+**Menkul kıymetler (v0.4):** Üç bilanço kalemi okunur: kısa vadeli yatırımlar (`ShortTermInvestments`), kısa vadeli ve uzun vadeli menkul kıymetler (`MarketableSecuritiesCurrent`, `MarketableSecuritiesNoncurrent`). Toplamları `liquid_investments` (yalnız aynı SEC dosyasından, bildirilmeyen bileşen 0 sayılmaz). Kısa vadeli yatırımlar kalemi bazı şirketlerde kısa vadeli menkul kıymetleri zaten içerir; ikisi birlikte bildirilmişse **toplanmaz**, büyük olan kullanılır ve sonuç alt sınır olarak işaretlenir (`overlap.lower_bound`). Bu, iki kalemin gerçekten ayrı olduğu şirketlerde (ör. Coca-Cola) menkul kıymetleri olduğundan az gösterir; çift saymaktan daha güvenlidir.
+
+**Net borç (v0.4):** `net_debt` = toplam borç − nakit − menkul kıymetler. Oranlar (net borç, ROIC), tarihsel baz (satış / yatırılan sermaye) ve DCF'in SEC net borç girdisi bu tek hücreyi kullanır.
+- Şirket hiç menkul kıymet kalemi bildirmemişse yalnız nakit düşülür; yöntem `TOTAL_DEBT_MINUS_CASH_NO_SECURITIES_REPORTED` olarak görünür.
+- Menkul kıymetler belirlenemiyorsa (farklı dosyalar, çelişki) net borç `MISSING` olur; yalnız nakitle hesaplanmaz.
+
+**Kira yükümlülükleri (v0.4):** Faaliyet ve finansal kiralama yükümlülükleri (kısa / uzun vadeli) tabloda gösterilir, toplamı `lease_liabilities`. Net borca **eklenmez**: US-GAAP'te faaliyet kârı faaliyet kiralaması giderini zaten düşer, kirayı bir de borca eklemek aynı yükü iki kez saymak olur. Bazı şirketler finansal kiralamayı bildirdikleri borca zaten dahil eder; bu yüzden finansal kiralama da ayrıca eklenmez.
 
 ## Çeyreklik tablolar (v0.2)
 
@@ -101,7 +109,7 @@ Her oran `formula`, kullanılan `inputs` ve hesaplanamadığında `reason` taş�
 Faaliyet kârını kullanan oranlar (faaliyet marjı, faaliyet kârı büyümesi, ROIC, faiz karşılama) yaklaşık faaliyet kârıyla hesaplandıysa `approximate: "OPERATING_INCOME_PROXY"` taşır ve raporda ≈ ile gösterilir. Tarihsel baz bu yılları `approximate_operating_income_years` alanında listeler; senaryolar, değerleme ve Tahmin Defteri kaydı aynı uyarıyı taşır. Sapma analizi yalnız bildirilmiş (`REPORTED`) gerçekleşenleri puanlar; yaklaşık bir gerçekleşen puanlanmaz.
 
 - **ROA / ROE / ROIC:** dönem sonu ile önceki dönem sonu bakiyelerinin ortalamasıyla hesaplanır.
-- **ROIC:** `faaliyet kârı × (1 − efektif vergi) / ortalama (özkaynak + toplam borç − nakit)`. Efektif vergi %0–%50 dışındaysa ROIC hesaplanmaz. Yatırılan sermayeden yalnız nakit ve nakit benzerleri düşülür; menkul kıymetler düşülmez. Bu yüzden Apple gibi büyük menkul kıymet portföyü olan şirketlerde ROIC düşük görünebilir.
+- **ROIC:** `faaliyet kârı × (1 − efektif vergi) / ortalama (özkaynak + net borç)`. Efektif vergi %0–%50 dışındaysa ROIC hesaplanmaz. v0.4'ten itibaren net borçtan menkul kıymetler de düşülür; Apple gibi büyük menkul kıymet portföyü olan şirketlerde ROIC artık olduğundan düşük görünmez.
 - **Negatif özkaynak:** ROE ve borç / özkaynak hesaplanmaz.
 
 ## Kullanım
@@ -125,14 +133,14 @@ quarters = build_quarterly_statements(raw_companyfacts, as_of="2026-10-24", quar
 - Oranlar şimdilik yalnız yıllık tablolardan hesaplanır; çeyreklik ve TTM oranları sonraki adımdadır.
 - Yaklaşık faaliyet kârı faaliyet dışı kalemleri içerir; özkaynak yöntemiyle büyük iştirak geliri olan şirketlerde (ör. Exxon) gerçek faaliyet kârından belirgin farklı olabilir.
 - Ara dönemde mali yıl değiştiren şirketlerde çeyrek takvimi kurulamayabilir; o çeyrekler listelenmez.
-- Seçili US-GAAP kalemleri: segment verisi, kira yükümlülükleri, menkul kıymetler, azınlık payları ve şirkete özel (extension) etiketler yoktur. IFRS / 20-F desteklenmez.
+- Seçili US-GAAP kalemleri: segment verisi, azınlık payları, uzun vadeli stratejik yatırımlar ve şirkete özel (extension) etiketler yoktur. IFRS / 20-F desteklenmez.
 - Bankalar ve sigorta şirketlerinde bu kalemler ve oranlar anlamlı olmayabilir.
 - Etiket eşanlamlıları otomatik eşleşmeyi kolaylaştırır ama konsolide tablonun insan tarafından okunmasının yerini tutmaz.
 - Geçmiş oranlar tahmin, puan veya yatırım tavsiyesi değildir.
 
 ## Testler
 
-`tests/test_finansal_tablolar.py`, `tests/test_finansal_oranlar.py` (36 test) ve `tests/test_finansal_ceyrekler.py` (23 test). v0.3 kuralları `tests/test_gercek_veri_kurallari.py` (27 test: hisse bazlı ödeme, gelir etiketi %5 kuralı ve sınırı, yaklaşık faaliyet kârı ve sektör koruması, CapEx yedek etiketi, oran / baz / defter / değerleme uyarıları) ve `tests/test_ortak_ttm.py` (16 test: 1., 3. ve 4. çeyrekte TTM, eksik / çelişkili çeyrek, eski motorlarla mutabakat, rapor açığı) ile sınanır. Çeyrek testleri şunları kapsar:
+`tests/test_finansal_tablolar.py`, `tests/test_finansal_oranlar.py` (36 test) ve `tests/test_finansal_ceyrekler.py` (23 test). v0.3 kuralları `tests/test_gercek_veri_kurallari.py` (27 test: hisse bazlı ödeme, gelir etiketi %5 kuralı ve sınırı, yaklaşık faaliyet kârı ve sektör koruması, CapEx yedek etiketi, oran / baz / defter / değerleme uyarıları) ve `tests/test_ortak_ttm.py` (16 test: 1., 3. ve 4. çeyrekte TTM, eksik / çelişkili çeyrek, eski motorlarla mutabakat, rapor açığı) ile sınanır. Menkul kıymetler, kira ve net borç `tests/test_menkul_kiymetler.py` (12 test) ile sınanır. Çeyrek testleri şunları kapsar:
 - çeyrek takvimi ve devam eden mali yıl,
 - doğrudan 3 aylık değer önceliği, YTD farkı ve 4. çeyrek,
 - farklı kavramların ve ortalama hisse sayısının farkının alınmaması,

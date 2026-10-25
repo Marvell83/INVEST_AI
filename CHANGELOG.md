@@ -5,6 +5,23 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Menkul kıymetler, kira yükümlülükleri ve net borç (tablolar v0.4)
+
+- **Yeni bilanço kalemleri:** kısa vadeli yatırımlar, kısa / uzun vadeli menkul kıymetler, faaliyet ve finansal
+  kiralama yükümlülükleri (kısa / uzun vadeli).
+- **Türetilen kalemler:** `liquid_investments` (menkul kıymetler toplamı), `lease_liabilities` (kira toplamı) ve
+  `net_debt` (toplam borç − nakit − menkul kıymetler). Kısa vadeli yatırımlar ile kısa vadeli menkul kıymetler
+  birlikte bildirilmişse çift sayılmaz; büyüğü kullanılır ve alt sınır olarak işaretlenir.
+- **Tek net borç:** Net borç oranı, ROIC'in yatırılan sermayesi, tarihsel bazdaki satış / sermaye ve DCF'in SEC net
+  borç girdisi artık aynı `net_debt` hücresini kullanır. Apple, Alphabet, Microsoft, Nvidia gibi büyük menkul kıymet
+  portföyü olan şirketlerde net borç, ROIC ve hisse başı değer önceki sürümde olduğundan kötü görünüyordu.
+- **Kira yükümlülükleri** gösterilir ama net borca eklenmez: faaliyet kârı kira giderini zaten düşüyor.
+- **Değerleme uyarıları:** `NET_DEBT_EXCLUDES_SECURITIES_AND_LEASES` yerine `NET_DEBT_EXCLUDES_LEASES`,
+  `NET_DEBT_NO_SECURITIES_REPORTED`, `NET_DEBT_SECURITIES_LOWER_BOUND`.
+- **Toplu tarama:** katman sağlığına `net_debt_securities` (CSV'de 1 yeni sütun, özet satırı).
+- **Testler:** 12 yeni test (`tests/test_menkul_kiymetler.py`), 1 testin beklentisi güncellendi. Toplam `tests/`
+  562/562. Değişen satırlarda 17 hedefli mutasyonun hepsi yakalanıyor.
+
 ## 2026-10-25 — CapEx yedek etiketi ve bankalarda yaklaşık faaliyet kârı koruması
 
 İkinci gerçek veri denemesinin bulguları.

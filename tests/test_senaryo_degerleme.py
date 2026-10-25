@@ -137,7 +137,8 @@ class ValuationTests(unittest.TestCase):
 
     def test_warnings(self):
         result, _, _ = value()
-        self.assertIn("NET_DEBT_EXCLUDES_SECURITIES_AND_LEASES", result["warnings"])
+        self.assertIn("NET_DEBT_EXCLUDES_LEASES", result["warnings"])
+        self.assertIn("NET_DEBT_NO_SECURITIES_REPORTED", result["warnings"])  # the fixture has no securities
         self.assertIn("TERMINAL_RONIC_NEUTRAL_DEFAULT", result["warnings"])
         self.assertIn("RETROSPECTIVE_PROJECTION", result["warnings"])
 
