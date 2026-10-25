@@ -75,6 +75,41 @@ Bu işlem **indirilmiş ZIP'i yeniden indirmez**, aynı snapshot as-of tarihini 
 
 Bu bir veri kapsamı sınıflandırmasıdır, IFRS/20-F ve fonlar için yeni hesaplama desteği değildir. Gerçek analiz edilebilir şirket sayısı ancak işlemin sonuç raporu alındığında netleşir.
 
+## SEC ZIP ile JSON içeriğindeki CIK farklıysa (v0.6.3)
+
+İlk gerçek 25 Ekim 2026 arşivinde 8.024 şirkete ait son durum:
+5.003 `OK`, 2.009 `NO_SUPPORTED_ANNUAL_DATA`,
+1.001 `NO_COMPANYFACTS` ve 11 `ValueError: CIK mismatch between ZIP path and JSON`.
+
+Bu 11 kayıt için finansallar **başka bir CIK'ye ait olabilir**. Yeni kod bu
+kayıtları `SOURCE_CIK_MISMATCH` durumunda ayrı tutar; yanlış şirkete ROE,
+ROIC veya diğer finansal oranları atamaz. Beklenen (ZIP yolundaki) CIK ile
+SEC JSON içindeki CIK birlikte kaydedilir. Gerçek kaynak kimliği
+doğrulanana kadar şirket **analiz edilmiş sayılmaz**.
+
+Başarıyla işlenen 5.003 satırı silmeden yalnız eski 11 `ERROR` kaydını
+yeniden sınıflandırmak için:
+
+```bash
+cd /workspaces/INVEST_AI
+git pull --ff-only origin main
+python3 sec_piyasa_toplu_tarama.py --retry-errors
+python3 sec_piyasa_toplu_tarama.py --diagnose
+```
+
+Tanılama çıktısında `identity_mismatches` dizisi ZIP ve iç JSON kimliklerini
+gösterir. `Temel analiz tablosu` → `SEC finansal kapsama durumu` filtresinde
+`SEC kimlik uyuşmazlığı — denetim` seçeneği var.
+`Kapsam ayrıntısı / SEC kimlik kontrolü` sütunu isteğe bağlı açılabilir.
+
+**İlerleme sayacı düzeltmesi:** Önceki kod hata kayıtlarını yeniden
+işlerken 8.024 toplam şirket sayısına ayrıca deneme sayısını ekleyip
+10.024 / 8.024 gibi yanıltıcı ilerleme gösteriyordu. Yeni sürüm
+`processed` alanını yalnız benzersiz CIK sayısından hesaplar;
+`retry_attempted/retry_total` yeniden denemeyi ayrı izler.
+
+Sıfır yeni indirme; aynı SEC ZIP, aynı `as_of` ve mevcut SQLite korunur.
+
 ## Sonuçların yorumu
 
 SQLite/Excel finansal satırları şunları içerir: ROE, ROIC, ROA, gelir/kâr büyümesi, marjlar, CFO, nakit dönüşümü, FCF, net borç, borç/özkaynak, yaklaşık net borç/FAVÖK, faiz karşılama, CapEx, D&A, yıllık gelir/varlık/özkaynak/borç tutarları. Üç yıllık finansal geçmiş bulunursa çok yıllık büyüme ve CFO/FCF ölçümleri gösterilir.
