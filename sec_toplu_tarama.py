@@ -125,8 +125,7 @@ def scan_universe(records, *, as_of, archive_dir, reports_dir, offline=False,
         record = {
             "cik": cik, "ticker": entry["ticker"], "sector_assumption": entry["sector"],
             "ticker_mapping_checked": entry["ticker_mapping_checked"], "company": None,
-            "status": None, "annual_audit": None, "fscore": None,
-            "fscore_range": None, "ttm_status": None,
+            "status": None, "annual_audit": None, "ttm_status": None,
             "captured_at_utc": None, "snapshot_sha256": None,
             "snapshot_path": None, "research_json": None, "research_html": None,
             "layer_health": None, "error": None,
@@ -170,14 +169,14 @@ def scan_universe(records, *, as_of, archive_dir, reports_dir, offline=False,
 
             research = build_company_research(raw, as_of=as_of,
                                                expected_cik=cik,
-                                               sector=entry["sector"],
+                                               sector=entry["sector"], include_piotroski=False,
                                                input_mode="sec_direct_download")
             research["source"]["capture_timestamp_utc"] = meta["captured_at_utc"]
             research["source"]["snapshot_sha256"] = meta["sha256"]
             research["source"]["snapshot_file"] = str(filename)
             research["source"]["cache_used"] = record["status"] == "USED_CACHED"
             research["source"]["ticker_mapping_checked"] = entry["ticker_mapping_checked"]
-            report_base = f"CIK{cik}_{as_of}_{meta['sha256'][:12]}"
+            report_base = f"CIK{cik}_{as_of}_{meta['sha256'][:12]}_fundamentals"
             output_json = Path(reports_dir) / f"{report_base}.json"
             output_html = Path(reports_dir) / f"{report_base}.html"
             rendered = render_company_research(research)
@@ -185,8 +184,6 @@ def scan_universe(records, *, as_of, archive_dir, reports_dir, offline=False,
             atomic_write(output_html, rendered.encode("utf-8"))
             record["company"] = research["company"]
             record["annual_audit"] = research["annual_source_audit"]["status"]
-            record["fscore"] = research["quality"]["piotroski"]["score"]
-            record["fscore_range"] = research["quality"]["piotroski"]["score_range"]
             record["ttm_status"] = research["ttm_crosscheck"]["status"]
             record["layer_health"] = layer_health(research)
             record["research_json"] = str(output_json)
@@ -212,12 +209,11 @@ def scan_universe(records, *, as_of, archive_dir, reports_dir, offline=False,
     return summary
 
 
-HEALTH_COUNTED = ("revenue_alias_bucket", "piotroski_reconciliation", "ttm_reconciliation",
+HEALTH_COUNTED = ("revenue_alias_bucket", "ttm_reconciliation",
                   "shared_ttm_status", "latest_operating_income", "net_debt_securities", "shares_status",
                   "baseline_status")
 HEALTH_COLUMNS = ("statement_years", "latest_fiscal_year_end", "statement_conflicts", "revenue_alias_bucket",
-                  "revenue_alias_gap", "quarters", "shares_status", "piotroski_reconciliation",
-                  "piotroski_attention", "ttm_reconciliation", "shared_ttm_status", "shared_ttm_end",
+                  "revenue_alias_gap", "quarters", "shares_status", "ttm_reconciliation", "shared_ttm_status", "shared_ttm_end",
                   "latest_operating_income", "net_debt_securities", "baseline_status", "latest_ratios_available")
 
 
@@ -246,7 +242,6 @@ def health_summary_lines(summary):
         f"- Gelir etiketleri arası fark: yok {buckets.get('NO_REVENUE_CONFLICT', 0)} · "
         f"%0,5–%5 arası {buckets.get('HALF_TO_FIVE_PERCENT', 0)} (öncelikli etiket, notla) · "
         f"%5 üstü {buckets.get('ABOVE_FIVE_PERCENT', 0)} (çelişki)",
-        f"- Piotroski girdileri ↔ ortak tablolar: {spread('piotroski_reconciliation')}",
         f"- Ortak çeyreklerden TTM: {spread('shared_ttm_status')}",
         f"- Eski TTM motorları ↔ dört çeyrek (yalnız 9 aylık dönemde): {spread('ttm_reconciliation')}",
         f"- Son yıl faaliyet kârı: {spread('latest_operating_income')}",
@@ -266,13 +261,13 @@ def _export(summary, json_path, csv_path):
     import io
     buf = io.StringIO(newline="")
     columns = ("cik", "ticker", "company", "status", "sector_assumption",
-               "ticker_mapping_checked", "annual_audit", "fscore", "fscore_range",
+               "ticker_mapping_checked", "annual_audit",
                "ttm_status", "captured_at_utc", "snapshot_sha256",
                "snapshot_path", "research_json", "research_html", "error") + HEALTH_COLUMNS
     writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
     writer.writeheader()
     for entry in summary["records"]:
-        line = {**entry, "fscore_range": json.dumps(entry["fscore_range"])}
+        line = dict(entry)
         for key, value in (entry.get("layer_health") or {}).items():
             line[key] = " ".join(value) if isinstance(value, list) else value
         # SEC issuer names/error text can contain spreadsheet formulas.
