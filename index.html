@@ -183,7 +183,7 @@
       <div class="hero">
         <div class="eyebrow">YATIRIM ARAŞTIRMASI</div>
         <h1>Şirketleri keşfet.<br>Verileri doğrula. Sonuçları incele.</h1>
-        <p>INVEST_AI şirket analizi, Piotroski finansal kalite, TTM nakit akışı ve SEC bildirim farklarını aynı araştırma merkezinden görüntüle. Araştırma raporları otomatik listelenir.</p>
+        <p>SEC kaynaklarını topla, finansal verileri temel analizden geçir, adayları sektörleriyle karşılaştır ve gelecek beklentileriyle araştır. Şu anda SEC verileri ve finansal araştırma altyapısı geliştiriliyor.</p>
         <div class="buttons">
           <button type="button" class="btn primary" data-go="raporlar">Raporlarımı görüntüle →</button>
           <button type="button" class="btn" data-go="araclar">Yeni analiz oluştur</button>
@@ -191,7 +191,7 @@
       </div>
       <div class="metrics">
         <div class="metric"><small>Bulunan HTML raporu</small><strong id="report-total">—</strong><span>reports/ klasöründen</span></div>
-        <div class="metric"><small>Analiz motorları</small><strong>4</strong><span>Şirket · TTM · SEC değişim · Piotroski</span></div>
+        <div class="metric"><small>Analiz motorları</small><strong>4</strong><span>SEC · Temel analiz · Sektör · Gelecek</span></div>
         <div class="metric"><small>Dış hizmet maliyeti</small><strong>0 ₺</strong><span>Python standart kütüphanesi</span></div>
       </div>
       <div class="section-top"><div><h2>Raporlara hızlı erişim</h2><p>Önce web analizleri, sonra önceki ve terminal raporları listelenir.</p></div>
@@ -200,9 +200,9 @@
       <div class="section-top"><div><h2>Platform modülleri</h2><p>Analiz zincirinin mevcut aşamaları</p></div></div>
       <div class="feature-grid">
         <div class="feature-card"><div class="feature-number">01 · SEC</div><h3>Finansal veri denetimi</h3><p>CIK doğrulaması, yayımlanma tarihi ve kaynak iziyle finansal bilgileri kontrol eder.</p></div>
-        <div class="feature-card"><div class="feature-number">02 · QUALITY</div><h3>Piotroski F-Score</h3><p>Finansal güç sinyallerini yalnız veri yeterliyse hesaplar. Eksikleri gizlemez.</p></div>
-        <div class="feature-card"><div class="feature-number">03 · TTM</div><h3>12 aylık finansallar</h3><p>İki hesap motoru üzerinden SEC TTM dönem ve kaynak mutabakatı yapar.</p></div>
-        <div class="feature-card"><div class="feature-number">04 · CHANGE</div><h3>Finansal değişimler</h3><p>Yeni SEC kayıtlarını, geçmiş tutar revizyonlarını ve dokuz aylık karşılaştırmaları ayırır.</p></div>
+        <div class="feature-card"><div class="feature-number">02 · FUNDAMENTALS</div><h3>Temel analiz ve eleme</h3><p>Gelir büyümesi, kâr marjı, nakit akışı, borçluluk ve finansal oranlar. Toplu eleme motoru henüz tamamlanmadı.</p></div>
+        <div class="feature-card"><div class="feature-number">03 · SECTORS</div><h3>Sektörel karşılaştırma</h3><p>Finansal elemeden kalan şirketleri sektör içi rakipleriyle karşılaştırma; geliştirme aşamasında.</p></div>
+        <div class="feature-card"><div class="feature-number">04 · FUTURE</div><h3>Gelecek analizi</h3><p>Şirket rehberliği, yeni ürünler, siparişler, yatırım projeleri, riskler ve senaryolar; kaynaklı araştırma katmanı planlandı.</p></div>
       </div>
     </section>
 
@@ -215,7 +215,7 @@
       <label for="report-search" class="muted">Rapor adı veya dosya yolunda ara</label>
       <div style="margin:9px 0 17px" class="filter-control">
         <input class="search" id="report-search" type="search"
-          placeholder="Örn. Apple, Piotroski, değişim…" autocomplete="off">
+          placeholder="Örn. Apple, finansal analiz, değişim…" autocomplete="off">
         <label for="report-kind-filter">Rapor türü</label>
         <select id="report-kind-filter">
           <option value="all">Tüm raporlar</option>
@@ -253,7 +253,7 @@
           <div class="form-field">
             <label for="analysis-sector">Şirketin muhasebe sektörü (analist seçimi)</label>
             <select id="analysis-sector" class="web-input">
-              <option value="unknown">Bilinmiyor — Piotroski kesin puanlanmaz</option>
+              <option value="unknown">Bilinmiyor — yaklaşık faaliyet kârı türetilmez</option>
               <option value="non_financial">Finans dışı şirket (doğrulandı)</option>
               <option value="financial">Finans kuruluşu — ayrı yöntem gerekli</option>
             </select>
@@ -616,17 +616,8 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       ("Kaynak: " + data.source + " | Bilgi tarihi: " + data.as_of +
        " | Yıllık dönem: " + (data.annual_end || "Eksik") +
        " | TTM: " + data.ttm_status +
-       " | Piotroski: " + (data.piotroski_score === null ? "Eksik" : data.piotroski_score));
+       ");
     container.append(description);
-    if (!isError && data.piotroski_status === "sector_unconfirmed") {
-      const reason = document.createElement("p");
-      reason.textContent = "Piotroski hesaplanmadı: şirketin finans dışı sektörde olduğu doğrulanmadı. Bu 0 puan değildir. Sektörü doğrulayıp yeniden analiz et.";
-      container.append(reason);
-    } else if (!isError && data.piotroski_status === "not_applicable_financial_sector") {
-      const reason = document.createElement("p");
-      reason.textContent = "Piotroski hesaplanmadı: finans kuruluşları için ayrı değerlendirme yöntemi gerekli.";
-      container.append(reason);
-    }
     if (!isError && data.projection_status) {
       const texts = {OK:"üretildi", INSUFFICIENT_HISTORY:"geçmiş yetersiz",
         PROJECTION_UNAVAILABLE:"senaryo olmadığı için yapılmadı",
