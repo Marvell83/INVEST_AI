@@ -5,6 +5,22 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — CapEx yedek etiketi ve bankalarda yaklaşık faaliyet kârı koruması
+
+İkinci gerçek veri denemesinin bulguları.
+
+- **CapEx yedek etiketi:** Bir kalemin hiçbir eşanlamlısı bildirilmemişse daha geniş kapsamlı yedek etiket okunur
+  (`FALLBACK_ALIASES`). CapEx için `PaymentsToAcquireProductiveAssets`: Nvidia ve Amazon CapEx'i bu etiketle
+  bildiriyor, bu yüzden TTM'leri kısmi kalıyordu. Hücre `fallback_concept: true` taşır, çıktıda
+  `fallback_concepts` listesi ve raporda not var. Asıl etiket varsa yedek etikete bakılmaz.
+- **Sektör koruması:** Yaklaşık faaliyet kârı (vergi öncesi kâr + faiz gideri) yalnız `non_financial` sektörde
+  hesaplanır. Bankada faiz gideri asıl faaliyetin parçası olduğu için bu sayı anlamsızdır; `financial` ve `unknown`
+  sektörde hücre `EBIT_PROXY_DISABLED_FOR_SECTOR` nedeniyle eksik kalır. Tablo fonksiyonlarına `ebit_proxy`
+  parametresi eklendi.
+- **Coca-Cola ve Exxon:** TTM'in 1. çeyrekte bitmesi kod hatası değil; indirilen SEC dosyasında 2. çeyrek kaydı
+  yoktu ([docs/SEC_TOPLU_TARAMA_V01.md](docs/SEC_TOPLU_TARAMA_V01.md)).
+- **Testler:** 8 yeni test. Toplam `tests/` 550/550. Yeni satırlarda 10 hedefli mutasyonun hepsi yakalanıyor.
+
 ## 2026-10-25 — Gerçek veri düzeltmeleri (tablolar v0.3)
 
 11 şirketlik ilk gerçek SEC denemesinde bulunan dört sorun giderildi.

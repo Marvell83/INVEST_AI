@@ -84,6 +84,8 @@ def _statement_cell(cell):
             title = "yaklaşık: " + title + " · faaliyet dışı kalemleri içerir"
         if cell.get("alias_gap"):
             title += " · " + _alias_gap_text(cell["alias_gap"])
+        if cell.get("fallback_concept"):
+            title += " · yedek XBRL etiketi; kapsamı daha geniş olabilir"
         if cell.get("revised"):
             title += " · sonradan revize edildi"
         return f"<td class='num' title='{_safe(title)}'>{_safe(text)}</td>"
@@ -176,6 +178,12 @@ def _data_notes(statements):
         notes.append(f"<div class='note'>‡ {len(gaps)} dönemde gelir etiketleri en çok {_tr_percent(largest)} "
                      f"ayrışıyor (ör. net satışlar ile toplam gelirler). Öncelikli etiket ({_safe(gaps[0]['used'])}) "
                      "kullanıldı; Piotroski de aynı kuralı uygular. %5'i aşan fark çelişki sayılır.</div>")
+    fallbacks = statements.get("fallback_concepts", [])
+    if fallbacks:
+        concepts = ", ".join(sorted({f["concept"] for f in fallbacks}))
+        notes.append(f"<div class='note'>{len(fallbacks)} hücrede şirketin kullandığı daha geniş kapsamlı yedek "
+                     f"etiket okundu ({_safe(concepts)}). CapEx'e maddi olmayan duran varlık alımları da "
+                     "dahil olabilir.</div>")
     approximate = statements.get("approximations", [])
     if approximate:
         notes.append(f"<div class='note'>≈ {len(approximate)} dönemde şirket faaliyet kârı bildirmedi. "

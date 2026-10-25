@@ -111,7 +111,21 @@ Saniyede en fazla bir istek gider; 11 şirket yaklaşık 15 saniye sürer. Bir k
 | Alphabet hisse sayısı yok (çok sınıflı) | Bilerek değişmedi: sınıflar toplanmaz, analist girer |
 | JPM (banka) | Bilerek değişmedi: banka muhasebesi ayrı yöntem ister |
 
-Aynı komutu yeniden çalıştırıp `layer_health_counts` sayımlarını önceki çıktıyla karşılaştırın. Beklenen: `statement_conflict_items` içinde `share_based_compensation` kalmaz, `shared_ttm_status` çoğunlukla `OK` olur, `latest_operating_income` J&J ve Exxon'da `APPROXIMATE` olur (faiz gideri bildiriyorlarsa).
+**İkinci deneme (aynı arşiv, `--offline`, tablolar v0.3):**
+
+| Ölçü | İlk deneme | v0.3 |
+|---|---|---|
+| Etiket çelişkisi olan kalemler | hisse bazlı ödeme 3, gelir 2 | yok |
+| Piotroski ↔ ortak tablolar | 9 eşleşti, 1 fark | 10 eşleşti (JPM uygulanmadı) |
+| TTM hesaplanan şirket | 1 | 8 tam, 3 kısmi |
+| Senaryo için yeterli geçmiş | 7 | 10 (JPM yetersiz) |
+| Son yıl faaliyet kârı | J&J ve Exxon'da yok | 8 bildirilmiş, 2 yaklaşık (J&J, Exxon), 1 yok (JPM) |
+
+Kısmi TTM'lerin nedenleri:
+- Nvidia ve Amazon CapEx'i `PaymentsToAcquireProductiveAssets` etiketiyle bildiriyor (eski etiketi en son 2012 ve 2016'da kullanmışlar). Bunun için yedek etiket kuralı eklendi.
+- JPM bir banka; gelir, faaliyet kârı ve CapEx kalemleri banka muhasebesinde yoktur.
+
+Coca-Cola ve Exxon'un TTM'i 2026'nın 1. çeyreğinde bitiyor, çünkü indirilen Company Facts dosyasında 2. çeyreğe ait hiçbir kayıt yoktu. Sistem eksik çeyreği uydurmaz. SEC'in Company Facts dosyasında bu çeyrek yer aldığında, `--online` ile yeniden indirilen dosyada (önbellek 24 saat) görünmesi beklenir.
 
 ## Testler
 
