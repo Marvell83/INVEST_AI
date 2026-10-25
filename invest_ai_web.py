@@ -30,11 +30,12 @@ from sec_arsiv import (
 )
 from senaryo_degerleme import DISCOUNT_BOUNDS, TERMINAL_GROWTH_CAP
 from hisse_tarama_tablosu import load_screening
+from sec_piyasa_toplu_tarama import load_bulk_grid, run as run_sec_bulk
 from sirket_arastirma_akisi import build_company_research, render_company_research
 from tahmin_motoru import LONG_RUN_BOUNDS
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "invest-ai-web-0.5.0"
+VERSION = "invest-ai-web-0.6.0"
 TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,14}$")
 EMAIL_RE = re.compile(r"\S+@\S+\.\S+")
 MODES = ("demo", "live", "cache")
@@ -125,6 +126,9 @@ class ResearchService:
         self.throttle = throttle or SECThrottle(interval=1.0)
         self.lock = threading.Lock()
         self.sec_blocked = False
+        self.bulk_guard = threading.Lock()
+        self.bulk_thread = None
+        self.bulk_status = {"phase": "idle", "message": "Toplu SEC finansalları henüz başlatılmadı"}
 
     def _online_ok(self):
         if self.sec_blocked:
@@ -156,6 +160,64 @@ class ResearchService:
         atomic_write(path, canonical_bytes(source))
         return table, "DOWNLOADED_SEC_MAP"
 
+
+    def bulk_progress(self, update):
+        with self.bulk_guard:
+            self.bulk_status = {**self.bulk_status, **update}
+
+    def bulk_state(self, request):
+        if request != {}:
+            raise RequestError("Toplu tarama durum isteği boş nesne olmalı.")
+        with self.bulk_guard:
+            return {"ok": True, **self.bulk_status}
+
+    def start_bulk(self, request):
+        """Explicit click runs official bulk download/parse in local Codespaces process."""
+        if request != {}:
+            raise RequestError("Toplu tarama için boş JSON nesnesi gerekli.")
+        with self.bulk_guard:
+            if self.bulk_thread is not None and self.bulk_thread.is_alive():
+                raise RequestError("SEC toplu finansal taraması zaten çalışıyor.", 409)
+        if not self.lock.acquire(blocking=False):
+            raise RequestError("Başka SEC araştırması çalışıyor; bitince yeniden dene.", 409)
+        # Require a genuine SEC contact unless both archives are already available.
+        if not ((self.root / "veri/companyfacts.zip").is_file() and
+                (self.root / "veri/sec_ticker_esleme.json").is_file()):
+            try:
+                self._online_ok()
+            except Exception:
+                self.lock.release()
+                raise
+
+        def task():
+            try:
+                self.bulk_progress({"phase":"starting","message":"SEC resmi toplu ZIP ve ticker dizini hazırlanıyor"})
+                run_sec_bulk(self.root, user_agent=self.user_agent, progress=self.bulk_progress)
+            except Exception as exc:
+                # A worker must always expose a terminal error and release the mutex.
+                self.log_bulk_error(exc)
+            finally:
+                self.lock.release()
+
+        thread = threading.Thread(target=task, name="invest-ai-sec-bulk", daemon=True)
+        with self.bulk_guard:
+            self.bulk_status = {"phase":"starting", "message":"Resmî SEC toplu finansal taraması başlıyor"}
+            self.bulk_thread = thread
+        try:
+            thread.start()
+        except Exception:
+            self.lock.release()
+            raise
+        return {"ok":True,"phase":"starting",
+                "message":"SEC ZIP indirilecek ve tüm eşleşen şirketlerin finansalları SQLite'ya işlenecek."}
+
+    def log_bulk_error(self, exc):
+        # Terminal log includes the actual cause; browser status stays generic.
+        print(f"INVEST_AI SEC bulk error [{type(exc).__name__}]: {exc}", flush=True)
+        with self.bulk_guard:
+            self.bulk_status = {**self.bulk_status,"phase":"error",
+                                "message":f"Toplu SEC işlem hatası ({type(exc).__name__}). "
+                                          "Terminal kayıtlarını ve disk durumunu kontrol et."}
 
     def scan_sec_list(self, request):
         """List SEC ticker/CIK directory; does not download financial statements."""
@@ -368,7 +430,8 @@ class Website(SimpleHTTPRequestHandler):
         return super().do_HEAD()
 
     def do_POST(self):
-        if self.path not in ("/api/analyze", "/api/sec-scan", "/api/screener"):
+        if self.path not in ("/api/analyze", "/api/sec-scan", "/api/screener",
+                              "/api/bulk/start", "/api/bulk/status"):
             return self.respond(404, {"ok": False, "error": "API yolu bulunamadı"})
         origin = self.headers.get("Origin")
         host = self.headers.get("Host", "")
@@ -393,10 +456,14 @@ class Website(SimpleHTTPRequestHandler):
         try:
             if self.path == "/api/sec-scan":
                 return self.respond(200, self.service.scan_sec_list(payload))
+            if self.path == "/api/bulk/start":
+                return self.respond(202, self.service.start_bulk(payload))
+            if self.path == "/api/bulk/status":
+                return self.respond(200, self.service.bulk_state(payload))
             if self.path == "/api/screener":
                 if payload != {}:
                     raise RequestError("Tarama tablosu için boş JSON nesnesi gerekli.")
-                return self.respond(200, load_screening(self.service.root))
+                return self.respond(200, load_bulk_grid(self.service.root) or load_screening(self.service.root))
             return self.respond(200, self.service.analyze(payload))
         except RequestError as exc:
             return self.respond(exc.status, {"ok": False, "error": str(exc)})

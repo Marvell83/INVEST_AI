@@ -10,6 +10,7 @@ import tempfile
 import threading
 import unittest
 from urllib.error import HTTPError
+from unittest.mock import patch
 
 from invest_ai_web import ROOT, ResearchService, RequestError, build_server
 from sec_arsiv import SECThrottle
@@ -308,6 +309,31 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST", "/api/screener",
                                       payload={"ticker": "AAPL"})[0], 422)
         self.assertEqual(self.request("GET", "/api/screener")[0], 404)
+
+
+    def test_one_click_bulk_sec_ingest_is_authenticated_and_status_readable(self):
+        (self.service.root / "veri").mkdir(parents=True, exist_ok=True)
+        (self.service.root / "veri/companyfacts.zip").write_bytes(b"fake zip intercepted")
+        (self.service.root / "veri/sec_ticker_esleme.json").write_text("{}", encoding="utf-8")
+        def fake_runner(root, *, user_agent, progress):
+            progress({"phase":"processing", "processed":1, "total":2})
+            progress({"phase":"complete", "processed":2, "total":2,
+                      "statuses":{"OK":2}, "message":"finished"})
+        with patch("invest_ai_web.run_sec_bulk", side_effect=fake_runner):
+            status, blob = self.request("POST", "/api/bulk/start", payload={})
+            self.assertEqual(status, 202, blob)
+            self.service.bulk_thread.join(timeout=2)
+            self.assertFalse(self.service.bulk_thread.is_alive())
+        status, result = self.request("POST", "/api/bulk/status", payload={})
+        self.assertEqual(status, 200)
+        state = json.loads(result)
+        self.assertEqual((state["phase"], state["processed"]), ("complete", 2))
+        self.assertEqual(self.request("POST", "/api/bulk/start", payload={},
+                                      secret="incorrect")[0], 403)
+        self.assertEqual(self.request("POST", "/api/bulk/status", payload={},
+                                      origin="https://evil.example")[0], 403)
+        self.assertEqual(self.request("POST", "/api/bulk/start",
+                                      payload={"untrusted_path": "/etc"})[0], 422)
 
     def test_unauthorized_post_forbidden(self):
         payload = {"ticker": "AAPL", "mode": "demo", "sector": "unknown"}

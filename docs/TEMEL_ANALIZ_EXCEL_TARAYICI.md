@@ -1,4 +1,4 @@
-# Temel analiz tarayıcısı (v0.5) — Excel benzeri çalışma ekranı
+# Temel analiz tarayıcısı (v0.6) — Excel benzeri çalışma ekranı
 
 **Amaç:** Daha önce kaydedilmiş şirket araştırmalarının çok sayıda bilanço, kârlılık, büyüme, nakit ve değerleme göstergesini tek bir satır/şirket matrisinde görmek; birkaç koşulu birlikte kullanarak süzmek. Bu tablo bir al/sat tavsiyesi değildir.
 
@@ -15,7 +15,7 @@ INVEST_AI web sitesi → **Analiz çalıştır** → terminaldeki web anahtarın
 
 ## Veri ve formüller
 
-`hisse_tarama_tablosu.py`, `reports/` altında önceden yaratılmış ve `financial_statements`, `financial_ratios` içeren JSON raporlarını okur. Bir CIK için en son kayıt kullanılır. Bu uç nokta **SEC'ye veya ücretli fiyat servisine istek yapmaz**. `SEC verilerini tara` düğmesi yalnız ticker dizinini açar; şirketlerin Company Facts dosyalarının otomatik olarak indirildiği anlamına gelmez.
+**Toplu arşiv varsa** `sec_piyasa_toplu_tarama.py` bütün SEC `companyfacts.zip` içindeki ticker ile eşleşen CIK dosyalarını hesaplayıp `veri/invest_ai_evren.sqlite3` içine yazar. `Temel analiz tablosu` bu veri tabanını okur. **Toplu arşiv henüz yoksa** `hisse_tarama_tablosu.py` önceden kaydedilmiş `reports/` JSON raporlarını listeler. Tablo ekranını açmak yeni finansal dosya indirmez; bunun için ayrıca **Tüm SEC finansallarını indir ve tara** düğmesine bas. `SEC verilerini tara` ise yalnız ticker listesini açar. [Toplu tarama kılavuzu](SEC_TOPLU_PIYASA_TARAMASI.md).
 
 ### Tarihsel SEC tablosundan gelenler
 
@@ -35,7 +35,7 @@ F/K, PD/DD, fiyat/satışlar, (ROE/10)/PD/DD, EV/EBIT, EV/FAVÖK*, FCF getirisi 
 
 - Referans faiz kullanıcı tarafından girilir, otomatik güncel ABD 10 yıllık tahvil verisi olduğu iddia edilmez.
 - Emsal karşılaştırması ve finansal sektör farklılıkları ayrı aşamada ele alınacaktır.
-- Çok sayıda SEC şirketinin otomatik finansal indirilmesi ve kayıtlara eklenmesi henüz yeni bir çalışmadır; tablo şimdilik mevcut raporlarla dolacaktır.
+- Toplu SEC dosyasını kullanıcı Codespaces'te açıkça indirdiğinde liste tüm eşleşen ticker ve şirketlere genişler; veri bulunmayan dosyalayıcılar boş/missing olarak işaretlenir.
 - Hisse fiyatı, veri kapsamı veya PEG eksikse şirketi otomatik olarak başarısız saymak doğru değildir.
 
 ## Kontrol
