@@ -290,6 +290,25 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST", "/api/sec-scan", payload={"offset": -1})[0], 422)
         self.assertEqual(self.request("GET", "/api/sec-scan")[0], 404)
 
+    def test_fundamentals_screener_http_is_authenticated_and_read_only(self):
+        payload = {"ticker": "AAPL", "mode": "demo", "sector": "non_financial"}
+        status, analysis = self.request("POST", "/api/analyze", payload=payload)
+        self.assertEqual(status, 200)
+        status, data = self.request("POST", "/api/screener", payload={})
+        self.assertEqual(status, 200)
+        screened = json.loads(data)
+        self.assertEqual(screened["available"], 1)
+        self.assertEqual(screened["rows"][0]["ticker"], "AAPL")
+        self.assertIsNone(screened["rows"][0]["peg"])
+        self.assertFalse(screened["market_price_fetched"])
+        self.assertEqual(self.request("POST", "/api/screener", payload={},
+                                      secret="invalid-key")[0], 403)
+        self.assertEqual(self.request("POST", "/api/screener", payload={},
+                                      origin="https://evil.example")[0], 403)
+        self.assertEqual(self.request("POST", "/api/screener",
+                                      payload={"ticker": "AAPL"})[0], 422)
+        self.assertEqual(self.request("GET", "/api/screener")[0], 404)
+
     def test_unauthorized_post_forbidden(self):
         payload = {"ticker": "AAPL", "mode": "demo", "sector": "unknown"}
         status, data = self.request("POST", "/api/analyze", payload=payload, secret="wrong")
