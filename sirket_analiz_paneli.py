@@ -100,8 +100,8 @@ def _ratio_text(key, value):
     if kind == "percent":
         return f"{value * 100:.1f}%"
     if kind == "multiple":
-        # The Piotroski cash-quality signal uses a strict CFO > net-income test.
-        # 1.00x can hide a 0.995x value and appear inconsistent with a zero signal.
+        # Four decimals prevent CFO/net income values below 1 from rounding to 1.00.
+        # Precision helps readers distinguish cash coverage of earnings.
         return f"{value:.4f}x" if key == "cash_conversion" else f"{value:.2f}x"
     return f"{value / 1e6:,.0f}"
 
@@ -178,8 +178,7 @@ def render_financial_sections(statements, ratios):
         "<section class='card'><h2>Finansal oranlar</h2>"
         "<div class='scroll'><table><thead><tr><th>Oran</th>" + head + "</tr></thead><tbody>" +
         "".join(ratio_rows) + "</tbody></table></div>" + roic_note +
-        "<p class='muted'>Nakit dönüşümü CFO / net kâr, Piotroski'nin kesin CFO > net kâr "
-        "karşılaştırmasıyla karışmaması için dört ondalıkla gösterilir. "
+        "<p class='muted'>Nakit dönüşümü CFO / net kâr dört ondalıkla gösterilir. "
         "Oran adının üzerine gelince formül, — işaretinin üzerine gelince hesaplanamama "
         "nedeni görünür. ≈ yaklaşık faaliyet kârıyla hesaplandı · ! ROIC %100'ün üstünde: yatırılan sermaye "
         "çok küçük, oran tek başına yorumlanmamalı. Net borç milyon USD'dir: toplam borç − nakit − bildirilmişse menkul kıymetler; "
@@ -215,7 +214,7 @@ def _data_notes(statements):
         largest = max(g["spread"] for g in gaps)
         notes.append(f"<div class='note'>‡ {len(gaps)} dönemde gelir etiketleri en çok {_tr_percent(largest)} "
                      f"ayrışıyor (ör. net satışlar ile toplam gelirler). Öncelikli etiket ({_safe(gaps[0]['used'])}) "
-                     "kullanıldı; Piotroski de aynı kuralı uygular. %5'i aşan fark çelişki sayılır.</div>")
+                     "kullanıldı; %5'i aşan fark çelişki sayılır.</div>")
     fallbacks = statements.get("fallback_concepts", [])
     if fallbacks:
         concepts = sorted({f["concept"] for f in fallbacks})
@@ -302,10 +301,10 @@ def render_layer_reconciliation(layers):
                 f"{_safe(detail)}</p>")
     return (
         "<section class='card'><h2>Katman mutabakatı</h2>" +
-        line("Piotroski girdileri ↔ yıllık tablolar", piotroski) +
+        (line("Piotroski girdileri ↔ yıllık tablolar", piotroski) if "piotroski" in layers else "") +
         line("TTM ↔ son dört çeyreğin toplamı", ttm) + table +
-        "<p class='muted'>Piotroski ve TTM motorları SEC verisini hâlâ kendi kurallarıyla okur. Bu bölüm, "
-        "aynı SEC dosyasında onların kullandığı rakamları ortak tablo katmanıyla karşılaştırır (milyon USD). "
+        "<p class='muted'>Bu bölüm, hesap motorunun kullandığı rakamları SEC kaynaklı ortak "
+        "tablo katmanıyla karşılaştırır (milyon USD). "
         "Eşleşme, SEC verisinin bağımsız doğrulandığı anlamına gelmez.</p></section>")
 
 
