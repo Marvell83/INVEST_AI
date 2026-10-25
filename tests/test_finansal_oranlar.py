@@ -155,7 +155,7 @@ class ResearchIntegrationTests(unittest.TestCase):
         page = render_financial_sections(statements, computed)
         self.assertIn("ROIC yöntem uyarısı", page)
         self.assertIn("23,449.5 milyon USD", page)
-        self.assertIn("işletme sermayesi", page.lower())
+        self.assertIn("İşletme sermayesi", page)
         self.assertIn("Nakit dönüşümü CFO / net kâr", page)
         self.assertIn("1.1500x", page)
 
