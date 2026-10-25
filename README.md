@@ -4,6 +4,8 @@
 
 **Ürün hedefi (25 Ekim 2026):** **1. SEC evreni ve veri toplama → 2. temel analizle eleme → 3. sektörel analiz → 4. kaynaklı gelecek analizi.** Yeni web/CLI ve toplu tarama raporlarında Piotroski kullanılmaz. Eski bağımsız motor ve eski raporlar silinmeden arşivde tutulur. [Dört aşamalı resmi yol haritası](docs/INVEST_AI_DORT_ASAMALI_YOL_HARITASI.md). Stage 1 tarama tüm pazarı henüz kapsamıyor; stage 2 filtre, stage 3 emsal ve stage 4 beklenti/katalizör modülleri tamamlanmadı.
 
+**Yeni temel analiz tarayıcısı (v0.5):** Web → Analiz çalıştır → **Temel analiz tablosu**. ROE/ROIC, büyüme, marjlar, nakit, borç, kaynaklı fiyat varsa F/K–PD/DD–EV/EBIT–FCF getirisi, sütun seçimi, çoklu alt/üst eşik, sıralama, CSV/Excel dışa aktarımı ve eksik verili şirketleri ayrı tutma. [Nasıl kullanılır ve oran sınırlamaları](docs/TEMEL_ANALIZ_EXCEL_TARAYICI.md). Bu ekran şimdilik yalnız **önceden kaydedilmiş araştırmaları** gösterir; toplu SEC Company Facts indirme ve PEG ileri EPS kaynağı ayrı geliştirme aşamasıdır.
+
 
 INVEST_AI, ABD SEC Company Facts (XBRL) verisinden **kaynağı ve yayımlanma tarihi izlenebilir** şirket araştırması üretir: veri kalite denetimi, Piotroski F-Score, TTM (son 12 ay) finansalları, kullanıcı varsayımlı DCF / ters DCF ve sonradan puanlanabilen bir tahmin defteri. Yalnız Python standart kütüphanesi kullanılır; ek paket gerekmez.
 
