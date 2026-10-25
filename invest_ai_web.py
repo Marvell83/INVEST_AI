@@ -29,11 +29,12 @@ from sec_arsiv import (
     check_doc, download_ticker_map, load_json, save_capture, ticker_mapping,
 )
 from senaryo_degerleme import DISCOUNT_BOUNDS, TERMINAL_GROWTH_CAP
+from hisse_tarama_tablosu import load_screening
 from sirket_arastirma_akisi import build_company_research, render_company_research
 from tahmin_motoru import LONG_RUN_BOUNDS
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "invest-ai-web-0.4.0"
+VERSION = "invest-ai-web-0.5.0"
 TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,14}$")
 EMAIL_RE = re.compile(r"\S+@\S+\.\S+")
 MODES = ("demo", "live", "cache")
@@ -367,7 +368,7 @@ class Website(SimpleHTTPRequestHandler):
         return super().do_HEAD()
 
     def do_POST(self):
-        if self.path not in ("/api/analyze", "/api/sec-scan"):
+        if self.path not in ("/api/analyze", "/api/sec-scan", "/api/screener"):
             return self.respond(404, {"ok": False, "error": "API yolu bulunamadı"})
         origin = self.headers.get("Origin")
         host = self.headers.get("Host", "")
@@ -390,7 +391,13 @@ class Website(SimpleHTTPRequestHandler):
         except (ValueError, UnicodeError):
             return self.respond(400, {"ok": False, "error": "JSON okunamadı"})
         try:
-            return self.respond(200, self.service.scan_sec_list(payload) if self.path == "/api/sec-scan" else self.service.analyze(payload))
+            if self.path == "/api/sec-scan":
+                return self.respond(200, self.service.scan_sec_list(payload))
+            if self.path == "/api/screener":
+                if payload != {}:
+                    raise RequestError("Tarama tablosu için boş JSON nesnesi gerekli.")
+                return self.respond(200, load_screening(self.service.root))
+            return self.respond(200, self.service.analyze(payload))
         except RequestError as exc:
             return self.respond(exc.status, {"ok": False, "error": str(exc)})
         except (KeyError, OSError, TypeError, ValueError) as exc:
