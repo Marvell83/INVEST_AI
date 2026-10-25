@@ -25,6 +25,9 @@ ALIAS_TOLERANCE = 0.005  # ambiguity guard between XBRL aliases, not an accounti
 # membership income). Up to this gap the priority alias is used and the gap stays
 # visible as `alias_gap`; piotroski_fscore applies the same 5% rule.
 ITEM_ALIAS_TOLERANCE = {"revenue": 0.05}
+# Broader concepts read only when none of an item's aliases is reported for the period.
+# NVIDIA and Amazon tag CapEx as productive-asset payments (property plus intangibles).
+FALLBACK_ALIASES = {"capex": ("PaymentsToAcquireProductiveAssets",)}
 MAX_YEARS = 10
 MAX_QUARTERS = 40
 STATEMENTS = ("income", "cash_flow", "balance")
@@ -169,10 +172,13 @@ def _cell(read, key, start, end):
     instant = kind == "instant"
     period = (None if instant else start, end)
     found = []
-    for tag in tags:
-        versions = read(tag, unit, instant).get(period)
-        if versions:
-            found.append(_latest(versions))
+    for group in (tags, FALLBACK_ALIASES.get(key, ())):
+        for tag in group:
+            versions = read(tag, unit, instant).get(period)
+            if versions:
+                found.append(_latest(versions))
+        if found:
+            break
     if not found:
         return {"status": "MISSING", "value": None, "unit": unit, "reason": "NOT_REPORTED"}
     values = [f["value"] for f in found]
@@ -182,6 +188,8 @@ def _cell(read, key, start, end):
         return {"status": "CONFLICT", "value": None, "unit": unit,
                 "reason": "XBRL_ALIASES_DISAGREE", "alternatives": found}
     cell = dict(found[0], status="REPORTED")
+    if cell["concept"] not in tags:
+        cell["fallback_concept"] = True
     if spread > ALIAS_TOLERANCE:
         cell["alias_gap"] = {"spread": spread, "rule": "PRIORITY_ALIAS_USED",
                              "other_aliases": [{k: f[k] for k in ("concept", "value", "accession")}
@@ -204,7 +212,7 @@ def _same_filing(*cells):
     return len({_sources(c) for c in cells}) == 1
 
 
-def _derive(year):
+def _derive(year, ebit_proxy=True):
     income, cash_flow, balance = year["income"], year["cash_flow"], year["balance"]
     revenue, cost = income["revenue"], income["cost_of_revenue"]
     if income["gross_profit"]["status"] == "MISSING":
@@ -221,7 +229,10 @@ def _derive(year):
     # still includes non-operating items, so it is flagged and never called reported.
     operating, pretax, interest = income["operating_income"], income["pretax_income"], income["interest_expense"]
     if operating["status"] == "MISSING":
-        if _known(pretax) and _known(interest) and _same_filing(pretax, interest):
+        if not ebit_proxy:
+            # Banks and insurers: interest expense is operating, so the proxy has no meaning.
+            operating["proxy_unavailable"] = "EBIT_PROXY_DISABLED_FOR_SECTOR"
+        elif _known(pretax) and _known(interest) and _same_filing(pretax, interest):
             income["operating_income"] = {
                 "status": "DERIVED", "value": pretax["value"] + interest["value"], "unit": "USD",
                 "method": "EBIT_PROXY_PRETAX_PLUS_INTEREST", "approximate": True,
@@ -278,11 +289,13 @@ def _derive(year):
             "excludes": "operating and finance lease liabilities"}
 
 
-def build_annual_statements(raw, *, as_of, years=5):
+def build_annual_statements(raw, *, as_of, years=5, ebit_proxy=True):
     """Return up to `years` most recent fiscal years of annual statements.
 
     A company with no eligible annual 10-K data returns status NO_ANNUAL_PERIODS
     rather than raising, so a research report can still show the gap.
+    `ebit_proxy=False` (financial or unconfirmed sector) never derives an
+    approximate operating income.
     """
     cutoff, cik = _validate(raw, as_of, years, MAX_YEARS, "years")
     read = _reader(raw, cutoff, ANNUAL_FORMS, (330, 400))
@@ -293,7 +306,7 @@ def build_annual_statements(raw, *, as_of, years=5):
         for statement in STATEMENTS:
             year[statement] = {key: _cell(read, key, period["start"], period["end"])
                                for key, spec in LINE_ITEMS.items() if spec[0] == statement}
-        _derive(year)
+        _derive(year, ebit_proxy)
         rows.append(year)
 
     coverage = {}
@@ -308,6 +321,7 @@ def build_annual_statements(raw, *, as_of, years=5):
         "status": "OK" if rows else "NO_ANNUAL_PERIODS",
         "years": rows, "coverage": coverage, "conflicts": _conflicts(rows),
         "alias_gaps": _alias_gaps(rows), "approximations": _approximations(rows),
+        "fallback_concepts": _fallbacks(rows), "ebit_proxy": ebit_proxy,
         "shares_outstanding": shares_outstanding(raw, as_of=as_of),
         "rules": [
             "Only 10-K / 10-K/A facts filed on or before as_of; fiscal years from fact dates, not SEC fy/fp",
@@ -316,6 +330,7 @@ def build_annual_statements(raw, *, as_of, years=5):
             "revenue aliases up to 5% apart use the priority alias and keep the gap visible",
             "Missing values are null, never zero; derived values require one SEC filing",
             "Without a reported operating income, an approximate EBIT is pretax income plus interest expense",
+            "A broader fallback concept (CapEx: productive assets) is read only when no alias is reported",
             "Outflows (CapEx, dividends, repurchases) are positive payments as reported",
         ],
     }
@@ -346,6 +361,13 @@ def _alias_gaps(rows):
              "others": [a["concept"] for a in cell["alias_gap"]["other_aliases"]]}
             for row in rows for statement in STATEMENTS
             for key, cell in row[statement].items() if cell.get("alias_gap")]
+
+
+def _fallbacks(rows):
+    return [{"start": row.get("start", row.get("fiscal_year_start")),
+             "end": row.get("end", row.get("fiscal_year_end")), "item": key, "concept": cell["concept"]}
+            for row in rows for statement in STATEMENTS
+            for key, cell in row[statement].items() if cell.get("fallback_concept")]
 
 
 def _approximations(rows):
@@ -452,18 +474,21 @@ def _quarter_cell(read, key, quarter):
         return {"status": "MISSING", "value": None, "unit": unit, "reason": "NO_QUARTER_OR_YTD_PAIR"}
     if current["concept"] != previous["concept"]:
         return {"status": "MISSING", "value": None, "unit": unit, "reason": "YTD_CONCEPTS_DIFFER"}
-    return {"status": "DERIVED", "value": current["value"] - previous["value"], "unit": unit,
+    cell = {"status": "DERIVED", "value": current["value"] - previous["value"], "unit": unit,
             "concept": current["concept"], "start": quarter["start"], "end": quarter["end"],
             "method": "ANNUAL_MINUS_NINE_MONTHS" if quarter["fiscal_quarter"] == 4 else "YTD_DIFFERENCE",
             "accession": current["accession"], "filed": current["filed"],
             "sources": [current["accession"], previous["accession"]],
             "revised": current["revised"] or previous["revised"],
-            "derivation": {"ytd_current": _brief(current), "ytd_previous": _brief(previous)},
-            **({"alias_gap": current.get("alias_gap") or previous["alias_gap"]}
-               if current.get("alias_gap") or previous.get("alias_gap") else {})}
+            "derivation": {"ytd_current": _brief(current), "ytd_previous": _brief(previous)}}
+    if current.get("alias_gap") or previous.get("alias_gap"):
+        cell["alias_gap"] = current.get("alias_gap") or previous["alias_gap"]
+    if current.get("fallback_concept"):
+        cell["fallback_concept"] = True
+    return cell
 
 
-def build_quarterly_statements(raw, *, as_of, quarters=8):
+def build_quarterly_statements(raw, *, as_of, quarters=8, ebit_proxy=True):
     """Return up to `quarters` most recent discrete fiscal quarters.
 
     Flow items use a reported 3-month fact when one exists; otherwise the
@@ -479,7 +504,7 @@ def build_quarterly_statements(raw, *, as_of, quarters=8):
         for statement in STATEMENTS:
             row[statement] = {key: _quarter_cell(read, key, quarter)
                               for key, spec in LINE_ITEMS.items() if spec[0] == statement}
-        _derive(row)
+        _derive(row, ebit_proxy)
         rows.append(row)
     result = {
         "version": VERSION, "cik": f"{cik:010d}", "company": raw.get("entityName", ""),
@@ -487,6 +512,7 @@ def build_quarterly_statements(raw, *, as_of, quarters=8):
         "status": "OK" if rows else "NO_QUARTERLY_PERIODS",
         "quarters": rows, "conflicts": _conflicts(rows),
         "alias_gaps": _alias_gaps(rows), "approximations": _approximations(rows),
+        "fallback_concepts": _fallbacks(rows), "ebit_proxy": ebit_proxy,
         "shares_outstanding": shares_outstanding(raw, as_of=as_of),
         "rules": [
             "10-Q and 10-K facts filed on or before as_of; quarters from fact dates, not SEC fy/fp",

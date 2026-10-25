@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 import tempfile
@@ -20,6 +21,7 @@ from tahmin_defteri import TahminDefteri
 from tahmin_motoru import historical_baseline, project_scenarios, record_projection
 from test_finansal_ceyrekler import company as quarterly_company, flows as quarterly_flows
 from test_finansal_tablolar import AS_OF, company, fact, row
+from test_katman_mutabakati import ttm_company
 from test_senaryo_degerleme import value, with_shares
 from test_tahmin_motoru import LONG_RUN, five_year_company
 
@@ -226,6 +228,100 @@ class ForecastWithProxyTests(unittest.TestCase):
         self.assertIn("OPERATING_MARGIN_FROM_APPROXIMATE_EBIT", result["warnings"])
         reported, _, _ = value()
         self.assertNotIn("OPERATING_MARGIN_FROM_APPROXIMATE_EBIT", reported["warnings"])
+
+
+CAPEX = "PaymentsToAcquirePropertyPlantAndEquipment"
+PRODUCTIVE = "PaymentsToAcquireProductiveAssets"
+
+
+def productive_capex(data):
+    """CapEx tagged as productive-asset payments, as NVIDIA and Amazon do."""
+    data["facts"]["us-gaap"][PRODUCTIVE] = data["facts"]["us-gaap"].pop(CAPEX)
+    return data
+
+
+class CapexFallbackTests(unittest.TestCase):
+    def test_productive_assets_are_read_when_no_capex_alias_is_reported(self):
+        result = build(productive_capex(company()))
+        cash_flow = row(result)["cash_flow"]
+        self.assertEqual((cash_flow["capex"]["status"], cash_flow["capex"]["value"]), ("REPORTED", 50))
+        self.assertEqual(cash_flow["capex"]["concept"], PRODUCTIVE)
+        self.assertTrue(cash_flow["capex"]["fallback_concept"])
+        self.assertEqual(cash_flow["free_cash_flow"]["value"], 180)
+        self.assertEqual([f["end"] for f in result["fallback_concepts"]],
+                         ["2024-12-31", "2023-12-31", "2022-12-31"])
+        self.assertEqual(result["fallback_concepts"][0]["concept"], PRODUCTIVE)
+
+    def test_primary_capex_wins_and_the_broader_concept_is_not_compared(self):
+        data = company()
+        data["facts"]["us-gaap"][PRODUCTIVE] = {"units": {"USD": [fact(70, 2024)]}}
+        result = build(data)
+        capex = row(result)["cash_flow"]["capex"]
+        self.assertEqual((capex["status"], capex["value"], capex["concept"]), ("REPORTED", 50, CAPEX))
+        self.assertNotIn("fallback_concept", capex)
+        self.assertEqual((result["fallback_concepts"], result["conflicts"]), ([], []))
+
+    def test_quarters_and_ttm_use_the_fallback(self):
+        data = quarterly_company()
+        data["facts"]["us-gaap"][PRODUCTIVE] = data["facts"]["us-gaap"].pop(CAPEX)
+        quarterly = build_quarterly_statements(data, as_of="2025-09-01")
+        q2 = next(q for q in quarterly["quarters"] if q["end"] == "2025-06-30")["cash_flow"]["capex"]
+        self.assertEqual((q2["status"], q2["value"], q2["concept"]), ("DERIVED", 14, PRODUCTIVE))
+        self.assertTrue(q2["fallback_concept"])
+        self.assertIn("daha geniş kapsamlı yedek etiket okundu (PaymentsToAcquireProductiveAssets)",
+                      render_quarterly_section(quarterly))
+        ttm_data = ttm_company()
+        ttm_data["facts"]["us-gaap"][PRODUCTIVE] = ttm_data["facts"]["us-gaap"].pop(CAPEX)
+        ttm = build_quarterly_statements(ttm_data, as_of="2025-06-15")["ttm"]
+        self.assertEqual((ttm["status"], ttm["items"]["capex"]["value"]), ("OK", 12 + 15 + 10 + 15))
+
+    def test_html_title_marks_the_broader_concept(self):
+        statements = build(productive_capex(company()))
+        page = render_financial_sections(statements, compute_ratios(statements))
+        self.assertIn("yedek XBRL etiketi; kapsamı daha geniş olabilir", page)
+
+
+class SectorGuardTests(unittest.TestCase):
+    def research(self, sector):
+        return build_company_research(without_operating_income(), as_of=AS_OF, expected_cik=77, sector=sector)
+
+    def test_no_ebit_proxy_for_financial_or_unconfirmed_sectors(self):
+        for sector in ("financial", "unknown"):
+            with self.subTest(sector):
+                report = self.research(sector)
+                statements = report["financial_statements"]
+                cell = row(statements)["income"]["operating_income"]
+                self.assertEqual((cell["status"], cell["proxy_unavailable"]),
+                                 ("MISSING", "EBIT_PROXY_DISABLED_FOR_SECTOR"))
+                self.assertEqual((statements["ebit_proxy"], report["quarterly_statements"]["ebit_proxy"]),
+                                 (False, False))
+                self.assertEqual(statements["approximations"], [])
+                self.assertEqual(layer_health(report)["latest_operating_income"], "MISSING")
+
+    def test_non_financial_research_keeps_the_proxy(self):
+        report = self.research("non_financial")
+        self.assertTrue(report["financial_statements"]["ebit_proxy"])
+        self.assertEqual(layer_health(report)["latest_operating_income"], "APPROXIMATE")
+
+    def test_quarterly_cells_follow_the_sector_rule(self):
+        data = ttm_company()
+        gaap = data["facts"]["us-gaap"]
+        gaap[PRETAX] = gaap.pop("OperatingIncomeLoss")
+        gaap["InterestExpense"] = copy.deepcopy(gaap[PRETAX])
+        for r in gaap["InterestExpense"]["units"]["USD"]:
+            r["val"] = r["val"] / 10
+        for sector, expected in (("non_financial", "DERIVED"), ("financial", "MISSING")):
+            with self.subTest(sector):
+                report = build_company_research(data, as_of="2025-06-15", expected_cik=99, sector=sector)
+                latest = report["quarterly_statements"]["quarters"][0]["income"]["operating_income"]
+                self.assertEqual(latest["status"], expected)
+
+    def test_builders_default_to_the_proxy_and_can_disable_it(self):
+        self.assertTrue(row(build(without_operating_income()))["income"]["operating_income"]["approximate"])
+        disabled = build_annual_statements(without_operating_income(), as_of=AS_OF, ebit_proxy=False)
+        self.assertEqual(row(disabled)["income"]["operating_income"]["status"], "MISSING")
+        quarterly = build_quarterly_statements(without_operating_income(), as_of=AS_OF, ebit_proxy=False)
+        self.assertFalse(quarterly["ebit_proxy"])
 
 
 if __name__ == "__main__":

@@ -20,11 +20,12 @@ Bu sürüm 27 raporlanan kalemi (brüt kâr bildirilmemişse türetilir) ve 2 t�
 | Gelir etiketleri | Gelir etiketleri tanım gereği farklı kapsamda olabilir (ör. Walmart: net satışlar ile üyelik gelirini de içeren toplam gelir). %0,5–%5 arası farkta **öncelikli etiket** kullanılır, hücre `REPORTED` kalır ve fark `alias_gap` alanında (oran, diğer etiketler ve değerleri) görünür kalır. %5'ten büyük fark `CONFLICT`'tir. Piotroski aynı kuralı uygular |
 | Eksik veri | `MISSING`, değer `null`; asla 0 kabul edilmez |
 | Türetme | Brüt kâr (gelir − satışların maliyeti), serbest nakit akışı (CFO − CapEx) ve toplam borç yalnız **aynı SEC dosyasındaki** kayıtlardan türetilir |
-| Yaklaşık faaliyet kârı | Şirket `OperatingIncomeLoss` bildirmemişse (ör. J&J, Exxon) faaliyet kârı = vergi öncesi kâr + faiz gideri, aynı SEC dosyasından. Hücre `DERIVED`, `approximate: true`, yöntem `EBIT_PROXY_PRETAX_PLUS_INTEREST`. Faiz geliri, özkaynak yöntemi sonuçları ve diğer faaliyet dışı kalemleri içerir. Raporda ≈ ile gösterilir. Girdiler yoksa veya farklı dosyalardansa hücre `MISSING` kalır ve `proxy_unavailable` nedeni taşır |
+| Yaklaşık faaliyet kârı | Şirket `OperatingIncomeLoss` bildirmemişse (ör. J&J, Exxon) faaliyet kârı = vergi öncesi kâr + faiz gideri, aynı SEC dosyasından. Hücre `DERIVED`, `approximate: true`, yöntem `EBIT_PROXY_PRETAX_PLUS_INTEREST`. Faiz geliri, özkaynak yöntemi sonuçları ve diğer faaliyet dışı kalemleri içerir. Raporda ≈ ile gösterilir. Girdiler yoksa veya farklı dosyalardansa hücre `MISSING` kalır ve `proxy_unavailable` nedeni taşır Yalnız `non_financial` sektörde kullanılır: bankada faiz gideri asıl faaliyetin parçasıdır, `financial` ve `unknown` sektörde hücre `EBIT_PROXY_DISABLED_FOR_SECTOR` nedeniyle `MISSING` kalır |
+| Yedek etiket | Bir kalemin hiçbir eşanlamlısı o dönem için bildirilmemişse daha geniş kapsamlı yedek etiket okunur. Şimdilik yalnız CapEx: `PaymentsToAcquireProductiveAssets` (Nvidia ve Amazon CapEx'i bu etiketle bildirir; maddi olmayan duran varlık alımlarını da içerebilir). Hücre `fallback_concept: true` taşır ve raporda notla gösterilir. Asıl etiket bildirilmişse yedek etikete bakılmaz, karşılaştırılmaz da |
 
 Her hücre şunları taşır: `status` (`REPORTED` / `DERIVED` / `MISSING` / `CONFLICT`), `value`, `unit`, `concept`, `accession`, `form`, `filed`, `start`, `end`.
 
-Yıllık ve çeyreklik çıktılarda ayrıca `conflicts`, `alias_gaps` (öncelikli etiketle kabul edilen gelir farkları) ve `approximations` (yaklaşık değerler) listeleri bulunur.
+Yıllık ve çeyreklik çıktılarda ayrıca `conflicts`, `alias_gaps` (öncelikli etiketle kabul edilen gelir farkları), `approximations` (yaklaşık değerler) ve `fallback_concepts` (yedek etiketten okunan hücreler) listeleri ile `ebit_proxy` (yaklaşık faaliyet kârına izin verildi mi) alanı bulunur. Kütüphane fonksiyonlarında `ebit_proxy` varsayılanı `True`'dur; araştırma raporu, web ve toplu tarama bunu analistin girdiği sektöre göre belirler.
 
 ## Kalemler
 
@@ -131,7 +132,7 @@ quarters = build_quarterly_statements(raw_companyfacts, as_of="2026-10-24", quar
 
 ## Testler
 
-`tests/test_finansal_tablolar.py`, `tests/test_finansal_oranlar.py` (36 test) ve `tests/test_finansal_ceyrekler.py` (23 test). v0.3 kuralları `tests/test_gercek_veri_kurallari.py` (19 test: hisse bazlı ödeme, gelir etiketi %5 kuralı ve sınırı, yaklaşık faaliyet kârı, oran / baz / defter / değerleme uyarıları) ve `tests/test_ortak_ttm.py` (16 test: 1., 3. ve 4. çeyrekte TTM, eksik / çelişkili çeyrek, eski motorlarla mutabakat, rapor açığı) ile sınanır. Çeyrek testleri şunları kapsar:
+`tests/test_finansal_tablolar.py`, `tests/test_finansal_oranlar.py` (36 test) ve `tests/test_finansal_ceyrekler.py` (23 test). v0.3 kuralları `tests/test_gercek_veri_kurallari.py` (27 test: hisse bazlı ödeme, gelir etiketi %5 kuralı ve sınırı, yaklaşık faaliyet kârı ve sektör koruması, CapEx yedek etiketi, oran / baz / defter / değerleme uyarıları) ve `tests/test_ortak_ttm.py` (16 test: 1., 3. ve 4. çeyrekte TTM, eksik / çelişkili çeyrek, eski motorlarla mutabakat, rapor açığı) ile sınanır. Çeyrek testleri şunları kapsar:
 - çeyrek takvimi ve devam eden mali yıl,
 - doğrudan 3 aylık değer önceliği, YTD farkı ve 4. çeyrek,
 - farklı kavramların ve ortalama hisse sayısının farkının alınmaması,
