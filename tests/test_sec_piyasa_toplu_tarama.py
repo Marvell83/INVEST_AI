@@ -60,7 +60,7 @@ class SECBulkScreeningTests(unittest.TestCase):
             self.assertEqual(initial["screening_counts"]["PENDING"],1)
             second = ingest_zip(folder, archive_path=archive, as_of=AS_OF)
             self.assertEqual((second["phase"],second["processed"]),("complete",2))
-            again = run(folder, zip_path=archive, limit=1)
+            again = ingest_zip(folder, archive_path=archive, as_of=AS_OF, max_companies=1)
             self.assertEqual(again["processed"], 2)
             self.assertEqual(again["statuses"], second["statuses"])
 
