@@ -141,6 +141,56 @@ class SECBulkScreeningTests(unittest.TestCase):
             self.assertEqual(diagnose_database(folder)["snapshot_as_of"], AS_OF)
             self.assertEqual(diagnose_database(folder)["status_counts"]["OK"], 1)
 
+    def test_issuer_without_eligible_10k_fiscal_year_is_coverage_gap_not_error(self):
+        with tempfile.TemporaryDirectory() as folder:
+            archive = self.fixture(folder)
+            # Synthetic issuer 77 has an SEC Company Facts file but only IFRS facts.
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
+                z.writestr("CIK0000000077.json", json.dumps({
+                    "cik": 77, "entityName": "FOREIGN ISSUER", "facts": {
+                        "ifrs-full": {"Revenue": {"units": {"USD": []}}},
+                        "dei": {"EntityCommonStockSharesOutstanding": {"units": {"shares": []}}}
+                    }}))
+            result = ingest_zip(folder, archive_path=archive, as_of=AS_OF)
+            self.assertEqual(result["statuses"],
+                             {"NO_SUPPORTED_ANNUAL_DATA": 1, "NO_COMPANYFACTS": 1})
+            self.assertEqual(result["errors"], 0)
+            company_row = next(x for x in load_bulk_grid(folder)["rows"] if x["ticker"] == "SYN")
+            self.assertEqual(company_row["screening_reason"], "NO_US_GAAP_NAMESPACE")
+            self.assertIn("ifrs-full", company_row["screening_detail"])
+            self.assertIsNone(company_row["roe"])
+            self.assertEqual(diagnose_database(folder)["status_counts"]["NO_SUPPORTED_ANNUAL_DATA"], 1)
+
+    def test_existing_errors_reclassify_without_touching_ok_issuers(self):
+        with tempfile.TemporaryDirectory() as folder:
+            archive = self.fixture(folder)
+            # First run creates an OK issuer and a missing-facts issuer.
+            original = ingest_zip(folder, archive_path=archive, as_of=AS_OF)
+            self.assertEqual(original["statuses"], {"OK": 1, "NO_COMPANYFACTS": 1})
+            import sqlite3
+            db = Path(folder) / "veri/invest_ai_evren.sqlite3"
+            with sqlite3.connect(db) as con:
+                con.execute("UPDATE companies SET status='ERROR',error='ValueError',payload=NULL "
+                            "WHERE cik='0000000042'")
+            fixed = ingest_zip(folder, archive_path=archive, retry_errors=True)
+            self.assertEqual(fixed["statuses"], {"OK": 1, "NO_COMPANYFACTS": 1})
+            self.assertEqual(fixed["retries_attempted"], 1)
+            self.assertEqual(fixed["errors"], 0)
+            self.assertEqual(diagnose_database(folder)["status_counts"]["OK"], 1)
+
+    def test_us_gaap_namespace_with_no_annual_anchor_is_coverage_gap(self):
+        with tempfile.TemporaryDirectory() as folder:
+            archive = self.fixture(folder)
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
+                z.writestr("CIK0000000077.json", json.dumps({
+                    "cik": 77, "entityName": "PARTIAL GAAP", "facts": {
+                        "us-gaap": {"CustomBalanceOnly": {"units": {"USD": []}}}
+                    }}))
+            result = ingest_zip(folder, archive_path=archive, as_of=AS_OF)
+            self.assertEqual(result["statuses"]["NO_SUPPORTED_ANNUAL_DATA"], 1)
+            row = next(x for x in load_bulk_grid(folder)["rows"] if x["ticker"] == "SYN")
+            self.assertEqual(row["screening_reason"], "NO_ELIGIBLE_US_GAAP_10K_FISCAL_YEAR")
+
     def test_no_download_when_local_zip_and_ticker_map_present(self):
         with tempfile.TemporaryDirectory() as folder:
             archive = self.fixture(folder)
