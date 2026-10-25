@@ -6,6 +6,7 @@ Unknown data is None, not zero or an automatic fail.
 """
 from __future__ import annotations
 
+from datetime import date
 import json
 import math
 from pathlib import Path
@@ -21,6 +22,10 @@ PERCENT = "percent"
 NUMBER = "number"
 USD = "usd"
 MULTIPLE = "multiple"
+PER_SHARE = "per_share"
+# Bump when rows gain SEC-derived columns; rows saved by an older version need a rebuild.
+ROW_SCHEMA = 2
+STALE_FINANCIALS_DAYS = 456  # latest fiscal year more than ~15 months before the data date
 
 # (key, display title, unit, group); price-based fields stay blank without price.
 COLUMNS = [
@@ -32,6 +37,7 @@ COLUMNS = [
     ("screening_status", "Finansal kapsam", "text", "Veri kalitesi"),
     ("screening_reason", "Kapsam nedeni", "text", "Veri kalitesi"),
     ("screening_detail", "Kapsam ayrıntısı / SEC kimlik kontrolü", "text", "Veri kalitesi"),
+    ("financials_age_days", "Son mali yıl yaşı (gün)", NUMBER, "Veri kalitesi"),
     ("roe", "ROE", PERCENT, "Getiri"),
     ("roic", "ROIC", PERCENT, "Getiri"),
     ("roa", "ROA", PERCENT, "Getiri"),
@@ -41,7 +47,9 @@ COLUMNS = [
     ("revenue_growth", "Gelir büyümesi (1Y)", PERCENT, "Büyüme"),
     ("revenue_cagr_3y", "Gelir CAGR (3Y)", PERCENT, "Büyüme"),
     ("operating_income_growth", "Faaliyet kârı büyümesi", PERCENT, "Büyüme"),
+    ("net_income_growth", "Net kâr büyümesi (1Y)", PERCENT, "Büyüme"),
     ("net_income_cagr_3y", "Net kâr CAGR (3Y)", PERCENT, "Büyüme"),
+    ("eps_cagr_3y", "Seyreltilmiş EPS CAGR (3Y)", PERCENT, "Büyüme"),
     ("cash_conversion", "CFO / Net kâr", MULTIPLE, "Nakit"),
     ("cash_conversion_3y", "CFO / Net kâr (3Y)", MULTIPLE, "Nakit"),
     ("fcf_margin", "FCF marjı", PERCENT, "Nakit"),
@@ -65,7 +73,9 @@ COLUMNS = [
     ("equity", "Özkaynak", USD, "Tutar"),
     ("total_debt", "Toplam borç", USD, "Tutar"),
     ("net_debt", "Net borç", USD, "Tutar"),
+    ("eps_diluted", "Seyreltilmiş EPS (net kâr / ort. hisse)", PER_SHARE, "Tutar"),
     ("shares", "Dolaşımdaki pay adedi", NUMBER, "Tutar"),
+    ("shares_date", "Pay adedi tarihi", "text", "Tutar"),
     ("market_price", "Hisse fiyatı (kaynaklı)", USD, "Değerleme"),
     ("market_cap", "Piyasa değeri", USD, "Değerleme"),
     ("pe", "F/K", MULTIPLE, "Değerleme"),
@@ -109,6 +119,29 @@ def _cagr(recent, earlier, years):
     return _finite((recent / earlier) ** (1 / years) - 1)
 
 
+def _growth(recent, earlier):
+    """One-period change; only against a positive base, never from a loss."""
+    ratio = _division(recent, earlier, positive=True)
+    return None if ratio is None else _finite(ratio - 1)
+
+
+def _days_between(later, earlier):
+    try:
+        return (date.fromisoformat(later) - date.fromisoformat(earlier)).days
+    except (TypeError, ValueError):
+        return None
+
+
+def financials_age_days(as_of, fiscal_year_end):
+    """Days from the latest fiscal year end to the data date; None if either is unknown."""
+    return _days_between(as_of, fiscal_year_end)
+
+
+def _eps(year):
+    """Diluted EPS as parent net income / weighted diluted shares of the same fiscal year."""
+    return _division(_cell(year, "income", "net_income"), _cell(year, "income", "diluted_shares"), positive=True)
+
+
 def _lineup(report, *, ticker=None, path=None):
     statements = report.get("financial_statements", {})
     ratio_data = report.get("financial_ratios", {})
@@ -128,7 +161,9 @@ def _lineup(report, *, ticker=None, path=None):
                source_mode=(report.get("source") or {}).get("web_data_mode")
                or (report.get("source") or {}).get("mode") or "unknown",
                report_url=path, screening_status="OK", screening_reason="",
-               price_source=None, price_date=None, roic_warning=False, ebitda_approximate=False)
+               price_source=None, price_date=None, roic_warning=False, ebitda_approximate=False,
+               row_schema=ROW_SCHEMA)
+    row["financials_age_days"] = financials_age_days(row["as_of"], row["fiscal_year"])
     for key, name, *_ in COLUMNS:
         if key in current_ratios:
             row[key] = _ratio(current_ratios, key)
@@ -153,6 +188,11 @@ def _lineup(report, *, ticker=None, path=None):
     row["net_debt_to_ebitda"] = _division(row["net_debt"], ebitda, positive=True)
     row["ev_ebitda"] = None
 
+    row["eps_diluted"] = _eps(latest)
+    gap = _days_between(row["fiscal_year"], years[1]["fiscal_year_end"]) if len(years) >= 2 else None
+    if gap is not None and 330 <= gap <= 400:
+        row["net_income_growth"] = _growth(row["net_income"], _cell(years[1], "income", "net_income"))
+
     # Require four comparable annual periods for three-year CAGR; no negative-income CAGR.
     if len(years) >= 4 and isinstance(row["fiscal_year"], str):
         from datetime import date
@@ -165,6 +205,10 @@ def _lineup(report, *, ticker=None, path=None):
         if valid:
             row["revenue_cagr_3y"] = _cagr(row["revenue"], _cell(years[3], "income", "revenue"), 3)
             row["net_income_cagr_3y"] = _cagr(row["net_income"], _cell(years[3], "income", "net_income"), 3)
+            row["eps_cagr_3y"] = _cagr(row["eps_diluted"], _eps(years[3]), 3)
+            # Weighted diluted share counts of the two years, not the current cover-page count.
+            row["shares_change_3y"] = _growth(_cell(latest, "income", "diluted_shares"),
+                                              _cell(years[3], "income", "diluted_shares"))
 
     # Three consecutive annual years: direct FY values, no interpolation.
     if len(years) >= 3:
@@ -186,6 +230,7 @@ def _lineup(report, *, ticker=None, path=None):
 
     shares = statements.get("shares_outstanding", {})
     row["shares"] = _finite(shares.get("value")) if shares.get("status") == "REPORTED" else None
+    row["shares_date"] = shares.get("date")  # only a reported count carries a date
 
     # Price is solely the dated, source-described user price saved by reverse DCF.
     recorded = (report.get("implied_growth") or {}).get("price", {})

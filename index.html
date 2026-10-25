@@ -975,6 +975,7 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       if (Math.abs(value) >= 1e6) return (value/1e6).toLocaleString("tr-TR",{maximumFractionDigits:2})+" Mn $";
     }
     if (type === "multiple") return value.toLocaleString("tr-TR",{maximumFractionDigits:3})+"x";
+    if (type === "per_share") return value.toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2})+" $";
     return value.toLocaleString("tr-TR",{maximumFractionDigits:type==="number"?0:2});
   }
   function filteredFundamentals() {
