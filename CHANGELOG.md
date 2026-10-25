@@ -5,6 +5,16 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Bankalarda net borç hesaplanmıyor (tablolar v0.5.1)
+
+- Beşinci gerçek veri denemesinde v0.5'in nakit yedek etiketi JPM'de merkez bankası rezervlerini "nakit" yaptı ve
+  anlamsız bir net borç (−278,6 milyar $) çıktı. Bankanın nakdi ve borcu faaliyetin kendisidir; `financial`
+  sektöründe net borç artık `NOT_MEANINGFUL_FOR_FINANCIAL_SECTOR` nedeniyle hesaplanmaz. Bileşen kalemler tabloda
+  kalır. Tablo fonksiyonlarına `net_debt` parametresi, katman sağlığına `NOT_APPLICABLE_FINANCIAL` değeri eklendi.
+- Aynı denemede v0.5 düzeltmeleri doğrulandı: Microsoft, J&J ve P&G'de ROIC, P&G'de net borç, Coca-Cola'da
+  menkul kıymetler geldi. Nvidia'nın menkul kıymet satırı standart etikette yok; belgelendi.
+- **Testler:** 4 yeni test. Toplam `tests/` 574/574. 6 hedefli mutasyonun hepsi yakalanıyor.
+
 ## 2026-10-25 — Bilanço etiket çeşitleri ve ROIC uyarısı (tablolar v0.5)
 
 Dördüncü gerçek veri denemesinin etiket kontrolünden.

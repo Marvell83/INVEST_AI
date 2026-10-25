@@ -45,6 +45,8 @@ Yıllık ve çeyreklik çıktılarda ayrıca `conflicts`, `alias_gaps` (öncelik
 **Net borç (v0.4):** `net_debt` = toplam borç − nakit − menkul kıymetler. Oranlar (net borç, ROIC), tarihsel baz (satış / yatırılan sermaye) ve DCF'in SEC net borç girdisi bu tek hücreyi kullanır.
 - Şirket hiç menkul kıymet kalemi bildirmemişse yalnız nakit düşülür; yöntem `TOTAL_DEBT_MINUS_CASH_NO_SECURITIES_REPORTED` olarak görünür.
 - Menkul kıymetler belirlenemiyorsa (farklı dosyalar, çelişki) net borç `MISSING` olur; yalnız nakitle hesaplanmaz.
+- `financial` (banka, sigorta) sektöründe net borç hesaplanmaz (`NOT_MEANINGFUL_FOR_FINANCIAL_SECTOR`): bankanın nakdi ve borcu (mevduat, merkez bankası rezervi) faaliyetin kendisidir. Kalemler tabloda görünmeye devam eder. Tablo fonksiyonlarındaki `net_debt` parametresi bunu belirler; araştırma raporu analistin girdiği sektöre göre ayarlar.
+- Nvidia bilançodaki menkul kıymetler satırını SEC'in standart etiketleriyle bildirmiyor. Company Facts'teki `AvailableForSaleSecuritiesDebtSecurities` toplamı nakit benzerlerini de içerdiği için kullanılmaz; net borçtan yalnız nakit düşülür (`NONE_REPORTED`). Değerlemede analist net borcu kaynağıyla girebilir.
 
 **Kira yükümlülükleri (v0.4):** Faaliyet ve finansal kiralama yükümlülükleri (kısa / uzun vadeli) tabloda gösterilir, toplamı `lease_liabilities`. Net borca **eklenmez**: US-GAAP'te faaliyet kârı faaliyet kiralaması giderini zaten düşer, kirayı bir de borca eklemek aynı yükü iki kez saymak olur. Bazı şirketler finansal kiralamayı bildirdikleri borca zaten dahil eder; bu yüzden finansal kiralama da ayrıca eklenmez.
 

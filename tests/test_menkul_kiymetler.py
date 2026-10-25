@@ -11,6 +11,7 @@ from sirket_analiz_paneli import render_financial_sections, render_valuation_sec
 from sirket_arastirma_akisi import build_company_research
 from tahmin_motoru import historical_baseline
 from test_finansal_tablolar import AS_OF, company, fact, row
+from test_katman_mutabakati import ttm_company
 from test_senaryo_degerleme import value, with_shares
 from test_tahmin_motoru import five_year_company
 
@@ -216,6 +217,57 @@ class IssuerTaggingTests(unittest.TestCase):
         high_roic = compute_ratios(high)["years"][0]["ratios"]["roic"]
         self.assertAlmostEqual(high_roic["value"], 208 / 415)
         self.assertNotIn("caution", high_roic)
+
+
+class FinancialSectorTests(unittest.TestCase):
+    """A bank's cash and debt are operating balances: net debt is not derived (JPM)."""
+
+    def research(self, sector, data=None):
+        return build_company_research(data or with_instants(company(), {CURRENT: 40}), as_of=AS_OF,
+                                      expected_cik=77, sector=sector)
+
+    def test_financial_sector_has_no_net_debt(self):
+        report = self.research("financial")
+        statements = report["financial_statements"]
+        net = row(statements)["balance"]["net_debt"]
+        self.assertEqual((net["status"], net["value"], net["reason"]),
+                         ("MISSING", None, "NOT_MEANINGFUL_FOR_FINANCIAL_SECTOR"))
+        self.assertFalse(statements["net_debt_derived"])
+        self.assertFalse(report["quarterly_statements"]["net_debt_derived"])
+        ratios = report["financial_ratios"]["years"][0]["ratios"]
+        self.assertEqual(ratios["net_debt"]["reason"], "INPUT_UNAVAILABLE:net_debt")
+        self.assertIsNone(ratios["roic"]["value"])
+        self.assertEqual(layer_health(report)["net_debt_securities"], "NOT_APPLICABLE_FINANCIAL")
+        # Components stay visible; only the debt-minus-cash figure is withheld.
+        self.assertEqual(row(statements)["balance"]["liquid_investments"]["value"], 40)
+
+    def test_other_sectors_keep_net_debt(self):
+        for sector in ("non_financial", "unknown"):
+            with self.subTest(sector):
+                report = self.research(sector)
+                self.assertEqual(row(report["financial_statements"])["balance"]["net_debt"]["value"], 110)
+                self.assertTrue(report["financial_statements"]["net_debt_derived"])
+
+    def test_quarterly_rows_follow_the_sector_rule(self):
+        data = ttm_company()
+        gaap = data["facts"]["us-gaap"]
+        for tag, values in (("CashAndCashEquivalentsAtCarryingValue", 50), ("LongTermDebtNoncurrent", 200)):
+            gaap[tag] = {"units": {"USD": [dict(r, val=values, start=None) for r in
+                                           gaap["NetCashProvidedByUsedInOperatingActivities"]["units"]["USD"]
+                                           if r["start"] == "2025-01-01"]}}
+            for r in gaap[tag]["units"]["USD"]:
+                del r["start"]
+        expected = {"non_financial": "DERIVED", "financial": "MISSING"}
+        for sector, status in expected.items():
+            with self.subTest(sector):
+                report = build_company_research(data, as_of="2025-06-15", expected_cik=99, sector=sector)
+                latest = report["quarterly_statements"]["quarters"][0]["balance"]["net_debt"]
+                self.assertEqual(latest["status"], status)
+
+    def test_builders_default_to_net_debt(self):
+        self.assertTrue(build_annual_statements(company(), as_of=AS_OF)["net_debt_derived"])
+        disabled = build_annual_statements(company(), as_of=AS_OF, net_debt=False)
+        self.assertEqual(row(disabled)["balance"]["net_debt"]["reason"], "NOT_MEANINGFUL_FOR_FINANCIAL_SECTOR")
 
 
 if __name__ == "__main__":

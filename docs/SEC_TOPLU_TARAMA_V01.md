@@ -84,7 +84,7 @@ Her şirket kaydında artık bir `layer_health` alanı var. Bu alan aynı zamand
 | `shared_ttm_status`, `shared_ttm_end` | Ortak çeyreklerden TTM: `OK`, `PARTIAL`, `INSUFFICIENT_QUARTERS`; hangi çeyrek en son olursa olsun hesaplanır |
 | `ttm_reconciliation` | Eski iki TTM motoru ↔ ortak TTM. Eski motorlar yalnız son dönem 9 aylık 10-Q olduğunda çalışır; diğer durumlarda `NOT_APPLICABLE` normaldir |
 | `latest_operating_income` | Son yılın faaliyet kârı: `REPORTED`, `APPROXIMATE` (vergi öncesi kâr + faiz gideri), `MISSING` |
-| `net_debt_securities` | Son yıl net borcunda menkul kıymetler: `DEDUCTED`, `LOWER_BOUND` (iki kısa vadeli kalem birbirini içerebilir, büyüğü düşüldü), `NONE_REPORTED` (yalnız nakit düşüldü), `NET_DEBT_UNAVAILABLE` |
+| `net_debt_securities` | Son yıl net borcunda menkul kıymetler: `DEDUCTED`, `LOWER_BOUND` (iki kısa vadeli kalem birbirini içerebilir, büyüğü düşüldü), `NONE_REPORTED` (yalnız nakit düşüldü), `NOT_APPLICABLE_FINANCIAL` (bankada net borç hesaplanmaz), `NET_DEBT_UNAVAILABLE` |
 | `baseline_status` | Senaryolar için yeterli geçmiş var mı |
 | `latest_ratios_available` | Son yılda hesaplanabilen oran sayısı (18 üzerinden) |
 
@@ -137,7 +137,9 @@ Coca-Cola ve Exxon'un TTM'i 2026'nın 1. çeyreğinde bitiyor, çünkü indirile
 | P&G | Nakit yalnız kısıtlı nakit dahil etiketle | Nakit için yedek etiket |
 | J&J, P&G | `StockholdersEquity` yok | Azınlık payı dahil özkaynak yedek etiketi (gerçek veriyle doğrulanacak) |
 | Apple | ROIC %479: sermaye tabanı çok küçük | ROIC %100 üstünde uyarı |
-| Nvidia | Bilinen hiçbir menkul kıymet etiketi bulunamadı | Açık: etiket henüz belirlenmedi |
+| Nvidia | Bilinen hiçbir menkul kıymet etiketi bulunamadı | Bilanço satırı standart etikette yok; nakit benzerlerini de içeren AFS toplamı kullanılmaz (analist net borcu girebilir) |
+
+**Beşinci deneme (v0.5):** Microsoft ROIC %35,9, J&J %28,1, P&G net borç 24,2 milyar $ ve ROIC %20,1, Coca-Cola net borç −8,8 → −14,3 milyar $; Apple (%479) ve Nvidia (%111) ROIC'i uyarılı. Yan etki: nakit yedek etiketi JPM'de bankanın merkez bankası rezervlerini "nakit" yaptı ve anlamsız bir net borç (−278,6 milyar $) çıktı. v0.5.1'de `financial` sektöründe net borç hesaplanmıyor (`net_debt_securities` = `NOT_APPLICABLE_FINANCIAL`).
 
 ## Testler
 
