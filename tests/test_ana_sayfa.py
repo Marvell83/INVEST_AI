@@ -91,7 +91,7 @@ class InvestAISiteTests(unittest.TestCase):
         # Existing 2026-10-21 Piotroski HTML stays in the legacy reports folder.
         self.assertTrue((ROOT / "reports/Apple_SEC_Piotroski_2026-10-21.html").is_file())
         self.assertIn('id="report-kind-filter"', src)
-        self.assertIn('value="web">Web analizleri (v0.4)', src)
+        self.assertIn('value="web">Web analizleri (v0.5)', src)
         self.assertIn('value="previous">Önceki / terminal raporları', src)
         self.assertIn('path.startsWith("reports/research/")', src)
         self.assertIn('kind:"previous"', src)
@@ -106,7 +106,7 @@ class InvestAISiteTests(unittest.TestCase):
 
     def test_site_shows_web_version_and_new_reports_from_api(self):
         src = INDEX.read_text(encoding="utf-8")
-        self.assertIn("Araştırma Merkezi · v0.4", src)
+        self.assertIn("Araştırma Merkezi · v0.5", src)
         self.assertIn('filename:data.report_url.split("/").pop()', src)
         self.assertIn("meta:reportMeta(data.report_url.slice(1)", src)
         self.assertIn('document.getElementById("viewer-provenance")', src)
@@ -133,6 +133,19 @@ class InvestAISiteTests(unittest.TestCase):
         result = subprocess.run(["node", "--check", "-"], input=script, text=True,
                                 capture_output=True, check=False, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_financial_screener_excel_style_controls_exist(self):
+        src = INDEX.read_text(encoding="utf-8")
+        for control in ('fundamentals-open', 'fundamentals-panel', 'fundamentals-columns',
+                        'fundamentals-filter-column', 'fundamentals-filter-min',
+                        'fundamentals-filter-max', 'fundamentals-add-filter',
+                        'fundamentals-decision', 'fundamentals-yield',
+                        'fundamentals-csv', 'fundamentals-table'):
+            self.assertIn(f'id="{control}"', src)
+        self.assertIn('"/api/screener"', src)
+        self.assertIn('filteredFundamentals()', src)
+        self.assertIn('sort.textContent = label', src)
+        self.assertIn('CSV indir', src)
 
     def test_demo_command_has_existing_source_and_modules(self):
         src = INDEX.read_text(encoding="utf-8")
