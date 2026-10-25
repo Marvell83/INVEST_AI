@@ -17,13 +17,13 @@ import re
 
 from finansal_oranlar import compute_ratios
 from finansal_tablolar import build_annual_statements, build_quarterly_statements
-from katman_mutabakati import reconcile_layers
-from kredi_notlari import company_quality_snapshot
+from katman_mutabakati import reconcile_layers, reconcile_ttm
+from kredi_notlari import CreditRatingLedger, company_quality_snapshot
 from sec_companyfacts import SEC_DATA, _validate_cik, download_companyfacts
 from sec_gap_audit import audit_company
 from sec_ttm_crosscheck import audit_ttm
 from sirket_analiz_paneli import (
-    render_dashboard, render_financial_sections, render_forecast_section, render_layer_reconciliation,
+    PAGE_STYLE, render_dashboard, render_financial_sections, render_forecast_section, render_layer_reconciliation,
     render_quarterly_section, render_reverse_dcf_section, render_valuation_section,
 )
 from senaryo_degerleme import implied_growth, value_scenarios
@@ -60,7 +60,8 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
                            expected_fiscal_end=None, input_mode="offline_file",
                            long_run_growth=None, long_run_growth_source=None,
                            discount_rate=None, discount_rate_source=None,
-                           market_price=None, market_price_source=None, market_price_date=None):
+                           market_price=None, market_price_source=None, market_price_date=None,
+                           include_piotroski=True):
     """Return one issuer's dated annual, Piotroski and TTM evidence.
 
     Sector and CIK are explicit analyst inputs, not inferred from the ticker.
@@ -96,10 +97,21 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         raise ValueError("ratings database does not exist")
 
     annual = audit_company(raw, as_of=as_of)
-    quality = company_quality_snapshot(
-        raw, as_of=as_of, sector=sector, credit_db=credit_db,
-        equity_offering_evidence=equity_offering_evidence)
-    if annual["cik"] != cik or quality["cik"] != cik or quality["piotroski"]["cik"] != cik:
+    if include_piotroski:
+        # Backward compatibility for saved and standalone legacy research.
+        quality = company_quality_snapshot(
+            raw, as_of=as_of, sector=sector, credit_db=credit_db,
+            equity_offering_evidence=equity_offering_evidence)
+    else:
+        credit = None
+        if credit_db is not None:
+            with CreditRatingLedger(credit_db) as ledger:
+                credit = ledger.as_of(cik, as_of)
+        quality = {"company": raw.get("entityName", ""), "cik": cik,
+                   "as_of": as_of, "credit": credit, "combined_score": None}
+    if annual["cik"] != cik or quality["cik"] != cik:
+        raise ValueError("issuer mismatch between research components")
+    if include_piotroski and quality["piotroski"]["cik"] != cik:
         raise ValueError("issuer mismatch between research components")
 
     if expected_fiscal_end is not None and annual["latest_any_fy_end"] != expected_fiscal_end:
@@ -124,7 +136,12 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
     if statements["cik"] != cik or quarterly["cik"] != cik:
         raise ValueError("financial statements issuer differs from requested CIK")
     ratios = compute_ratios(statements)
-    layers = reconcile_layers(quality["piotroski"], statements, ttm, quarterly)
+    layers = (reconcile_layers(quality["piotroski"], statements, ttm, quarterly)
+              if include_piotroski else {
+                  "version": "katman-mutabakati-0.2.0",
+                  "ttm": reconcile_ttm(ttm, quarterly),
+                  "note": "TTM consistency on one SEC snapshot; not independent verification",
+              })
     baseline = historical_baseline(statements, ratios)
     projection = valuation = implied = None
     if long_run_growth is not None:
@@ -137,26 +154,27 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         implied = implied_growth(projection, baseline, valuation, price=market_price,
                                  price_source=market_price_source, price_date=market_price_date)
 
-    p = quality["piotroski"]
+    p = quality.get("piotroski")
     gaps = []
     if annual["status"] != "READY_FOR_MANUAL_ASSUMPTIONS":
         gaps.append("ANNUAL_SOURCE_REVIEW_REQUIRED:" + annual["status"])
-    if sector != "non_financial":
-        gaps.append("SECTOR_SPECIFIC_PIOTROSKI_UNAVAILABLE")
-    elif p["score"] is None:
-        gaps.append("PIOTROSKI_INCOMPLETE:" + str(p["known_count"]) + "/9")
+    if include_piotroski:
+        if sector != "non_financial":
+            gaps.append("SECTOR_SPECIFIC_PIOTROSKI_UNAVAILABLE")
+        elif p["score"] is None:
+            gaps.append("PIOTROSKI_INCOMPLETE:" + str(p["known_count"]) + "/9")
     if ttm["status"] != "RECONCILED_CALCULATIONS":
         # The two older engines handle nine-month periods only; the shared quarterly
         # TTM covers any latest quarter but is then not cross-checked by a second method.
         single = (quarterly.get("ttm") or {}).get("status") == "OK"
         gaps.append(("TTM_SINGLE_METHOD_ONLY:" if single else "TTM_NOT_RECONCILED:") + ttm["status"])
     annual_end = annual.get("latest_any_fy_end")
-    p_end = p.get("periods", {}).get("current_fy_end")
+    p_end = p.get("periods", {}).get("current_fy_end") if p else None
     if annual_end and p_end and p_end != annual_end:
         gaps.append("PIOTROSKI_ANNUAL_PERIOD_MISMATCH")
     if ttm.get("primary", {}).get("periods", {}).get("annual_end") not in (None, annual_end):
         gaps.append("TTM_ANNUAL_PERIOD_MISMATCH")
-    if layers["piotroski"]["status"] == "DIFFERENCES":
+    if include_piotroski and layers["piotroski"]["status"] == "DIFFERENCES":
         gaps.append("SHARED_STATEMENTS_DIFFER_FROM_PIOTROSKI_INPUTS")
     if layers["ttm"]["status"] == "DIFFERENCES":
         gaps.append("SHARED_QUARTERS_DIFFER_FROM_TTM")
@@ -174,11 +192,12 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         "Source authenticity and complete historical SEC coverage are not independently verified.",
         "An as_of cutoff prevents using later-filed facts present in this snapshot; it does not prove archive completeness.",
         "Annual screening eligibility does not authenticate consolidated accounting labels.",
-        "Piotroski F-Score, issuer credit ratings and TTM are distinct views, never combined into a stock score.",
+        ("Piotroski F-Score, issuer credit ratings and TTM are distinct views, never combined into a stock score."
+         if include_piotroski else "Financial statements, TTM and credit ratings are independent research layers."),
         "Credit ratings require separately maintained source-cited manual observations.",
         "TTM flow arithmetic is not a future cash-flow forecast; CFO minus CapEx is not unlevered FCFF.",
         "No automatic DCF, discount rate, market price, price target, stock ranking or buy/sell recommendation.",
-        "IFRS/20-F and finance-sector-specific scoring need dedicated methodologies.",
+        "IFRS/20-F and financial-sector-specific normalization need dedicated methodologies.",
         "The shared TTM sums four consecutive quarters for any latest quarter; the two older TTM engines "
         "cross-check it only when the latest period is a nine-month 10-Q.",
         "Annual statements cover selected US-GAAP line items; segment data is not included, lease "
@@ -223,7 +242,8 @@ def render_company_research(report):
     quality = report.get("quality")
     if not isinstance(quality, dict) or quality.get("cik") != report.get("cik"):
         raise ValueError("issuer mismatch in research report")
-    base = render_dashboard(quality)
+    base = (render_dashboard(quality) if quality.get("piotroski") is not None
+            else _render_financial_shell(report))
     annual = report["annual_source_audit"]
     ttm = report["ttm_crosscheck"]
     gaps = report["research_gaps"]
@@ -238,9 +258,8 @@ def render_company_research(report):
         "<p>JSON içerik SHA-256: <code>" +
         _safe(report["source"]["canonical_json_sha256"]) + "</code></p>"
         "<p class='muted'>Bu hash veri bütünlüğü karşılaştırmasına yarar, SEC dijital imzası değildir.</p>"
-        "<p class='muted'>Bu yıllık inceleme durumu gelir ve faaliyet kârı kaydının kontrolüdür; "
-        "Piotroski için iki karşılaştırılabilir yıllık dönem ve ilgili bilanço geçmişi "
-        "ayrıca gerekir. TTM mutabakatı tek başına Piotroski'yi tamamlamaz.</p></section>"
+        "<p class='muted'>Yıllık kaynak denetiminin hazır olması bilanço ve nakit akışı "
+        "alanlarının tümünün eksiksiz olduğunu veya kaynakların bağımsız doğrulandığını göstermez.</p></section>"
     )
     if ttm["status"] == "RECONCILED_CALCULATIONS":
         primary = ttm["primary"]
@@ -353,7 +372,7 @@ def main(argv=None):
     report = build_company_research(
         raw, as_of=args.as_of, expected_cik=cik, sector=args.sector,
         expected_fiscal_end=args.expected_fiscal_end, credit_db=args.ratings_db,
-        equity_offering_evidence=evidence, input_mode=mode,
+        equity_offering_evidence=evidence, input_mode=mode, include_piotroski=False,
         long_run_growth=args.long_run_growth, long_run_growth_source=args.long_run_source,
         discount_rate=args.discount_rate, discount_rate_source=args.discount_source,
         market_price=args.price, market_price_source=args.price_source, market_price_date=args.price_date)
@@ -371,7 +390,6 @@ def main(argv=None):
                                     allow_nan=False), encoding="utf-8")
     dest_html.write_text(page, encoding="utf-8")
     print(f"CIK {report['cik']} | {report['coverage_status']} | "
-          f"Piotroski {report['quality']['piotroski']['score_range']} | "
           f"TTM {report['ttm_crosscheck']['status']}")
 
 
