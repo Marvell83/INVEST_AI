@@ -11,7 +11,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import zipfile
 
-from sec_piyasa_toplu_tarama import fetch_bulk_zip, ingest_zip, load_bulk_grid, run
+from sec_piyasa_toplu_tarama import (diagnose_database, fetch_bulk_zip, ingest_zip,
+                                    load_bulk_grid, run)
 from test_finansal_tablolar import AS_OF, company
 
 
@@ -104,6 +105,41 @@ class SECBulkScreeningTests(unittest.TestCase):
             again = ingest_zip(folder, archive_path=archive, as_of=AS_OF, max_companies=1)
             self.assertEqual(again["processed"], 2)
             self.assertEqual(again["statuses"], second["statuses"])
+
+    def test_diagnose_and_retry_only_error_rows_preserves_successes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            archive = self.fixture(folder)
+            original = __import__("sec_piyasa_toplu_tarama").build_annual_statements
+            def selective_failure(raw, **kw):
+                if raw.get("cik") == 77:
+                    raise ValueError("bad XBRL fiscal start date")
+                return original(raw, **kw)
+            with patch("sec_piyasa_toplu_tarama.build_annual_statements",
+                       side_effect=selective_failure):
+                first = ingest_zip(folder, archive_path=archive, as_of=AS_OF)
+            self.assertEqual(first["statuses"], {"ERROR": 1, "NO_COMPANYFACTS": 1})
+            diagnostic = diagnose_database(folder)
+            self.assertEqual(diagnostic["status_counts"]["ERROR"], 1)
+            self.assertIn("bad XBRL fiscal start date", diagnostic["error_reasons"][0]["error"])
+            self.assertEqual(diagnostic["error_examples"][0]["ticker"], "SYN")
+            fixed = ingest_zip(folder, archive_path=archive, retry_errors=True)
+            self.assertEqual(fixed["statuses"], {"OK": 1, "NO_COMPANYFACTS": 1})
+            self.assertEqual(fixed["retries_attempted"], 1)
+            self.assertEqual(fixed["as_of"], AS_OF)
+            self.assertFalse(fixed["error_types"])
+            self.assertEqual(diagnose_database(folder)["snapshot_as_of"], AS_OF)
+            self.assertEqual(ingest_zip(folder, archive_path=archive, retry_errors=True)
+                             ["retries_attempted"], 0)
+
+    def test_retry_does_not_reset_snapshot_across_date_change(self):
+        with tempfile.TemporaryDirectory() as folder:
+            archive = self.fixture(folder)
+            ingest_zip(folder, archive_path=archive, as_of=AS_OF)
+            with self.assertRaisesRegex(ValueError, "different SEC ZIP/as-of"):
+                ingest_zip(folder, archive_path=archive, as_of="2026-10-25",
+                           retry_errors=True)
+            self.assertEqual(diagnose_database(folder)["snapshot_as_of"], AS_OF)
+            self.assertEqual(diagnose_database(folder)["status_counts"]["OK"], 1)
 
     def test_no_download_when_local_zip_and_ticker_map_present(self):
         with tempfile.TemporaryDirectory() as folder:

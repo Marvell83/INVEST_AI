@@ -29,6 +29,30 @@ Dosyalar:
 
 Tüm bunlar `.gitignore` altındadır; GitHub'a yüklenmez. Codespaces depolaması kalıcı olabilir ancak ortamın silinmesi arşivi de silebilir. Sunucunun Ctrl+C ile kesilmesi çalışan işçi thread'ini de durdurur; yeniden başlatınca aynı veri ve aynı kesme tarihi kapsamındaki iş tamamlanmamış şirketlerden sürdürülür.
 
+## 8.024 kayıt tarandığında ERROR sayısına nasıl bakılır? (v0.6.1)
+
+İşlenen toplam kayıt ile başarılı şirket sayısı aynı değildir. Örnek: `{"OK":5003,"ERROR":2020,"NO_COMPANYFACTS":1001}` olduğunda yalnız **5.003** kayıt için desteklenen finansal tablo/rasyo sonucu çıkmış demektir. `NO_COMPANYFACTS`, SEC ZIP içinde eşleşen CIK dosyasının bulunmamasıdır; tek başına yazılım hatası olduğu veya hisse kötü olduğu anlamına gelmez. `ERROR` ise ayrıntı incelemesi gerektirir.
+
+**Veritabanını silmeden teşhis:**
+
+```bash
+cd /workspaces/INVEST_AI
+python3 sec_piyasa_toplu_tarama.py --diagnose
+```
+
+Komut yalnız SQLite'ı okur; SEC'ye bağlanmaz. `status_counts`, `error_reasons`, `error_examples`, kayıt tarihi ve arşiv imzası gösterilir. Eski v0.6 kayıtlarında hata mesajları yalnız `ValueError`, `TypeError` gibi genel etiketler içerir.
+
+**İlk 20 ERROR şirketini yeniden dene ve hata ayrıntısını kaydet:**
+
+```bash
+python3 sec_piyasa_toplu_tarama.py --retry-errors --limit 20
+python3 sec_piyasa_toplu_tarama.py --diagnose
+```
+
+Bu işlem var olan `veri/companyfacts.zip` arşivini kullanır. **5.003 OK ve 1.001 NO_COMPANYFACTS kaydı yeniden hesaplanmaz veya silinmez.** İndirme yapmaz; `SEC_USER_AGENT` tekrar zorunlu değildir. Hata çözülmeden `--retry-errors` ile bütün 2.020 hatayı tekrarlamak ek fayda sağlamaz.
+
+Hatanın hangi kavram/tarih/türden kaynaklandığı doğrulandıktan sonra belirli hesaplama/normalizasyon kuralı düzeltilir. Ardından aynı arşivde `python3 sec_piyasa_toplu_tarama.py --retry-errors` tüm kalan ERROR kayıtlarını yeniden işler. **Farklı SEC arşivi veya farklı kesme tarihi** kullanılırsa hata kayıtları korunarak yeniden deneme yapılmaz; bu durumda yeni kaynak kesiti için ayrı veri yenileme gerekir.
+
 ## Sonuçların yorumu
 
 SQLite/Excel finansal satırları şunları içerir: ROE, ROIC, ROA, gelir/kâr büyümesi, marjlar, CFO, nakit dönüşümü, FCF, net borç, borç/özkaynak, yaklaşık net borç/FAVÖK, faiz karşılama, CapEx, D&A, yıllık gelir/varlık/özkaynak/borç tutarları. Üç yıllık finansal geçmiş bulunursa çok yıllık büyüme ve CFO/FCF ölçümleri gösterilir.
