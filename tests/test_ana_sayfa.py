@@ -91,7 +91,7 @@ class InvestAISiteTests(unittest.TestCase):
         # Existing 2026-10-21 Piotroski HTML stays in the legacy reports folder.
         self.assertTrue((ROOT / "reports/Apple_SEC_Piotroski_2026-10-21.html").is_file())
         self.assertIn('id="report-kind-filter"', src)
-        self.assertIn('value="web">Web analizleri (v0.2)', src)
+        self.assertIn('value="web">Web analizleri (v0.4)', src)
         self.assertIn('value="previous">Önceki / terminal raporları', src)
         self.assertIn('path.startsWith("reports/research/")', src)
         self.assertIn('kind:"previous"', src)
@@ -106,7 +106,7 @@ class InvestAISiteTests(unittest.TestCase):
 
     def test_site_shows_web_version_and_new_reports_from_api(self):
         src = INDEX.read_text(encoding="utf-8")
-        self.assertIn("Araştırma Merkezi · v0.2", src)
+        self.assertIn("Araştırma Merkezi · v0.4", src)
         self.assertIn('filename:data.report_url.split("/").pop()', src)
         self.assertIn("meta:reportMeta(data.report_url.slice(1)", src)
         self.assertIn('document.getElementById("viewer-provenance")', src)
