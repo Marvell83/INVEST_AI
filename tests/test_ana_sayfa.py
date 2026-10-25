@@ -111,6 +111,17 @@ class InvestAISiteTests(unittest.TestCase):
         self.assertIn('document.createElement("span")', src)
         self.assertIn('heading.textContent = isError ?', src)
 
+
+    def test_sec_company_scanner_has_live_button_and_paginated_results(self):
+        src = INDEX.read_text(encoding="utf-8")
+        for item in ('id="sec-scan-submit"', 'id="sec-scan-panel"',
+                     'id="sec-scan-search"', 'id="sec-scan-rows"',
+                     'id="sec-scan-prev"', 'id="sec-scan-next"',
+                     '"/api/sec-scan"', 'SEC verilerini tara'):
+            self.assertIn(item, src)
+        self.assertIn('choose.textContent = "Seç"', src)
+        self.assertIn('body: JSON.stringify({query:secScanQuery, offset, refresh})', src)
+
     def test_demo_command_has_existing_source_and_modules(self):
         src = INDEX.read_text(encoding="utf-8")
         for required in (
