@@ -1,0 +1,13 @@
+[
+  {"ticker": "AAPL", "cik": 320193, "sector": "non_financial"},
+  {"ticker": "MSFT", "cik": 789019, "sector": "non_financial"},
+  {"ticker": "NVDA", "cik": 1045810, "sector": "non_financial"},
+  {"ticker": "GOOGL", "cik": 1652044, "sector": "non_financial"},
+  {"ticker": "AMZN", "cik": 1018724, "sector": "non_financial"},
+  {"ticker": "JNJ", "cik": 200406, "sector": "non_financial"},
+  {"ticker": "KO", "cik": 21344, "sector": "non_financial"},
+  {"ticker": "WMT", "cik": 104169, "sector": "non_financial"},
+  {"ticker": "XOM", "cik": 34088, "sector": "non_financial"},
+  {"ticker": "PG", "cik": 80424, "sector": "non_financial"},
+  {"ticker": "JPM", "cik": 19617, "sector": "financial"}
+]

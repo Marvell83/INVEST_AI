@@ -25,6 +25,7 @@ from sec_arsiv import (
     cached_capture, canonical_bytes, check_doc, download_ticker_map, iso_date, load_json,
     save_capture, ticker_mapping,
 )
+from katman_mutabakati import layer_health
 from sec_companyfacts import _validate_cik, download_companyfacts
 from sirket_arastirma_akisi import build_company_research, render_company_research
 
@@ -128,7 +129,7 @@ def scan_universe(records, *, as_of, archive_dir, reports_dir, offline=False,
             "fscore_range": None, "ttm_status": None,
             "captured_at_utc": None, "snapshot_sha256": None,
             "snapshot_path": None, "research_json": None, "research_html": None,
-            "error": None,
+            "layer_health": None, "error": None,
         }
         try:
             if blocked:
@@ -187,6 +188,7 @@ def scan_universe(records, *, as_of, archive_dir, reports_dir, offline=False,
             record["fscore"] = research["quality"]["piotroski"]["score"]
             record["fscore_range"] = research["quality"]["piotroski"]["score_range"]
             record["ttm_status"] = research["ttm_crosscheck"]["status"]
+            record["layer_health"] = layer_health(research)
             record["research_json"] = str(output_json)
             record["research_html"] = str(output_html)
             record["status"] = ("ANALYZED_CONTROLS_COMPLETE" if
@@ -202,11 +204,55 @@ def scan_universe(records, *, as_of, archive_dir, reports_dir, offline=False,
             record["error"] = f"{type(exc).__name__}: {exc}"
         summary["records"].append(record)
     summary["counts"] = dict(sorted(Counter(x["status"] for x in summary["records"]).items()))
+    summary["layer_health_counts"] = _layer_health_counts(summary["records"])
     summary["network_requests"] = limiter.calls
     summary["companies_requested"] = len(entries)
     summary["companies_analyzed"] = sum(x["status"].startswith("ANALYZED_") for x in summary["records"])
     summary["companies_with_errors"] = len(entries) - summary["companies_analyzed"]
     return summary
+
+
+HEALTH_COUNTED = ("revenue_alias_bucket", "piotroski_reconciliation", "ttm_reconciliation",
+                  "shares_status", "baseline_status")
+HEALTH_COLUMNS = ("statement_years", "latest_fiscal_year_end", "statement_conflicts", "revenue_alias_bucket",
+                  "revenue_alias_gap", "quarters", "shares_status", "piotroski_reconciliation",
+                  "piotroski_attention", "ttm_reconciliation", "baseline_status", "latest_ratios_available")
+
+
+def _layer_health_counts(records):
+    """Across analysed issuers: how often each shared-layer outcome occurred."""
+    health = [r["layer_health"] for r in records if r.get("layer_health")]
+    counts = {key: dict(sorted(Counter(str(h[key]) for h in health).items())) for key in HEALTH_COUNTED}
+    counts["statement_conflict_items"] = dict(sorted(
+        Counter(item for h in health for item in h["statement_conflicts"]).items()))
+    counts["issuers"] = len(health)
+    return counts
+
+
+def health_summary_lines(summary):
+    """Short Turkish reading of the layer-health counts, printed after a scan."""
+    counts = summary.get("layer_health_counts") or {}
+    issuers = counts.get("issuers", 0)
+    if not issuers:
+        return ["Katman sağlığı: analiz edilen şirket yok."]
+
+    def spread(name):
+        return ", ".join(f"{key} {value}" for key, value in counts.get(name, {}).items()) or "—"
+    buckets = counts.get("revenue_alias_bucket", {})
+    lines = [
+        f"Katman sağlığı ({issuers} şirket):",
+        f"- Gelir etiketi çelişkisi: yok {buckets.get('NO_REVENUE_CONFLICT', 0)} · "
+        f"%0,5–%5 arası {buckets.get('HALF_TO_FIVE_PERCENT', 0)} (Piotroski eşik kararını etkiler) · "
+        f"%5 üstü {buckets.get('ABOVE_FIVE_PERCENT', 0)}",
+        f"- Piotroski girdileri ↔ ortak tablolar: {spread('piotroski_reconciliation')}",
+        f"- TTM ↔ dört çeyrek: {spread('ttm_reconciliation')}",
+        f"- Kapak sayfası hisse sayısı: {spread('shares_status')}",
+        f"- Senaryo için tarihsel baz: {spread('baseline_status')}",
+    ]
+    items = sorted(counts.get("statement_conflict_items", {}).items(), key=lambda kv: (-kv[1], kv[0]))
+    if items:
+        lines.append("- En sık etiket çelişkisi olan kalemler: " + ", ".join(f"{k} ({v})" for k, v in items[:5]))
+    return lines
 
 
 def _export(summary, json_path, csv_path):
@@ -217,11 +263,13 @@ def _export(summary, json_path, csv_path):
     columns = ("cik", "ticker", "company", "status", "sector_assumption",
                "ticker_mapping_checked", "annual_audit", "fscore", "fscore_range",
                "ttm_status", "captured_at_utc", "snapshot_sha256",
-               "snapshot_path", "research_json", "research_html", "error")
+               "snapshot_path", "research_json", "research_html", "error") + HEALTH_COLUMNS
     writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
     writer.writeheader()
     for entry in summary["records"]:
         line = {**entry, "fscore_range": json.dumps(entry["fscore_range"])}
+        for key, value in (entry.get("layer_health") or {}).items():
+            line[key] = " ".join(value) if isinstance(value, list) else value
         # SEC issuer names/error text can contain spreadsheet formulas.
         # Prefix dangerous leading characters when opened in Excel.
         for field, value in line.items():
@@ -301,6 +349,7 @@ def main(argv=None):
     _export(summary, args.out_json, args.out_csv)
     print(json.dumps({k: v for k, v in summary.items() if k != "records"},
                      ensure_ascii=False, indent=2))
+    print("\n".join(health_summary_lines(summary)))
     return 0 if summary["companies_with_errors"] == 0 else 2
 
 

@@ -5,6 +5,21 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Gerçek veri kontrolü: çoklu şirket katman sağlığı
+
+- **`katman_mutabakati.layer_health()`:** Bir araştırma raporundaki ortak katmanların özeti:
+  - yıllık yıl sayısı ve etiket çelişkileri,
+  - son iki yılın gelir etiketi farkı ve kovası (`HALF_TO_FIVE_PERCENT`: Piotroski kabul ediyor, ortak
+    tablolar çelişki görüyor),
+  - çeyrek sayısı, hisse sayısı durumu, Piotroski / TTM mutabakatı, senaryo tabanı, hesaplanabilen oran sayısı.
+- **`sec_toplu_tarama.py`:** Her şirket kaydına `layer_health` alanı, özete `layer_health_counts` alanı, CSV'ye
+  12 yeni sütun eklendi. Komut sonunda kısa bir Türkçe katman sağlığı özeti basılır.
+- **`ornekler/gercek_veri_kontrol_evreni.json`:** 11 tanınmış şirket. Çok sınıflı hisse (GOOGL) ve banka (JPM)
+  bilerek dahil edildi.
+- **Belgeler:** Tek komutluk gerçek veri denemesi ve Piotroski eşik kararının nasıl okunacağı
+  ([docs/SEC_TOPLU_TARAMA_V01.md](docs/SEC_TOPLU_TARAMA_V01.md)), yol haritası, README.
+- **Testler:** 7 yeni test. Toplam `tests/` 506/506.
+
 ## 2026-10-25 — Ters DCF senaryolara bağlandı (Ders 7 tamamlandı)
 
 - **`senaryo_degerleme.implied_growth()`:** Analistin girdiği tarihli ve kaynaklı hisse fiyatının, baz senaryonun

@@ -48,6 +48,7 @@ Araştırma asistanı  (yalnız rapordaki kaynaklı verilere dayanan yorum)
      - %0,5'te birleşirse etiketleri %0,5–%5 arası ayrışan şirketlerde Piotroski göstergeleri "bilinmiyor" olur ve 117 şirketlik kapsam raporundaki sayılar değişir.
      - %5'te birleşirse ortak tablolar daha fazla belirsiz değer kabul eder.
    - Karar, gerçek SEC verisiyle mutabakat raporlarında kaç şirketin etkilendiği görüldükten sonra verilmeli.
+   - **Bunu ölçmek için tek komut hazır:** `sec_toplu_tarama.py` her şirketin katman sağlığını özetler. Hazır 11 şirketlik liste ve okuma rehberi [SEC_TOPLU_TARAMA_V01.md](SEC_TOPLU_TARAMA_V01.md) içinde. `HALF_TO_FIVE_PERCENT` sayısı kararın doğrudan girdisidir.
 3. **Tahmin motoru (Ders 6):** ~~v0.1~~ tamam ([TAHMIN_MOTORU_V01.md](TAHMIN_MOTORU_V01.md)).
    - Şirketin kendi geçmişinin çeyreklerinden başlayan, analistin kaynaklı uzun vadeli oranına sönümlenen üç senaryo üretir.
    - Projeksiyonlar istenirse Tahmin Defteri'ne yazılır.
