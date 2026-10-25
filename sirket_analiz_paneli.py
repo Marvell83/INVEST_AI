@@ -143,18 +143,21 @@ def render_financial_sections(statements, ratios):
             r = item["ratios"][key]
             if r["value"] is None:
                 cells.append(f"<td class='num muted' title='{_safe(r.get('reason', ''))}'>—</td>")
-            elif r.get("approximate"):
-                cells.append(f"<td class='num' title='yaklaşık faaliyet kârıyla hesaplandı'>"
-                             f"≈{_safe(_ratio_text(key, r['value']))}</td>")
             else:
-                cells.append(f"<td class='num'>{_safe(_ratio_text(key, r['value']))}</td>")
+                notes = (["yaklaşık faaliyet kârıyla hesaplandı"] if r.get("approximate") else []) + (
+                    ["yatırılan sermaye çok küçük; oranı dikkatle yorumlayın"] if r.get("caution") else [])
+                text = (("≈" if r.get("approximate") else "") + _ratio_text(key, r["value"]) +
+                        ("!" if r.get("caution") else ""))
+                title = f" title='{_safe(' · '.join(notes))}'" if notes else ""
+                cells.append(f"<td class='num'{title}>{_safe(text)}</td>")
         ratio_rows.append(f"<tr><td title='{_safe(formula)}'>{_safe(label)}</td>{''.join(cells)}</tr>")
     ratio_table = (
         "<section class='card'><h2>Finansal oranlar</h2>"
         "<div class='scroll'><table><thead><tr><th>Oran</th>" + head + "</tr></thead><tbody>" +
         "".join(ratio_rows) + "</tbody></table></div>"
         "<p class='muted'>Oran adının üzerine gelince formül, — işaretinin üzerine gelince hesaplanamama "
-        "nedeni görünür. Net borç milyon USD'dir: toplam borç − nakit − bildirilmişse menkul kıymetler; "
+        "nedeni görünür. ≈ yaklaşık faaliyet kârıyla hesaplandı · ! ROIC %100'ün üstünde: yatırılan sermaye "
+        "çok küçük, oran tek başına yorumlanmamalı. Net borç milyon USD'dir: toplam borç − nakit − bildirilmişse menkul kıymetler; "
         "kira yükümlülükleri dahil değildir. "
         "Geçmiş oranlar tahmin, puan veya yatırım tavsiyesi değildir.</p></section>")
     return table + ratio_table
@@ -165,6 +168,14 @@ QUARTER_ROWS = (("income", "revenue"), ("income", "gross_profit"), ("income", "o
                 ("cash_flow", "free_cash_flow"), ("balance", "cash"), ("balance", "liquid_investments"),
                 ("balance", "total_debt"), ("balance", "net_debt"),
                 ("balance", "stockholders_equity"))
+
+
+FALLBACK_SCOPE = {
+    "PaymentsToAcquireProductiveAssets": "CapEx'e maddi olmayan duran varlık alımları da dahil olabilir.",
+    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents": "Nakde kısıtlı nakit de dahil olabilir.",
+    "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest":
+        "Özkaynağa azınlık payları da dahildir.",
+}
 
 
 def _data_notes(statements):
@@ -182,10 +193,10 @@ def _data_notes(statements):
                      "kullanıldı; Piotroski de aynı kuralı uygular. %5'i aşan fark çelişki sayılır.</div>")
     fallbacks = statements.get("fallback_concepts", [])
     if fallbacks:
-        concepts = ", ".join(sorted({f["concept"] for f in fallbacks}))
+        concepts = sorted({f["concept"] for f in fallbacks})
+        scope = " ".join(FALLBACK_SCOPE[c] for c in concepts if c in FALLBACK_SCOPE)
         notes.append(f"<div class='note'>{len(fallbacks)} hücrede şirketin kullandığı daha geniş kapsamlı yedek "
-                     f"etiket okundu ({_safe(concepts)}). CapEx'e maddi olmayan duran varlık alımları da "
-                     "dahil olabilir.</div>")
+                     f"etiket okundu ({_safe(', '.join(concepts))}). {_safe(scope)}</div>")
     approximate = statements.get("approximations", [])
     if approximate:
         notes.append(f"<div class='note'>≈ {len(approximate)} dönemde şirket faaliyet kârı bildirmedi. "

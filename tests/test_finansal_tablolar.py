@@ -152,11 +152,26 @@ class AnnualStatementsTests(unittest.TestCase):
         self.assertEqual(earlier["value"], 210)
         self.assertIn("commercial_paper", earlier["components_not_reported"])
 
-    def test_debt_components_from_different_filings_are_not_summed(self):
+    def test_unrevised_debt_components_from_different_filings_are_summed(self):
+        # A later 10-K repeats only some prior-year lines; unchanged values may be combined.
         data = company()
         data["facts"]["us-gaap"]["CommercialPaper"]["units"]["USD"][0]["accn"] = "other"
         debt = row(build(data))["balance"]["total_debt"]
+        self.assertEqual((debt["status"], debt["value"]), ("DERIVED", 300))
+        self.assertEqual(debt["method"], "SUM_OF_REPORTED_DEBT_COMPONENTS_UNREVISED_ACROSS_FILINGS")
+        self.assertEqual(debt["sources"], ["a2024", "other"])
+
+    def test_restated_and_original_debt_components_are_not_summed(self):
+        data = company()
+        data["facts"]["us-gaap"]["LongTermDebtNoncurrent"]["units"]["USD"].append(
+            fact(260, 2024, instant=True, accn="restated", filed="2025-02-20"))
+        debt = row(build(data))["balance"]["total_debt"]
         self.assertEqual((debt["value"], debt["reason"]), (None, "DEBT_COMPONENTS_FROM_DIFFERENT_FILINGS"))
+        self.assertEqual(debt["revised_components"], ["long_term_debt_noncurrent"])
+        same_filing = company()
+        same_filing["facts"]["us-gaap"]["LongTermDebtNoncurrent"]["units"]["USD"].append(
+            fact(260, 2024, instant=True, accn="a2024", filed="2025-02-15"))
+        self.assertEqual(row(build(same_filing))["balance"]["total_debt"]["status"], "DERIVED")
 
     def test_long_term_debt_total_is_fallback_without_double_counting(self):
         data = company()

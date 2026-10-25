@@ -128,6 +128,17 @@ Kısmi TTM'lerin nedenleri:
 
 Coca-Cola ve Exxon'un TTM'i 2026'nın 1. çeyreğinde bitiyor, çünkü indirilen Company Facts dosyasında 2. çeyreğe ait hiçbir kayıt yoktu. Sistem eksik çeyreği uydurmaz. SEC'in Company Facts dosyasında bu çeyrek yer aldığında, `--online` ile yeniden indirilen dosyada (önbellek 24 saat) görünmesi beklenir.
 
+**Üçüncü ve dördüncü deneme (tablolar v0.4 → v0.5):** Menkul kıymetler net borçtan düşüldü (Apple 62,7 → −33,8; Alphabet 17,8 → −78,3; Microsoft 19,4 → −36,5; Amazon −18,0 → −54,2 milyar $). Etiket kontrolünde bulunanlar ve v0.5 düzeltmeleri:
+
+| Şirket | Bulgu | v0.5 |
+|---|---|---|
+| Microsoft, Nvidia | Önceki yılın toplam borç parçaları iki ayrı 10-K'dan geliyor | Revize edilmemiş parçalar farklı dosyalardan toplanabilir |
+| Coca-Cola | `OtherShortTermInvestments` ve vade ayrımsız `MarketableSecurities` | İkisi de menkul kıymetlere eklenir |
+| P&G | Nakit yalnız kısıtlı nakit dahil etiketle | Nakit için yedek etiket |
+| J&J, P&G | `StockholdersEquity` yok | Azınlık payı dahil özkaynak yedek etiketi (gerçek veriyle doğrulanacak) |
+| Apple | ROIC %479: sermaye tabanı çok küçük | ROIC %100 üstünde uyarı |
+| Nvidia | Bilinen hiçbir menkul kıymet etiketi bulunamadı | Açık: etiket henüz belirlenmedi |
+
 ## Testler
 
 ~~~powershell
