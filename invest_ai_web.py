@@ -212,6 +212,8 @@ class ResearchService:
                 "message":"SEC ZIP indirilecek ve tüm eşleşen şirketlerin finansalları SQLite'ya işlenecek."}
 
     def log_bulk_error(self, exc):
+        # Terminal log includes the actual cause; browser status stays generic.
+        print(f"INVEST_AI SEC bulk error [{type(exc).__name__}]: {exc}", flush=True)
         with self.bulk_guard:
             self.bulk_status = {**self.bulk_status,"phase":"error",
                                 "message":f"Toplu SEC işlem hatası ({type(exc).__name__}). "
