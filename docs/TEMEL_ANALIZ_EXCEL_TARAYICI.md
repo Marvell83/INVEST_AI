@@ -25,9 +25,44 @@ ROE, ROIC, ROA, brüt / faaliyet / net marj, yıllık satış ve faaliyet kârı
 
 ### Fiyat gerektirenler
 
-F/K, PD/DD, fiyat/satışlar, (ROE/10)/PD/DD, EV/EBIT, EV/FAVÖK*, FCF getirisi ve Fiyat/FCF için kaynaklı, tarihli hisse fiyatı gerekir. Bir hisseye ait piyasa fiyatı **yalnız yatırımcı tarafından ayrı bir senaryo/ters DCF araştırması sırasında kaynak ve tarih ile kaydedildiyse** alınır. SEC dosyasındaki tek güncel hisse adedi ile fiyatın tarihi arasında 100 günden büyük açıklık varsa karşılaştırmalı çarpan üretilmez. Fiyatın SEC bilgi kesme tarihinden sonra olması da çarpanı engeller. Bunun nedeni gelecekteki fiyatları geçmiş bilançoya yanlış uygulamamaktır.
+F/K, PD/DD, fiyat/satışlar, (ROE/10)/PD/DD, EV/EBIT, EV/FAVÖK*, FCF getirisi, Fiyat/FCF ve tarihsel PEG için kaynaklı, tarihli hisse fiyatı gerekir. SEC Company Facts fiyat içermez.
 
-**PEG:** İleriye dönük hisse başına kâr büyüme tahmini, fiyat ve F/K dönemi uyumlu olana kadar **boş**. 3 yıllık ciro CAGR otomatik olarak PEG büyüme oranı yapılmaz.
+**Toplu tablo için fiyat dosyası (v0.7, ücretsiz):**
+1. Tarayıcıda Nasdaq'ın hisse tarayıcısını aç (nasdaq.com → Market Activity → Stock Screener). Filtre seçmeden **Download CSV** ile bütün NASDAQ / NYSE / AMEX hisselerinin dosyasını indir. Dosyada son satış fiyatı, piyasa değeri, sektör ve endüstri bulunur. Kişisel araştırma içindir; dosyayı yeniden dağıtma.
+2. Dosyayı Codespaces'te `veri/` klasörüne sürükle (Git'e gönderilmez).
+3. Fiyatların ait olduğu **işlem gününü** ve kaynağı yazarak içeri al:
+
+```bash
+python3 fiyat_katmani.py --csv veri/nasdaq_screener.csv --date 2026-10-23 \
+  --source "Nasdaq hisse tarayıcısı CSV, son satış, indirildi 2026-10-25"
+python3 fiyat_katmani.py --summary
+```
+
+Başka bir kaynaktan `ticker,date,close` sütunlu bir CSV de olur (Türkçe Excel'in `;` ayraçlı, virgül ondalıklı dosyası da okunur). Her fiyat tarihi ve kaynağıyla `veri/invest_ai_fiyat.sqlite3` içinde saklanır; aynı hisse ve gün yeniden içeri alınırsa yenisi geçerli olur. İmtiyazlı hisse, birim ve tarihi gelecekte olan satırlar atlanır ve nedenleri sayılır.
+
+**Fiyat ile SEC verisi ne zaman birleşir?** "Değerleme durumu" sütunu her satır için söyler:
+
+| Durum | Anlamı |
+|---|---|
+| Uyumlu fiyat | Çarpanlar hesaplandı |
+| Fiyat yok | Bu hisse kodu için içeri alınmış fiyat yok |
+| Fiyat tarihi SEC tarihinden 10 günden uzak | Fiyat, SEC bilgi tarihinden önce veya sonra 10 günden fazla uzak. Öncesindeyse fiyatın bilmediği SEC dosyaları kullanılmış olur; sonrasındaysa fiyat SEC tablosunda olmayan yeni bilgileri yansıtabilir |
+| Finansallar güncel değil | Son mali yıl fiyat tarihinden 456 günden eski |
+| Pay adedi yok (çok sınıflı olabilir) | Kapak sayfası hisse sayısı yok veya birden fazla sınıf var; piyasa değeri hesaplanmaz |
+| Pay adedi tarihi uyumsuz | Kapak sayfası hisse sayısı fiyat tarihinden 200 günden eski |
+| Satır eski: --rebuild çalıştır | Satır pay adedi tarihi ve FAVÖK* sütunlarından önce hesaplanmış |
+
+Aynı hissenin birden fazla günü varsa SEC tarihine 10 gün içindeki en yeni fiyat kullanılır. Her hisse sınıfı (GOOG / GOOGL gibi) kendi fiyatıyla değerlenir; SEC finansalları şirket (CIK) düzeyinde ortaktır. "Piyasa değeri (fiyat kaynağı)" sütunu yalnız bilgi içindir; çarpanlar SEC pay adedi × fiyat ile hesaplanır.
+
+**Kaydedilmiş tek şirket raporlarında** fiyat, yatırımcının ters DCF araştırmasında kaynak ve tarih ile girdiği fiyattır; pay adedi tarihiyle 100 günden fazla açıklık veya SEC bilgi tarihinden sonraki fiyat çarpanı engeller.
+
+**PEG — iki ayrı sütun:**
+- **PEG (ileri EPS):** analistlerin ileriye dönük EPS büyüme beklentisini ister. Kaynaklı beklenti bağlanana kadar boştur.
+- **PEG (tarihsel EPS CAGR 3Y):** F/K ÷ (şirketin kendi son 3 yıllık seyreltilmiş EPS CAGR'ı × 100). Geçmiş büyümedir, tahmin değildir; CAGR pozitif değilse boştur. Gelir büyümesi hiçbir PEG'e EPS büyümesi diye konmaz.
+
+7 koşullu ön elemede hangi PEG'in kullanılacağını **"7 koşulda PEG türü"** kutusundan seçersin; varsayılan ileri PEG'dir.
+
+**Sektör (fiyat kaynağı):** Nasdaq dosyasındaki sektör ve endüstri sütunları kaynak adıyla gösterilir. "Finans (Finance) hariç" seçeneği bankaları ve sigortacıları listeden çıkarır; bu şirketlerde net borç ve EV çarpanları anlamlı değildir.
 
 **Hisse sayısı değişimi (3Y):** son mali yılın ağırlıklı ortalama seyreltilmiş hisse sayısı ÷ 3 yıl önceki aynı değer − 1. Kapak sayfasındaki güncel adet değil, iki mali yılın aynı türden sayısı kullanılır.
 
@@ -42,7 +77,7 @@ F/K, PD/DD, fiyat/satışlar, (ROE/10)/PD/DD, EV/EBIT, EV/FAVÖK*, FCF getirisi 
 - Referans faiz kullanıcı tarafından girilir, otomatik güncel ABD 10 yıllık tahvil verisi olduğu iddia edilmez.
 - Emsal karşılaştırması ve finansal sektör farklılıkları ayrı aşamada ele alınacaktır.
 - Toplu SEC dosyasını kullanıcı Codespaces'te açıkça indirdiğinde liste tüm eşleşen ticker ve şirketlere genişler; veri bulunmayan dosyalayıcılar boş/missing olarak işaretlenir.
-- Hisse fiyatı, veri kapsamı veya PEG eksikse şirketi otomatik olarak başarısız saymak doğru değildir.
+- Hisse fiyatı, veri kapsamı veya PEG eksikse şirketi otomatik olarak başarısız saymak doğru değildir. Eksik değer "Veri bekliyor" sayılır, hiçbir zaman "Elendi" sayılmaz.
 
 ## Kontrol
 

@@ -24,8 +24,10 @@ USD = "usd"
 MULTIPLE = "multiple"
 PER_SHARE = "per_share"
 # Bump when rows gain SEC-derived columns; rows saved by an older version need a rebuild.
-ROW_SCHEMA = 2
+ROW_SCHEMA = 3
 STALE_FINANCIALS_DAYS = 456  # latest fiscal year more than ~15 months before the data date
+PRICE_WINDOW_DAYS = 10       # bulk screen: price date within this many days of the SEC data date
+SHARES_MAX_AGE_DAYS = 200    # cover-page share count at most this old at the price date
 
 # (key, display title, unit, group); price-based fields stay blank without price.
 COLUMNS = [
@@ -77,7 +79,11 @@ COLUMNS = [
     ("shares", "Dolaşımdaki pay adedi", NUMBER, "Tutar"),
     ("shares_date", "Pay adedi tarihi", "text", "Tutar"),
     ("market_price", "Hisse fiyatı (kaynaklı)", USD, "Değerleme"),
+    ("price_date", "Fiyat tarihi", "text", "Değerleme"),
+    ("price_source", "Fiyat kaynağı", "text", "Değerleme"),
+    ("valuation_status", "Değerleme durumu", "text", "Değerleme"),
     ("market_cap", "Piyasa değeri", USD, "Değerleme"),
+    ("source_market_cap", "Piyasa değeri (fiyat kaynağı)", USD, "Değerleme"),
     ("pe", "F/K", MULTIPLE, "Değerleme"),
     ("pb", "PD/DD", MULTIPLE, "Değerleme"),
     ("ps", "Fiyat / Satışlar", MULTIPLE, "Değerleme"),
@@ -86,6 +92,10 @@ COLUMNS = [
     ("ev_ebitda", "EV / FAVÖK*", MULTIPLE, "Değerleme"),
     ("p_fcf", "Fiyat / FCF", MULTIPLE, "Değerleme"),
     ("peg", "PEG (ileri EPS)", MULTIPLE, "Değerleme"),
+    ("peg_historical", "PEG (tarihsel EPS CAGR 3Y)", MULTIPLE, "Değerleme"),
+    ("ebitda", "FAVÖK* (faaliyet kârı + amortisman)", USD, "Tutar"),
+    ("source_sector", "Sektör (fiyat kaynağı)", "text", "Sektör"),
+    ("source_industry", "Endüstri (fiyat kaynağı)", "text", "Sektör"),
     ("shares_change_3y", "Hisse adedi değişimi (3Y)", PERCENT, "Büyüme"),
 ]
 COLUMN_KEYS = {c[0] for c in COLUMNS}
@@ -137,6 +147,55 @@ def financials_age_days(as_of, fiscal_year_end):
     return _days_between(as_of, fiscal_year_end)
 
 
+def _set_multiples(row, price):
+    """Price multiples from one dated price and the row's SEC values; a missing input stays None."""
+    cap = _finite(price * row["shares"])
+    row["market_cap"] = cap
+    row["pe"] = _division(cap, row["net_income"], positive=True)
+    row["pb"] = _division(cap, row["equity"], positive=True)
+    row["ps"] = _division(cap, row["revenue"], positive=True)
+    row["p_fcf"] = _division(cap, row["fcf"], positive=True)
+    row["fcf_yield"] = _division(row["fcf"], cap, positive=True)
+    row["roe_10_pb"] = _division(row["roe"] * 10 if row["roe"] is not None else None, row["pb"], positive=True)
+    ev = cap + row["net_debt"] if cap is not None and row["net_debt"] is not None else None
+    row["ev_ebit"] = _division(ev, row["operating_income"], positive=True)
+    row["ev_ebitda"] = _division(ev, row.get("ebitda"), positive=True)
+    # Historical, not forward: P/E over the company's own 3-year diluted EPS growth in percent.
+    growth = row.get("eps_cagr_3y")
+    row["peg_historical"] = _division(row["pe"], growth * 100 if growth is not None else None, positive=True)
+
+
+def valuation_status(row, record):
+    """Why a dated price may or may not be combined with this SEC row (bulk screen)."""
+    if row.get("screening_status") != "OK":
+        return "NO_SEC_FINANCIALS"
+    if row.get("row_schema", 1) < ROW_SCHEMA:
+        return "ROW_NEEDS_REBUILD"
+    age = financials_age_days(record["price_date"], row.get("fiscal_year"))
+    if age is None or age > STALE_FINANCIALS_DAYS:
+        return "STALE_FINANCIALS"
+    gap = _days_between(record["price_date"], row.get("as_of"))
+    if gap is None or abs(gap) > PRICE_WINDOW_DAYS:
+        return "PRICE_DATE_OUTSIDE_WINDOW"
+    if row.get("shares") is None:
+        return "NO_SHARE_COUNT"
+    shares_age = _days_between(record["price_date"], row.get("shares_date"))
+    if shares_age is None or not -PRICE_WINDOW_DAYS <= shares_age <= SHARES_MAX_AGE_DAYS:
+        return "SHARE_COUNT_DATE_NOT_ALIGNED"
+    return "OK"
+
+
+def apply_market_price(row, record):
+    """Attach one imported price record to a bulk row and compute multiples only when aligned."""
+    row.update(market_price=record["price"], price_date=record["price_date"], price_source=record["source"],
+               source_market_cap=record.get("market_cap"), source_sector=record.get("sector"),
+               source_industry=record.get("industry"))
+    row["valuation_status"] = valuation_status(row, record)
+    if row["valuation_status"] == "OK":
+        _set_multiples(row, record["price"])
+    return row
+
+
 def _eps(year):
     """Diluted EPS as parent net income / weighted diluted shares of the same fiscal year."""
     return _division(_cell(year, "income", "net_income"), _cell(year, "income", "diluted_shares"), positive=True)
@@ -185,6 +244,7 @@ def _lineup(report, *, ticker=None, path=None):
         row["operating_income"] is not None and depreciation is not None) else None
     if ebitda is not None:
         row["ebitda_approximate"] = True  # EBIT + CFO-statement D&A is a proxy, not issuer adjusted EBITDA.
+    row["ebitda"] = ebitda
     row["net_debt_to_ebitda"] = _division(row["net_debt"], ebitda, positive=True)
     row["ev_ebitda"] = None
 
@@ -253,20 +313,9 @@ def _lineup(report, *, ticker=None, path=None):
                     aligned = shares_date <= pricing <= cutoff and (pricing - shares_date).days <= 100
                 except (KeyError, TypeError, ValueError):
                     pass
+            row["valuation_status"] = "OK" if aligned else "PRICE_SHARES_DATES_NOT_ALIGNED"
             if aligned:
-                cap = _finite(price * row["shares"])
-                row["market_cap"] = cap
-                row["pe"] = _division(cap, row["net_income"], positive=True)
-                row["pb"] = _division(cap, row["equity"], positive=True)
-                row["ps"] = _division(cap, row["revenue"], positive=True)
-                row["p_fcf"] = _division(cap, row["fcf"], positive=True)
-                row["fcf_yield"] = _division(row["fcf"], cap, positive=True)
-                pb = row["pb"]
-                row["roe_10_pb"] = _division(row["roe"] * 10 if row["roe"] is not None else None,
-                                             pb, positive=True)
-                ev = cap + row["net_debt"] if cap is not None and row["net_debt"] is not None else None
-                row["ev_ebit"] = _division(ev, row["operating_income"], positive=True)
-                row["ev_ebitda"] = _division(ev, ebitda, positive=True)
+                _set_multiples(row, price)
     # PEG needs explicit forward EPS growth. Historic revenue growth is not a substitute.
     # Three-year shares change needs historical comparable share counts, not current DEI only.
     return row

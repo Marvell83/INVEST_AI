@@ -20,8 +20,9 @@ import zipfile
 
 from finansal_tablolar import build_annual_statements
 from finansal_oranlar import compute_ratios
-from hisse_tarama_tablosu import (COLUMNS, COLUMN_KEYS, ROW_SCHEMA, STALE_FINANCIALS_DAYS, _lineup,
-                                  financials_age_days)
+from fiyat_katmani import pick_price, price_history
+from hisse_tarama_tablosu import (COLUMNS, COLUMN_KEYS, PRICE_WINDOW_DAYS, ROW_SCHEMA, STALE_FINANCIALS_DAYS,
+                                  _lineup, apply_market_price, financials_age_days)
 from sec_arsiv import (SECThrottle, atomic_write, canonical_bytes,
                        download_ticker_map, load_json, ticker_mapping)
 
@@ -358,6 +359,20 @@ def diagnose_database(root, *, sample_limit=12):
             "snapshot_as_of":meta.get("as_of"),"snapshot":meta.get("snapshot")}
 
 
+def _attach_prices(root, rows):
+    """Attach the imported price nearest the SEC data date to each row; returns status counts."""
+    history = price_history(root)
+    counts = {}
+    for row in rows:
+        record = pick_price(history.get(row.get("ticker")), row.get("as_of"), PRICE_WINDOW_DAYS)
+        if record is None:
+            row["valuation_status"] = "NO_PRICE"
+        else:
+            apply_market_price(row, record)
+        counts[row["valuation_status"]] = counts.get(row["valuation_status"], 0) + 1
+    return counts
+
+
 def _ok_rows(conn):
     return [json.loads(payload) for (payload,) in conn.execute(
         "SELECT payload FROM companies WHERE status='OK' AND payload IS NOT NULL")]
@@ -387,6 +402,8 @@ def coverage_report(root):
         rows = _ok_rows(conn)
         meta = dict(conn.execute("SELECT key,value FROM metadata").fetchall())
     total = len(rows)
+    # Price multiples count per issuer, with the price of the issuer's primary ticker.
+    valuation = _attach_prices(root, rows)
 
     def share(count):
         return round(count / total, 4) if total else 0.0
@@ -410,7 +427,15 @@ def coverage_report(root):
         "roic_with_caution": sum(r.get("roic") is not None and bool(r.get("roic_warning")) for r in rows),
         "stale_financials": stale, "stale_threshold_days": STALE_FINANCIALS_DAYS,
         "rows_needing_rebuild": sum(r.get("row_schema", 1) < ROW_SCHEMA for r in rows),
+        "valuation_counts": dict(sorted(valuation.items())),
     }
+
+
+VALUATION_LABELS = {
+    "OK": "uyumlu fiyat", "NO_PRICE": "fiyat yok", "STALE_FINANCIALS": "finansallar güncel değil",
+    "PRICE_DATE_OUTSIDE_WINDOW": "fiyat tarihi SEC tarihinden uzak", "NO_SHARE_COUNT": "pay adedi yok",
+    "SHARE_COUNT_DATE_NOT_ALIGNED": "pay adedi tarihi uyumsuz", "ROW_NEEDS_REBUILD": "satır eski (--rebuild)",
+}
 
 
 def coverage_lines(report):
@@ -423,6 +448,8 @@ def coverage_lines(report):
     lines.append(f"Son mali yılı {report['stale_threshold_days']} günden eski (güncel olmayan): "
                  f"{report['stale_financials']}")
     lines.append(f"ROIC var ama uyarılı (küçük sermaye veya yaklaşık EBIT): {report['roic_with_caution']}")
+    lines.append("Fiyat ve değerleme: " + ", ".join(
+        f"{VALUATION_LABELS.get(k, k)} {v}" for k, v in report["valuation_counts"].items()))
     lines.append("7 koşulun girdileri:")
     for item in report["screen_inputs"]:
         lines.append(f"  {item['label']:<24} {item['available']:>6}  %{item['share'] * 100:5.1f}")
@@ -466,10 +493,14 @@ def load_bulk_grid(root):
                 continue
             expanded.append({**by_cik[cik], "ticker":ticker})
         rows = expanded
+    # Each share class gets its own imported price; SEC financials stay shared per CIK.
+    valuation = _attach_prices(root, rows)
     return {"version":VERSION,"columns":COLUMNS,"rows":rows,"available":len(rows),
             "issuer_count":issuer_count, "scope":"BULK_SEC_COMPANYFACTS", "screening_counts":tally,
-            "market_price_fetched":False,
-            "notes":["Company Facts only, price/PEG unprovided; missing is never zero",
+            "market_price_fetched":False, "priced_rows": len(rows) - valuation.get("NO_PRICE", 0),
+            "valuation_counts": dict(sorted(valuation.items())),
+            "notes":["Company Facts only; prices only from a dated, source-cited local import; "
+                     "forward PEG unprovided; missing is never zero",
                      "SEC ticker list is not a validated listed-common-stock-only universe",
                      "Issuer XBRL taxonomy/form gaps remain unknown or blank",
                      "Ticker share classes listed separately; CIK-level financials are shared between classes"]}
