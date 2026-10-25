@@ -38,7 +38,9 @@ def degerle_v02(inputs):
     iskonto_zamani (yil_sonu or yil_ortasi; with yil_ortasi only the explicit
     years move to t-0.5, the terminal value is still discounted at year n),
     sbc_marjda_dahil (default True), sbc_ilave_gider_orani (default 0),
-    kalici_rekabet_avantaji (default False).
+    kalici_rekabet_avantaji (default False), marj_yolu (explicit annual
+    operating margins for the `yillar` years; replaces the convergence formula,
+    so marj_hedef / yakinlasma are then only validated, not used).
 
     Annual ROIIC is based on the previous year's reinvestment and the current
     change in operating profit after cash taxes; this is a diagnostic, not a
@@ -86,6 +88,11 @@ def degerle_v02(inputs):
     sales_to_capital = _series(p["satis_sermaye"], n, "satis_sermaye")
     if any(g <= -1 for g in growth) or any(sc <= 0 for sc in sales_to_capital):
         raise ValueError("annual growth must exceed -100% and sales/capital be positive")
+    margin_path = p.get("marj_yolu")
+    if margin_path is not None:
+        margin_path = _series(margin_path, n, "marj_yolu")
+        if any(not -1 <= m <= 1 for m in margin_path):
+            raise ValueError("marj_yolu margins must be in [-1,1]")
 
     revenue = base
     rows = []
@@ -95,7 +102,10 @@ def degerle_v02(inputs):
     previous_reinvestment = None
     for year, (g, sc) in enumerate(zip(growth, sales_to_capital), start=1):
         new_revenue = revenue * (1 + g)
-        margin = margin_target + (initial_margin - margin_target) * (1-convergence)**year
+        if margin_path is not None:
+            margin = margin_path[year - 1]
+        else:
+            margin = margin_target + (initial_margin - margin_target) * (1-convergence)**year
         ebit = new_revenue * (margin - (0 if in_margin else sbc))
         loss_used = 0.0
         if ebit < 0:

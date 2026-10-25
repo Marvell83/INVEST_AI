@@ -5,6 +5,26 @@ sürümünden olduğu gibi taşındı. Oradaki test sayıları (16/16, 20/20, 38
 **o tarihteki yerel alt kümelerin** sayımıdır; güncel toplam için README'deki
 «Test durumu» tablosuna bakın.
 
+## 2026-10-25 — Senaryo değerlemesi v0.1 (yol haritası Ders 7)
+
+- **`senaryo_degerleme.py` (yeni):** Tahmin motorunun her senaryosu, aynı gelir ve faaliyet marjı yoluyla
+  deneysel v0.2 DCF'de değerlenir. DCF gelir yolunun projeksiyonla aynı olduğu her çalıştırmada kontrol
+  edilir.
+  - **Girdi kökenleri:**
+    - analist: iskonto oranı (zorunlu, kaynaklı), uç büyüme;
+    - şirket geçmişi: vergi, satış / sermaye medyanları;
+    - SEC dosyası: net borç = toplam borç − nakit, kapak sayfası hisse sayısı;
+    - yöntem varsayılanı: uç RONIC = iskonto.
+  - Her girdi kaynaklı olarak değiştirilebilir. Eksik girdi tahmin edilmez (`INPUTS_MISSING`).
+  - Baz senaryo için 5 × 5 iskonto × uç büyüme duyarlılık tablosu üretilir. Uyarılar: net borç kapsamı, nötr
+    RONIC, geçmişe dönük projeksiyon, motor uyarıları.
+- **`degerleme_v02.py`:** Opsiyonel `marj_yolu` (yıllık marj listesi). Verilmezse davranış aynıdır.
+- **`tahmin_motoru.py`:** Projeksiyon çıktısına son yılın geliri ve marjı (`base`) eklendi.
+- **Rapor:** `--discount-rate` / `--discount-source` (ayrıca uzun vadeli oran) verilirse "Senaryo değerlemesi"
+  bölümü eklenir; JSON'da `scenario_valuation` alanı var.
+- **Belgeler:** [docs/SENARYO_DEGERLEME_V01.md](docs/SENARYO_DEGERLEME_V01.md), yol haritası, README.
+- **Testler:** 17 yeni test. Toplam `tests/` 476/476.
+
 ## 2026-10-25 — Sapma analizi v0.1 (yol haritası Ders 8)
 
 - **`sapma_analizi.py` (yeni):** Tahmin Defteri'ndeki bir şirketin tahminleri hedefledikleri mali yılla eşlenir

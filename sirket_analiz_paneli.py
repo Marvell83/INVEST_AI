@@ -316,6 +316,99 @@ def render_forecast_section(baseline, projection=None):
     return "".join(parts)
 
 
+VALUATION_INPUT_LABELS = {
+    "discount_rate": "İskonto oranı", "terminal_growth": "Uç dönem büyümesi", "tax_rate": "Vergi oranı",
+    "sales_to_capital": "Satış / yatırılan sermaye", "net_debt": "Net borç (milyon USD)",
+    "shares": "Hisse sayısı (milyon adet)", "terminal_roic": "Uç dönem yeni yatırım getirisi (RONIC)",
+}
+VALUATION_ORIGINS = {"ANALYST": "Analist", "SEC_HISTORY": "Şirket geçmişi (SEC)", "SEC_FILING": "SEC dosyası",
+                     "METHOD_DEFAULT": "Yöntem varsayılanı"}
+VALUATION_WARNINGS = {
+    "NET_DEBT_EXCLUDES_SECURITIES_AND_LEASES": "Net borç SEC tablolarından: menkul kıymetler ve kira yükümlülükleri "
+                                               "dahil değil. Büyük menkul kıymet portföyü olan şirkette değer düşük çıkar.",
+    "TERMINAL_RONIC_NEUTRAL_DEFAULT": "Uç dönem RONIC iskonto oranına eşit alındı: uzun vadeli büyüme değer yaratmaz, "
+                                      "bu yüzden uç büyüme duyarlılığı küçüktür.",
+    "RETROSPECTIVE_PROJECTION": "Bilgi tarihi bugünden eski; değerleme geçmişe dönük kurulmuştur.",
+    "UC_DEGER_BASKIN": "Uç dönem değeri firma değerinin %85'inden fazlası.",
+    "NEGATIF_FCFF_YILLARI": "Bazı yıllarda serbest nakit akışı negatif.",
+    "OZSERMAYE_NEGATIF": "Özkaynak değeri negatif.",
+    "UC_ROIC_YUKSEK_KANIT_GEREKLI": "Uç dönem RONIC iskontonun belirgin üzerinde; kalıcı rekabet avantajı kanıtı gerekir.",
+    "UC_ROIC_ISKONTO_ALTINDA": "Uç dönem RONIC iskontonun altında: büyüme değer yok eder.",
+    "NEGATIF_YATIRIM_SERMAYE_CIKISI_VARSAYIMI": "Gelir düşen yıllarda sermaye geri çekiliyor varsayılır.",
+    "UC_VERGI_NORMALIZE_EDILDI": "Uç dönemde vergi normalleştirildi; devreden zarar sonsuza taşınmaz.",
+}
+MISSING_INPUT_HINTS = {
+    "tax_rate": "vergi oranı geçmişten hesaplanamadı", "sales_to_capital": "satış / sermaye geçmişten hesaplanamadı",
+    "net_debt": "net borç SEC tablolarından hesaplanamadı", "shares": "kapak sayfası hisse sayısı yok veya çok sınıflı",
+}
+
+
+def render_valuation_section(valuation):
+    """Experimental scenario DCF: inputs with origin, scenario values, base sensitivity grid."""
+    def input_value(name, value):
+        if name in ("net_debt", "shares"):
+            return f"{value / 1e6:,.1f}"
+        if name == "sales_to_capital":
+            return f"{value:.2f}x"
+        return _pct(value)
+    inputs = valuation.get("inputs", {})
+    input_rows = "".join(
+        f"<tr><td>{_safe(VALUATION_INPUT_LABELS.get(name, name))}</td>"
+        f"<td class='num'>{_safe(input_value(name, item['value']))}</td>"
+        f"<td>{_safe(VALUATION_ORIGINS.get(item['origin'], item['origin']))}</td><td>{_safe(item['source'])}</td></tr>"
+        for name, item in inputs.items() if item.get("value") is not None)
+    parts = ["<section class='card'><h2>Senaryo değerlemesi (deneysel DCF)</h2>"]
+    if input_rows:
+        parts.append("<div class='scroll'><table><thead><tr><th>Girdi</th><th class='num'>Değer</th><th>Köken</th>"
+                     f"<th>Kaynak</th></tr></thead><tbody>{input_rows}</tbody></table></div>")
+    status = valuation.get("status")
+    if status == "INPUTS_MISSING":
+        missing = "; ".join(MISSING_INPUT_HINTS.get(m, m) for m in valuation.get("missing", []))
+        parts.append(f"<div class='note'>Değerleme için eksik girdi: {_safe(missing)}. Bu girdiler kaynağıyla "
+                     "birlikte analist tarafından verilmelidir (<code>senaryo_degerleme.py</code>).</div>")
+    elif status == "PROJECTION_UNAVAILABLE":
+        parts.append("<div class='note'>Senaryo projeksiyonu üretilemediği için değerleme yapılmadı.</div>")
+    elif status == "OK":
+        rows = "".join(
+            f"<tr><td>{_safe(SCENARIO_LABELS.get(name, name))}</td>"
+            f"<td class='num'>{_safe(_millions(item['enterprise_value']))}</td>"
+            f"<td class='num'>{_safe(_millions(item['equity_value']))}</td>"
+            f"<td class='num'><strong>{_safe(_per_share(item['per_share']))}</strong></td>"
+            f"<td class='num'>{_safe(_pct(item['terminal_value_share']))}</td></tr>"
+            for name, item in valuation["scenarios"].items())
+        parts.append("<p><strong>Senaryo değerleri</strong></p>"
+                     "<div class='scroll'><table><thead><tr><th>Senaryo</th><th class='num'>Firma değeri (milyon USD)</th>"
+                     "<th class='num'>Özkaynak değeri (milyon USD)</th><th class='num'>Hisse başı (USD)</th>"
+                     f"<th class='num'>Uç değer payı</th></tr></thead><tbody>{rows}</tbody></table></div>")
+        grid = valuation["sensitivity"]
+        head = "".join(f"<th class='num'>g = {_safe(_pct(g))}</th>" for g in grid["terminal_growths"])
+        body = []
+        for i, (rate, line) in enumerate(zip(grid["discount_rates"], grid["per_share"])):
+            cells = []
+            for j, value in enumerate(line):
+                text = _per_share(value) if value is not None else "—"
+                cell = f"<strong>{_safe(text)}</strong>" if (i, j) == (2, 2) else _safe(text)
+                cells.append(f"<td class='num'>{cell}</td>")
+            body.append(f"<tr><td>iskonto {_safe(_pct(rate))}</td>{''.join(cells)}</tr>")
+        parts.append(f"<p>Duyarlılık — {_safe(SCENARIO_LABELS.get(grid['scenario'], grid['scenario']))} senaryo, "
+                     "hisse başı USD (iskonto × uç dönem büyümesi):</p>"
+                     f"<div class='scroll'><table><thead><tr><th></th>{head}</tr></thead>"
+                     f"<tbody>{''.join(body)}</tbody></table></div>")
+        warnings = list(valuation.get("warnings", []))
+        for item in valuation["scenarios"].values():
+            warnings += [w for w in item["engine_warnings"] if w not in warnings]
+        if warnings:
+            parts.append("<ul>" + "".join(f"<li>{_safe(VALUATION_WARNINGS.get(w, w))}</li>" for w in warnings) + "</ul>")
+    parts.append("<p class='muted'>Her senaryo, yukarıdaki projeksiyonla aynı gelir ve faaliyet marjı yolunu "
+                 "deneysel v0.2 DCF motorunda değerler. — işareti geçersiz kombinasyondur (uç büyüme ≥ iskonto veya "
+                 "%4 tavanın üstü). Hedef fiyat, adil değer veya yatırım tavsiyesi değildir.</p></section>")
+    return "".join(parts)
+
+
+def _per_share(value):
+    return f"{value:,.2f}"
+
+
 def render_quarterly_section(quarterly):
     """Discrete fiscal quarters (newest first); values in millions as reported to SEC."""
     quarters = quarterly.get("quarters", [])

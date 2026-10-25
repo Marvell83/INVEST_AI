@@ -30,7 +30,7 @@ Araştırma asistanı  (yalnız rapordaki kaynaklı verilere dayanan yorum)
 | 4 | Bilanço ve sağlamlık | bilanço kalemleri, toplam borç, cari oran, borç / özkaynak, faiz karşılama, hisse sayısı | **Tamam** (yıllık + çeyrek sonu) |
 | 5 | Oranlarla karar | `finansal_oranlar` (ROA, ROE, ROIC …), Piotroski 9 gösterge | **v0.1 tamam**; Piotroski henüz ortak katmana bağlı değil |
 | 6 | Tahminleme | `tahmin_motoru`: tarihsel baz, temkinli / baz / iyimser gelir ve faaliyet kârı senaryoları, Tahmin Defteri kaydı | **v0.1 tamam**; nakit akışı projeksiyonu ve web girişi yok |
-| 7 | Senaryo / what-if | `degerleme_v02`, ters DCF, Apple üç senaryo örneği | Motor var; duyarlılık tablosu ve rapora bağlantı yok |
+| 7 | Senaryo / what-if | `senaryo_degerleme`: senaryoların v0.2 DCF ile değerlemesi, girdi kökenleri, iskonto × büyüme duyarlılığı | **v0.1 tamam**; ters DCF senaryolara bağlı değil, web girişi yok |
 | 8 | Bütçe ve sapma | `tahmin_defteri` + `sapma_analizi`: tahminlerin ilk bildirilen SEC değerleriyle otomatik eşlenmesi, hata ve senaryo aralığı isabeti | **v0.1 tamam**; yalnız yıllık hedefler |
 | 9 | Yönetim için içgörü | şirket araştırma raporu (HTML) | Veri bölümleri var; güçlü/zayıf yön özeti yok |
 | 10 | Yapay zekâ çalışma seti | SEC toplama, toplu tarama, web formu, CI | Temel altyapı var |
@@ -53,7 +53,10 @@ Araştırma asistanı  (yalnız rapordaki kaynaklı verilere dayanan yorum)
    - Projeksiyonlar istenirse Tahmin Defteri'ne yazılır.
    - Kalan işler: nakit akışı ve yeniden yatırım projeksiyonu, web formunda uzun vadeli oran girişi.
 4. **Sapma analizi (Ders 8):** ~~v0.1~~ tamam ([SAPMA_ANALIZI_V01.md](SAPMA_ANALIZI_V01.md)). Defterdeki tahminler yeni 10-K'larla eşlenir. Puanlama ilk bildirilen değere göre yapılır. Özet, sistematik yanlılığı ve gerçekleşenin senaryo aralığında kalıp kalmadığını gösterir.
-5. **Senaryo ve duyarlılık (Ders 7) — sıradaki:** Temkinli / baz / iyimser senaryolar ve iskonto × büyüme duyarlılık tablosu araştırma raporuna eklenir. Net borç ve hisse sayısı ortak katmandan önerilir, analist onaylar.
+5. **Senaryo ve duyarlılık (Ders 7):** ~~v0.1~~ tamam ([SENARYO_DEGERLEME_V01.md](SENARYO_DEGERLEME_V01.md)).
+   - Senaryolar aynı gelir ve marj yoluyla DCF'de değerlenir; her girdi kökeniyle gösterilir.
+   - Net borç ve hisse sayısı SEC'ten önerilir, analist değiştirebilir.
+   - Kalan işler: ters DCF'nin senaryolarla bağlanması; web formunda uzun vadeli oran ve iskonto girişi.
 6. **Araştırma asistanı (Ders 1, 9):**
    - Rapordaki JSON'dan yalnız kaynaklı rakamlarla güçlü/zayıf yön ve risk özeti yazar.
    - Her cümle bir veri hücresine bağlanır.

@@ -24,8 +24,9 @@ from sec_gap_audit import audit_company
 from sec_ttm_crosscheck import audit_ttm
 from sirket_analiz_paneli import (
     render_dashboard, render_financial_sections, render_forecast_section, render_layer_reconciliation,
-    render_quarterly_section,
+    render_quarterly_section, render_valuation_section,
 )
+from senaryo_degerleme import value_scenarios
 from tahmin_motoru import historical_baseline, project_scenarios
 
 VERSION = "invest-ai-company-research-0.1.0"
@@ -57,7 +58,8 @@ def _canonical_digest(raw):
 def build_company_research(raw, *, as_of, expected_cik, sector,
                            credit_db=None, equity_offering_evidence=None,
                            expected_fiscal_end=None, input_mode="offline_file",
-                           long_run_growth=None, long_run_growth_source=None):
+                           long_run_growth=None, long_run_growth_source=None,
+                           discount_rate=None, discount_rate_source=None):
     """Return one issuer's dated annual, Piotroski and TTM evidence.
 
     Sector and CIK are explicit analyst inputs, not inferred from the ticker.
@@ -68,6 +70,10 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
     """
     if (long_run_growth is None) != (long_run_growth_source is None):
         raise ValueError("long_run_growth and long_run_growth_source must be given together")
+    if (discount_rate is None) != (discount_rate_source is None):
+        raise ValueError("discount_rate and discount_rate_source must be given together")
+    if discount_rate is not None and long_run_growth is None:
+        raise ValueError("a scenario valuation needs the long-run growth projection inputs too")
     _date(as_of, "as_of")
     if input_mode not in INPUT_MODES:
         raise ValueError("invalid input_mode")
@@ -112,10 +118,13 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
     ratios = compute_ratios(statements)
     layers = reconcile_layers(quality["piotroski"], statements, ttm, quarterly)
     baseline = historical_baseline(statements, ratios)
-    projection = None
+    projection = valuation = None
     if long_run_growth is not None:
         projection = project_scenarios(baseline, long_run_growth=long_run_growth,
                                        long_run_growth_source=long_run_growth_source)
+    if discount_rate is not None:
+        valuation = value_scenarios(projection, baseline, statements, discount_rate=discount_rate,
+                                    discount_source=discount_rate_source)
 
     p = quality["piotroski"]
     gaps = []
@@ -183,6 +192,7 @@ def build_company_research(raw, *, as_of, expected_cik, sector,
         "layer_reconciliation": layers,
         "historical_baseline": baseline,
         "projection": projection,
+        "scenario_valuation": valuation,
         "actual_price": None, "dcf": None, "combined_investment_score": None,
         # A scenario projection is not recorded in the forecast ledger by this report.
         "forecast_created": False, "investment_recommendation": None,
@@ -262,6 +272,8 @@ def render_company_research(report):
         financials += render_layer_reconciliation(report["layer_reconciliation"])
     if "historical_baseline" in report:
         financials += render_forecast_section(report["historical_baseline"], report.get("projection"))
+    if report.get("scenario_valuation"):
+        financials += render_valuation_section(report["scenario_valuation"])
     return base.replace("</main>", intro + financials + ttm_section + notes + "</main>", 1)
 
 
@@ -283,6 +295,9 @@ def main(argv=None):
     parser.add_argument("--long-run-growth", type=float,
                         help="optional analyst long-run nominal growth (e.g. 0.03) to add scenario projections")
     parser.add_argument("--long-run-source", help="citation for --long-run-growth (required with it)")
+    parser.add_argument("--discount-rate", type=float,
+                        help="optional analyst discount rate (e.g. 0.09) to value the scenarios")
+    parser.add_argument("--discount-source", help="citation for --discount-rate (required with it)")
     parser.add_argument("--out-json", required=True)
     parser.add_argument("--out-html", required=True)
     args = parser.parse_args(argv)
@@ -315,7 +330,8 @@ def main(argv=None):
         raw, as_of=args.as_of, expected_cik=cik, sector=args.sector,
         expected_fiscal_end=args.expected_fiscal_end, credit_db=args.ratings_db,
         equity_offering_evidence=evidence, input_mode=mode,
-        long_run_growth=args.long_run_growth, long_run_growth_source=args.long_run_source)
+        long_run_growth=args.long_run_growth, long_run_growth_source=args.long_run_source,
+        discount_rate=args.discount_rate, discount_rate_source=args.discount_source)
     page = render_company_research(report)
     if args.snapshot_out:
         snapshot = Path(args.snapshot_out)
