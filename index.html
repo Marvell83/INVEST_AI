@@ -1212,7 +1212,10 @@ python3 sec_degisim_raporu.py --report reports/degisim.json --out reports/degisi
       const count = total===null ? "" : " · "+done.toLocaleString("tr-TR") +
         " / "+total.toLocaleString("tr-TR")+" şirket";
       const counts = data.statuses ? " · "+JSON.stringify(data.statuses) : "";
-      bulkStatus.textContent=(data.message || data.phase || "SEC durumu")+count+megs+counts;
+      const retries = typeof data.retry_total==="number" && data.retry_total > 0
+        ? " · Yeniden denenen: "+(data.retry_attempted||0).toLocaleString("tr-TR")+
+          " / "+data.retry_total.toLocaleString("tr-TR") : "";
+      bulkStatus.textContent=(data.message || data.phase || "SEC durumu")+count+retries+megs+counts;
       bulkButton.disabled = ["starting","processing","downloading"].includes(data.phase);
       if (["complete","partial","error"].includes(data.phase) && bulkTimer) {
         clearInterval(bulkTimer);bulkTimer=null;
