@@ -122,7 +122,7 @@ class TahminDefteri:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name}: nonempty string required")
         actual = _number(actual, "actual")
-        with self.db:
+        with self.db if not self.db.in_transaction else _NoCommit():
             cur = self.db.execute("""
                 INSERT INTO outcomes(recorded_at, company, metric, target_period,
                 currency, actual, source) VALUES (?, ?, ?, ?, ?, ?, ?)""",
@@ -137,17 +137,39 @@ class TahminDefteri:
         if f[:4] != o[:4]:
             raise ValueError("company/metric/period/currency mismatch")
         signed = f[4] - o[4]
-        with self.db:
+        with self.db if not self.db.in_transaction else _NoCommit():
             cur = self.db.execute("""
                 INSERT INTO evaluations(evaluated_at, forecast_id, outcome_id, absolute_error, signed_error)
                 VALUES (?, ?, ?, ?, ?)""",
                 (_now(), forecast_id, outcome_id, abs(signed), signed))
         return dict(id=cur.lastrowid, absolute_error=abs(signed), signed_error=signed)
 
-    def tahminleri_listele(self):
+    def tahminleri_listele(self, *, ayrintili=False):
+        """All forecasts; with ayrintili=True also their parsed assumptions and sources."""
         rows = self.db.execute("""
             SELECT id, created_at, company, metric, target_period, currency,
-                   predicted, model_version, digest FROM forecasts ORDER BY id""").fetchall()
+                   predicted, model_version, digest, assumptions_json, sources_json
+            FROM forecasts ORDER BY id""").fetchall()
         keys = ("id", "created_at", "company", "metric", "target_period",
                 "currency", "predicted", "model_version", "digest")
+        result = []
+        for row in rows:
+            item = dict(zip(keys, row[:9]))
+            if ayrintili:
+                item["assumptions"], item["sources"] = json.loads(row[9]), json.loads(row[10])
+            result.append(item)
+        return result
+
+    def gerceklesenleri_listele(self):
+        rows = self.db.execute("""
+            SELECT id, recorded_at, company, metric, target_period, currency, actual, source
+            FROM outcomes ORDER BY id""").fetchall()
+        keys = ("id", "recorded_at", "company", "metric", "target_period", "currency", "actual", "source")
+        return [dict(zip(keys, row)) for row in rows]
+
+    def puanlari_listele(self):
+        rows = self.db.execute("""
+            SELECT id, evaluated_at, forecast_id, outcome_id, absolute_error, signed_error
+            FROM evaluations ORDER BY id""").fetchall()
+        keys = ("id", "evaluated_at", "forecast_id", "outcome_id", "absolute_error", "signed_error")
         return [dict(zip(keys, row)) for row in rows]
