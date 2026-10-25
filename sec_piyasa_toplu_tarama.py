@@ -35,6 +35,15 @@ BATCH_COMMIT = 25
 ZIP_NAME = re.compile(r"(?:^|/)CIK(\d{10})\.json\Z", re.IGNORECASE)
 
 
+class SourceCIKMismatch(Exception):
+    """Source ZIP path refers to a different issuer than its JSON payload."""
+
+    def __init__(self, expected, reported):
+        super().__init__(f"ZIP CIK {expected}; JSON CIK {reported}")
+        self.expected = expected
+        self.reported = reported
+
+
 def _utc():
     return datetime.now(timezone.utc).isoformat()
 
@@ -205,12 +214,15 @@ def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
             if max_companies else (("ERROR" if retry_errors else "PENDING"),)
         ).fetchall()
         total = len(issuers)
-        existing = total - conn.execute(
-            "SELECT count(*) FROM companies WHERE status='PENDING'").fetchone()[0]
         retries_attempted = 0
+        retry_total = len(pending) if retry_errors else 0
+        completed = total - conn.execute(
+            "SELECT count(*) FROM companies WHERE status='PENDING'").fetchone()[0]
         if progress:
-            progress({"phase":"processing","processed":existing,"total":total,
-                      "message":"SEC finansal dosyaları şirket bazında işleniyor"})
+            progress({"phase":"processing","processed":completed,"total":total,
+                      "retry_attempted":0,"retry_total":retry_total,
+                      "message":("Hatalı SEC kayıtları yeniden değerlendiriliyor"
+                                 if retry_errors else "SEC finansal dosyaları şirket bazında işleniyor")})
         for cik, ticker, name in pending:
             try:
                 member = paths.get(cik)
@@ -226,8 +238,12 @@ def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
                     if len(data) > MAX_MEMBER_BYTES:
                         raise ValueError("Individual SEC JSON is too large")
                     raw = json.loads(data)
-                    if f"{int(raw.get('cik', -1)):010d}" != cik:
-                        raise ValueError("CIK mismatch between ZIP path and JSON")
+                    try:
+                        json_cik = f"{int(raw.get('cik')):010d}"
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError("SEC JSON CIK is missing or not numeric") from exc
+                    if json_cik != cik:
+                        raise SourceCIKMismatch(cik, json_cik)
                     if not isinstance(raw.get("facts"), dict):
                         raise ValueError("SEC file lacks facts object")
                     # Missing annual 10-K US-GAAP years are coverage gaps, not
@@ -256,6 +272,13 @@ def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
                             raise ValueError("Financial ratio row missing despite eligible annual years")
                         status, why = "OK", ""
                         row.update(screening_status=status, screening_reason=why)
+            except SourceCIKMismatch as exc:
+                # Keep source identity mismatches out of financial quality
+                # screens. Never attribute another CIK's facts to this ticker.
+                status, why = "SOURCE_CIK_MISMATCH", "ZIP_JSON_CIK_MISMATCH"
+                error_text = f"{why}: expected={exc.expected}; reported={exc.reported}"
+                row = _empty_row(cik, ticker, name, as_of, status, why)
+                row["screening_detail"] = error_text
             except (ValueError, TypeError, KeyError, UnicodeError, OverflowError,
                     zipfile.BadZipFile, OSError, MemoryError) as exc:
                 # Distinguish thousands of malformed issuer facts by actual cause.
@@ -277,8 +300,12 @@ def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
             if processed % BATCH_COMMIT == 0:
                 conn.commit()
                 if progress:
-                    progress({"phase":"processing","processed":existing+processed,
-                              "total":total,"errors":failed})
+                    completed = total - conn.execute(
+                        "SELECT count(*) FROM companies WHERE status='PENDING'").fetchone()[0]
+                    progress({"phase":"processing","processed":completed,
+                              "total":total,"errors":failed,
+                              "retry_attempted":retries_attempted,
+                              "retry_total":retry_total})
         conn.commit()
         tally = dict(conn.execute("SELECT status,count(*) FROM companies GROUP BY status").fetchall())
         error_types = dict(conn.execute(
@@ -289,6 +316,7 @@ def ingest_zip(root, *, archive_path=None, as_of=None, max_companies=None,
               "processed":total-tally.get("PENDING",0), "total":total,
               "statuses":tally, "errors":tally.get("ERROR",0),
               "error_types":error_types, "retries_attempted":retries_attempted,
+              "retry_total":retry_total,
               "database":DB_REL, "as_of":as_of, "finished_utc":_utc()}
     if progress:
         progress(result)
@@ -308,10 +336,15 @@ def diagnose_database(root, *, sample_limit=12):
         samples = conn.execute(
             "SELECT cik,ticker,error FROM companies WHERE status='ERROR' "
             "ORDER BY cik LIMIT ?", (sample_limit,)).fetchall()
+        identity_mismatches = conn.execute(
+            "SELECT cik,ticker,error FROM companies WHERE status='SOURCE_CIK_MISMATCH' "
+            "ORDER BY cik LIMIT ?", (sample_limit,)).fetchall()
         meta = dict(conn.execute("SELECT key,value FROM metadata").fetchall())
     return {"status_counts":tally, "error_reasons":[{"error": e, "count": n} for e,n in errors],
             "error_examples":[{"cik": cik,"ticker":ticker,"error":error}
                               for cik,ticker,error in samples],
+            "identity_mismatches":[{"cik":cik,"ticker":ticker,"detail":error}
+                                   for cik,ticker,error in identity_mismatches],
             "snapshot_as_of":meta.get("as_of"),"snapshot":meta.get("snapshot")}
 
 
