@@ -158,7 +158,7 @@
   <aside class="sidebar">
     <a class="brand" href="#ana" aria-label="INVEST AI ana sayfa">
       <span class="brand-mark">IA</span>
-      <span><strong>INVEST_AI</strong><small>Araştırma Merkezi · v0.4</small></span>
+      <span><strong>INVEST_AI</strong><small>Araştırma Merkezi · v0.5</small></span>
     </a>
     <nav class="nav-list" aria-label="Ana menü">
       <button type="button" class="nav-link active" data-screen="ana"><span class="nav-ico">⌂</span> Ana sayfa</button>
@@ -219,7 +219,7 @@
         <label for="report-kind-filter">Rapor türü</label>
         <select id="report-kind-filter">
           <option value="all">Tüm raporlar</option>
-          <option value="web">Web analizleri (v0.4)</option>
+          <option value="web">Web analizleri (v0.5)</option>
           <option value="previous">Önceki / terminal raporları</option>
         </select>
       </div>
@@ -316,6 +316,7 @@
         <div class="buttons" style="margin-top:16px">
           <button id="analyze-submit" type="submit" class="btn primary">Şirketi analiz et →</button>
           <button id="sec-scan-submit" type="button" class="btn">SEC verilerini tara →</button>
+          <button id="fundamentals-open" type="button" class="btn">Temel analiz tablosu →</button>
         </div>
         <div id="web-analysis-result" aria-live="polite" role="status"></div>
       </form>
@@ -346,6 +347,63 @@
           birebir aynı evren değildir. ETF/ADR, mükerrer menkul kıymet türleri ve
           finansal veri yeterliliği henüz ayıklanmaz. “Seç” yalnızca hisse kodunu
           analiz formuna taşır; dosya indirmez.</p>
+      </section>
+
+      <section id="fundamentals-panel" class="web-form" hidden aria-label="Excel benzeri temel analiz tablosu">
+        <div class="section-top"><div><h2>Temel analiz tarayıcısı</h2>
+          <p>Kaydedilmiş SEC şirket analizlerinin 50'den fazla finansal veri ve rasyo sütunu.
+          Sütunlara göre sırala, birkaç koşulla birlikte filtrele ve CSV'yi Excel'de aç.</p></div>
+          <button id="fundamentals-refresh" class="btn" type="button">Tabloyu yenile</button>
+        </div>
+        <p id="fundamentals-status" class="web-help" role="status" aria-live="polite"></p>
+        <div class="field-grid" style="margin-top:14px">
+          <div class="form-field"><label for="fundamentals-search">Hisse veya şirket adı ara</label>
+            <input id="fundamentals-search" type="search" class="web-input" placeholder="Örn. AAPL, Tesla" maxlength="100"></div>
+          <div class="form-field"><label for="fundamentals-policy">Eksik değerler</label>
+            <select id="fundamentals-policy" class="web-input">
+              <option value="exclude">Etkin eşiklerde eksikleri gösterme</option>
+              <option value="include">Eksikleri de göster (veri bekliyor)</option>
+            </select></div>
+          <div class="form-field"><label for="fundamentals-filter-column">Filtrelenecek oran / veri</label>
+            <select id="fundamentals-filter-column" class="web-input"></select></div>
+          <div class="form-field"><label for="fundamentals-filter-min">En az (yüzdeliklerde %)</label>
+            <input id="fundamentals-filter-min" class="web-input" type="number" step="any" placeholder="Alt sınır"></div>
+          <div class="form-field"><label for="fundamentals-filter-max">En fazla (yüzdeliklerde %)</label>
+            <input id="fundamentals-filter-max" class="web-input" type="number" step="any" placeholder="Üst sınır"></div>
+          <div class="form-field" style="justify-content:end">
+            <button id="fundamentals-add-filter" class="btn primary" type="button">Koşulu ekle</button></div>
+          <div class="form-field"><label for="fundamentals-yield">Referans faiz (%) — opsiyonel</label>
+            <input id="fundamentals-yield" class="web-input" type="number" min="0" max="100" step="any"
+                   placeholder="Örn. 4,5 (kendin doğrula)"></div>
+          <div class="form-field"><label for="fundamentals-decision">7 koşullu ön eleme sonucu</label>
+            <select id="fundamentals-decision" class="web-input">
+              <option value="all">Hepsi (geçen / elenen / veri bekleyen)</option>
+              <option value="pass">Yalnız geçti</option>
+              <option value="pending">Yalnız veri bekliyor</option>
+              <option value="fail">Yalnız elendi</option>
+            </select></div>
+        </div>
+        <div class="buttons" style="margin:14px 0">
+          <button id="fundamentals-clear" type="button" class="btn">Filtreleri sıfırla</button>
+          <button id="fundamentals-csv" type="button" class="btn">Filtrelenenleri CSV indir</button>
+        </div>
+        <div id="fundamentals-active-filters" class="buttons" aria-live="polite"></div>
+        <details class="web-details" style="margin:14px 0">
+          <summary>Sütunları seç — bütün rasyolar ve çarpanlar</summary>
+          <div id="fundamentals-columns" class="field-grid" style="margin-top:14px"></div>
+        </details>
+        <p class="web-help">ROIC, küçük yatırılan sermaye veya yaklaşık faaliyet kârı nedeniyle dikkat gerektirebilir.
+          FAVÖK* burada faaliyet kârı + amortisman tahminidir. F/K, PD/DD, EV/EBIT, FCF getirisi ve
+          (ROE/10)/PD/DD, yalnız kaynaklı ve tarihli fiyat mevcutsa hesaplanır.
+          PEG için ileri EPS büyümesi henüz bağlı değildir; eksik kalır. Bu liste yalnız daha önce
+          analiz edilip diske kaydedilmiş şirketlerden oluşur; SEC şirket dizini tek başına finansal rasyo içermez.</p>
+        <div class="scroll" style="margin-top:14px;max-height:68vh;overflow:auto">
+          <table id="fundamentals-table" style="min-width:1250px">
+            <thead id="fundamentals-head"></thead>
+            <tbody id="fundamentals-body"></tbody>
+          </table>
+        </div>
+        <p id="fundamentals-page" class="web-help" role="status"></p>
       </section>
       <div class="section-top"><div><h2>Geliştirici komutları</h2>
         <p>İleri düzey kullanım ve test için terminal alternatifleri.</p></div></div>
