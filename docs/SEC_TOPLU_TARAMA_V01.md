@@ -69,6 +69,40 @@ Güncel dosya varsayılan 24 saat önbellekte tutulur. Tekrar indirmeyi zorlamak
 
 Tüm şirketlerde fiyat, DCF, geleceğe dönük tahmin ve otomatik al-sat sonucu **boş** kalır. Bankalar için ayrı muhasebe yaklaşımı gerekir; IFRS/20-F bu sürüme dahil değildir.
 
+## Gerçek veri kontrolü — katman sağlığı
+
+Her şirket kaydında artık bir `layer_health` alanı var. Bu alan aynı zamanda CSV'de sütun olarak yer alır ve ortak finansal tabloların ve mutabakatın o şirkette nasıl çalıştığını özetler:
+
+| Alan | Anlamı |
+|---|---|
+| `statement_years`, `latest_fiscal_year_end` | Bulunan yıllık 10-K yılı sayısı ve son mali yıl sonu |
+| `statement_conflicts` | XBRL etiketleri birbirini tutmayan kalemler |
+| `revenue_alias_bucket`, `revenue_alias_gap` | Son iki yılda gelir etiketleri arasındaki fark: `NO_REVENUE_CONFLICT`, `HALF_TO_FIVE_PERCENT` (Piotroski kabul ediyor, ortak tablolar çelişki görüyor), `ABOVE_FIVE_PERCENT` |
+| `quarters` | Sınırları belirlenebilen çeyrek sayısı (en çok 8) |
+| `shares_status` | Kapak sayfası hisse sayısı: `REPORTED`, `CONFLICT` (çok sınıflı hisse), `MISSING` |
+| `piotroski_reconciliation`, `piotroski_attention` | Piotroski girdileri ↔ ortak tablolar ve fark çıkan girdiler |
+| `ttm_reconciliation` | TTM ↔ dört çeyrek toplamı |
+| `baseline_status` | Senaryolar için yeterli geçmiş var mı |
+| `latest_ratios_available` | Son yılda hesaplanabilen oran sayısı (18 üzerinden) |
+
+Özet JSON'da `layer_health_counts` alanı bütün şirketlerin sayımını verir. Komut sonunda da kısa bir Türkçe özet basılır.
+
+**On bir tanınmış şirketle tek komutluk deneme.** Hazır liste `ornekler/gercek_veri_kontrol_evreni.json`; çok sınıflı hisse (GOOGL) ve banka (JPM) bilerek listede. SEC'in istediği iletişim adresini kendi e-postanla gir:
+
+~~~bash
+export SEC_USER_AGENT="INVEST_AI Research gercek-adresin@ornek.com"
+python3 sec_toplu_tarama.py --universe ornekler/gercek_veri_kontrol_evreni.json --as-of 2026-10-25 \
+  --online --archive-dir veri/sec_kaynaklari --reports-dir reports/gercek_kontrol \
+  --out-json reports/gercek_kontrol.json --out-csv reports/gercek_kontrol.csv
+~~~
+
+Saniyede en fazla bir istek gider; 11 şirket yaklaşık 15 saniye sürer. Bir kez indirilen dosyalar `--offline` ile ağsız yeniden kullanılabilir.
+
+**Piotroski eşik kararı nasıl okunur?**
+- `revenue_alias_bucket` sayımında `HALF_TO_FIVE_PERCENT` kaç şirkette çıktığına bakın. Ortak katmanın %0,5 eşiği Piotroski'ye taşınırsa bu şirketlerde gelirle ilgili Piotroski göstergeleri "bilinmiyor" olur.
+- Sayı küçükse %0,5'te birleşmek düşük maliyetli ve daha tutarlıdır.
+- Sayı büyükse önce etiket eşleştirme kuralları gözden geçirilmelidir.
+
 ## Testler
 
 ~~~powershell

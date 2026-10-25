@@ -78,6 +78,10 @@ python sirket_arastirma_akisi.py --cik 320193 --as-of 2026-10-21 --sector non_fi
   --companyfacts ornekler/apple_ttm_evidence_2026-10-21.json \
   --out-json reports/apple_research.json --out-html reports/apple_research.html
 
+# Gerçek veri kontrolü: 11 tanınmış şirket, her biri için katman sağlığı ve toplu Türkçe özet
+export SEC_USER_AGENT="INVEST_AI Research gercek-adresin@ornek.com"
+python3 sec_toplu_tarama.py --universe ornekler/gercek_veri_kontrol_evreni.json --as-of 2026-10-25 --online --archive-dir veri/sec_kaynaklari --reports-dir reports/gercek_kontrol --out-json reports/gercek_kontrol.json --out-csv reports/gercek_kontrol.csv
+
 # Senaryo projeksiyonu (uzun vadeli oranı ve kaynağını analist verir; sistem seçmez)
 python tahmin_motoru.py --companyfacts CIK0000320193.json --as-of 2026-10-24 --long-run-growth 0.03 --long-run-source "..." --out reports/senaryo.json
 
@@ -103,7 +107,7 @@ Ayrıntılı kullanım: [web analizi](docs/WEB_SIRKET_ANALIZI_V02.md) · [şirke
 
 | Paket | Komut | Sonuç |
 |---|---|---|
-| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **499/499** |
+| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **506/506** |
 | Dondurulmuş v0.1 kabul | `dogrulama/kabul_testi.py` | **17/17** |
 | Kabul altyapısı + v0.2 modülleri | `unittest test_dogrulama_seti test_moduller_v02` | **9/9** (2 + 7) |
 

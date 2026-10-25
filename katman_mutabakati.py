@@ -101,6 +101,51 @@ def reconcile_ttm(ttm_audit, quarterly):
     return {"status": status, "checks": checks, "attention": attention, "ttm_end": end}
 
 
+PIOTROSKI_ALIAS_TOLERANCE = 0.05  # piotroski_fscore accepts revenue aliases this far apart
+
+
+def _alias_spread(cell):
+    values = [a["value"] for a in cell.get("alternatives", [])]
+    peak = max((abs(v) for v in values), default=0)
+    return (max(values) - min(values)) / peak if peak else 0.0
+
+
+def layer_health(research):
+    """Compact health of the shared layers in one research report, for multi-company real-data checks.
+
+    `revenue_alias_bucket` answers the open threshold question directly:
+    HALF_TO_FIVE_PERCENT means Piotroski accepts the revenue while the shared
+    statements report a conflict.
+    """
+    statements = research.get("financial_statements") or {}
+    years = statements.get("years", [])
+    quarterly = research.get("quarterly_statements") or {}
+    layers = research.get("layer_reconciliation") or {}
+    ratio_years = (research.get("financial_ratios") or {}).get("years", [])
+    latest_ratios = ratio_years[0]["ratios"] if ratio_years else {}
+    # Piotroski compares the latest two fiscal years.
+    gaps = [_alias_spread(y["income"]["revenue"]) for y in years[:2]
+            if y["income"]["revenue"].get("status") == "CONFLICT"]
+    gap = max(gaps) if gaps else None
+    bucket = ("NO_REVENUE_CONFLICT" if gap is None else
+              "HALF_TO_FIVE_PERCENT" if gap <= PIOTROSKI_ALIAS_TOLERANCE else "ABOVE_FIVE_PERCENT")
+    piotroski = layers.get("piotroski", {})
+    return {
+        "statement_years": len(years),
+        "latest_fiscal_year_end": years[0]["fiscal_year_end"] if years else None,
+        "statement_conflicts": sorted({c["item"] for c in statements.get("conflicts", [])}),
+        "revenue_alias_gap": gap, "revenue_alias_bucket": bucket,
+        "quarters": len(quarterly.get("quarters", [])),
+        "shares_status": (statements.get("shares_outstanding") or {}).get("status"),
+        "piotroski_reconciliation": piotroski.get("status"),
+        "piotroski_attention": [c["piotroski_input"] for c in piotroski.get("attention", [])],
+        "ttm_reconciliation": layers.get("ttm", {}).get("status"),
+        "baseline_status": (research.get("historical_baseline") or {}).get("status"),
+        "latest_ratios_available": sum(r.get("value") is not None for r in latest_ratios.values()),
+        "latest_ratios_total": len(latest_ratios),
+    }
+
+
 def reconcile_layers(piotroski, statements, ttm_audit, quarterly):
     return {"version": VERSION,
             "piotroski": reconcile_piotroski(piotroski, statements),
