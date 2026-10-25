@@ -2,6 +2,11 @@
 
 **Durum:** geliştirme ve doğrulama aşamasında. Üretime hazır yatırım önerisi sistemi **değildir**.
 
+**Ürün hedefi (25 Ekim 2026):** **1. SEC evreni ve veri toplama → 2. temel analizle eleme → 3. sektörel analiz → 4. kaynaklı gelecek analizi.** Yeni web/CLI ve toplu tarama raporlarında Piotroski kullanılmaz. Eski bağımsız motor ve eski raporlar silinmeden arşivde tutulur. [Dört aşamalı resmi yol haritası](docs/INVEST_AI_DORT_ASAMALI_YOL_HARITASI.md). Stage 1 tarama tüm pazarı henüz kapsamıyor; stage 2 filtre, stage 3 emsal ve stage 4 beklenti/katalizör modülleri tamamlanmadı.
+
+**Yeni SEC tüm-piyasa taraması ve temel analiz filtresi (v0.6):** Web → Analiz çalıştır → **Temel analiz tablosu**. ROE/ROIC, büyüme, marjlar, nakit, borç, kaynaklı fiyat varsa F/K–PD/DD–EV/EBIT–FCF getirisi, sütun seçimi, çoklu alt/üst eşik, sıralama, CSV/Excel dışa aktarımı ve eksik verili şirketleri ayrı tutma. [Nasıl kullanılır ve oran sınırlamaları](docs/TEMEL_ANALIZ_EXCEL_TARAYICI.md). **Tüm SEC finansallarını indir ve tara** düğmesi SEC'nin gece yayımlanan tek ZIP dosyasını indirir ve kaynaklı finansal oranları yerel SQLite veritabanına kaydeder; aynı CIK'nin birden fazla ticker'ı ayrı listelenir. Arşiv büyük (~1,4 GB): disk, internet ve SEC_USER_AGENT gerekir. **Bu başlatma senin Codespaces ortamında çalışır; GitHub kodunu çekmek finansalları otomatik indirmez.** F/K–PEG–PD/DD gibi piyasa oranları için fiyat ve ileri EPS büyümesi SEC Company Facts'te yoktur, bunlar veri kaynağı sağlanana kadar boş kalır. [SEC toplu tarama kılavuzu](docs/SEC_TOPLU_PIYASA_TARAMASI.md).
+
+
 INVEST_AI, ABD SEC Company Facts (XBRL) verisinden **kaynağı ve yayımlanma tarihi izlenebilir** şirket araştırması üretir: veri kalite denetimi, Piotroski F-Score, TTM (son 12 ay) finansalları, kullanıcı varsayımlı DCF / ters DCF ve sonradan puanlanabilen bir tahmin defteri. Yalnız Python standart kütüphanesi kullanılır; ek paket gerekmez.
 
 Değişiklik geçmişi ve her modülün tarihli sürüm notları: **[CHANGELOG.md](CHANGELOG.md)**.
@@ -107,7 +112,7 @@ Ayrıntılı kullanım: [web analizi](docs/WEB_SIRKET_ANALIZI_V02.md) · [şirke
 
 | Paket | Komut | Sonuç |
 |---|---|---|
-| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **574/574** |
+| Ana paket (`tests/`) | `python -m unittest discover -s tests` | **628/628** |
 | Dondurulmuş v0.1 kabul | `dogrulama/kabul_testi.py` | **17/17** |
 | Kabul altyapısı + v0.2 modülleri | `unittest test_dogrulama_seti test_moduller_v02` | **9/9** (2 + 7) |
 

@@ -7,6 +7,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import threading
 import unittest
+import shutil
+import subprocess
 from urllib.request import urlopen
 
 
@@ -89,7 +91,7 @@ class InvestAISiteTests(unittest.TestCase):
         # Existing 2026-10-21 Piotroski HTML stays in the legacy reports folder.
         self.assertTrue((ROOT / "reports/Apple_SEC_Piotroski_2026-10-21.html").is_file())
         self.assertIn('id="report-kind-filter"', src)
-        self.assertIn('value="web">Web analizleri (v0.2)', src)
+        self.assertIn('value="web">Web analizleri (v0.6)', src)
         self.assertIn('value="previous">Önceki / terminal raporları', src)
         self.assertIn('path.startsWith("reports/research/")', src)
         self.assertIn('kind:"previous"', src)
@@ -104,12 +106,54 @@ class InvestAISiteTests(unittest.TestCase):
 
     def test_site_shows_web_version_and_new_reports_from_api(self):
         src = INDEX.read_text(encoding="utf-8")
-        self.assertIn("Araştırma Merkezi · v0.2", src)
+        self.assertIn("Araştırma Merkezi · v0.6", src)
         self.assertIn('filename:data.report_url.split("/").pop()', src)
         self.assertIn("meta:reportMeta(data.report_url.slice(1)", src)
         self.assertIn('document.getElementById("viewer-provenance")', src)
         self.assertIn('document.createElement("span")', src)
         self.assertIn('heading.textContent = isError ?', src)
+
+
+    def test_sec_company_scanner_has_live_button_and_paginated_results(self):
+        src = INDEX.read_text(encoding="utf-8")
+        for item in ('id="sec-scan-submit"', 'id="sec-scan-panel"',
+                     'id="sec-scan-search"', 'id="sec-scan-rows"',
+                     'id="sec-scan-prev"', 'id="sec-scan-next"',
+                     '"/api/sec-scan"', 'SEC verilerini tara'):
+            self.assertIn(item, src)
+        self.assertIn('choose.textContent = "Seç"', src)
+        self.assertIn('body: JSON.stringify({query:secScanQuery, offset, refresh})', src)
+
+
+    def test_frontend_javascript_parses_when_node_available(self):
+        if not shutil.which("node"):
+            self.skipTest("Node.js is optional; JavaScript syntax check unavailable")
+        src = INDEX.read_text(encoding="utf-8")
+        script = src.split("<script>", 1)[1].split("</script>", 1)[0]
+        result = subprocess.run(["node", "--check", "-"], input=script, text=True,
+                                capture_output=True, check=False, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_financial_screener_excel_style_controls_exist(self):
+        src = INDEX.read_text(encoding="utf-8")
+        for control in ('fundamentals-open', 'fundamentals-panel', 'fundamentals-columns',
+                        'fundamentals-filter-column', 'fundamentals-filter-min',
+                        'fundamentals-filter-max', 'fundamentals-add-filter',
+                        'fundamentals-decision', 'fundamentals-yield',
+                        'fundamentals-csv', 'fundamentals-table',
+                        'fundamentals-coverage'):
+            self.assertIn(f'id="{control}"', src)
+        self.assertIn('"/api/screener"', src)
+        self.assertIn('filteredFundamentals()', src)
+        self.assertIn('sort.textContent = label', src)
+        self.assertIn('CSV indir', src)
+
+    def test_bulk_sec_download_button_and_status_polling(self):
+        page = INDEX.read_text(encoding="utf-8")
+        for word in ('id="sec-bulk-start"', 'id="sec-bulk-status"',
+                     '"/api/bulk/start"', '"/api/bulk/status"',
+                     'Tüm SEC finansallarını indir ve tara'):
+            self.assertIn(word, page)
 
     def test_demo_command_has_existing_source_and_modules(self):
         src = INDEX.read_text(encoding="utf-8")

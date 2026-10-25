@@ -1,6 +1,6 @@
 """INVEST_AI v0.3: authenticated local web research (Python stdlib only).
 
-A local browser POST executes existing SEC/TTM/Piotroski engines and, when the
+A local browser POST executes SEC/TTM/financial-statements engines and, when the
 analyst supplies sourced rates, the scenario projection and scenario DCF.
 Requires a session API key printed in the terminal, no user-facing shell input,
 no trading. SEC requests are serialised/throttled and archived with a content hash.
@@ -29,11 +29,13 @@ from sec_arsiv import (
     check_doc, download_ticker_map, load_json, save_capture, ticker_mapping,
 )
 from senaryo_degerleme import DISCOUNT_BOUNDS, TERMINAL_GROWTH_CAP
+from hisse_tarama_tablosu import load_screening
+from sec_piyasa_toplu_tarama import load_bulk_grid, run as run_sec_bulk
 from sirket_arastirma_akisi import build_company_research, render_company_research
 from tahmin_motoru import LONG_RUN_BOUNDS
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "invest-ai-web-0.3.0"
+VERSION = "invest-ai-web-0.6.0"
 TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,14}$")
 EMAIL_RE = re.compile(r"\S+@\S+\.\S+")
 MODES = ("demo", "live", "cache")
@@ -45,6 +47,8 @@ SCENARIO_FIELDS = ("long_run_growth", "long_run_growth_source", "discount_rate",
 SOURCE_LENGTH = (8, 300)
 MAX_BODY_BYTES = 4096
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+SEC_LIST_PAGE_SIZE = 50
+SEC_LIST_MAX_SEARCH_LENGTH = 80
 
 
 def _price_inputs(values, today):
@@ -122,6 +126,9 @@ class ResearchService:
         self.throttle = throttle or SECThrottle(interval=1.0)
         self.lock = threading.Lock()
         self.sec_blocked = False
+        self.bulk_guard = threading.Lock()
+        self.bulk_thread = None
+        self.bulk_status = {"phase": "idle", "message": "Toplu SEC finansalları henüz başlatılmadı"}
 
     def _online_ok(self):
         if self.sec_blocked:
@@ -152,6 +159,126 @@ class ResearchService:
         table = ticker_mapping(source)
         atomic_write(path, canonical_bytes(source))
         return table, "DOWNLOADED_SEC_MAP"
+
+
+    def bulk_progress(self, update):
+        with self.bulk_guard:
+            self.bulk_status = {**self.bulk_status, **update}
+
+    def bulk_state(self, request):
+        if request != {}:
+            raise RequestError("Toplu tarama durum isteği boş nesne olmalı.")
+        with self.bulk_guard:
+            return {"ok": True, **self.bulk_status}
+
+    def start_bulk(self, request):
+        """Explicit click runs official bulk download/parse in local Codespaces process."""
+        if request != {}:
+            raise RequestError("Toplu tarama için boş JSON nesnesi gerekli.")
+        with self.bulk_guard:
+            if self.bulk_thread is not None and self.bulk_thread.is_alive():
+                raise RequestError("SEC toplu finansal taraması zaten çalışıyor.", 409)
+        if not self.lock.acquire(blocking=False):
+            raise RequestError("Başka SEC araştırması çalışıyor; bitince yeniden dene.", 409)
+        # Require a genuine SEC contact unless both archives are already available.
+        if not ((self.root / "veri/companyfacts.zip").is_file() and
+                (self.root / "veri/sec_ticker_esleme.json").is_file()):
+            try:
+                self._online_ok()
+            except Exception:
+                self.lock.release()
+                raise
+
+        def task():
+            try:
+                self.bulk_progress({"phase":"starting","message":"SEC resmi toplu ZIP ve ticker dizini hazırlanıyor"})
+                run_sec_bulk(self.root, user_agent=self.user_agent, progress=self.bulk_progress)
+            except Exception as exc:
+                # A worker must always expose a terminal error and release the mutex.
+                self.log_bulk_error(exc)
+            finally:
+                self.lock.release()
+
+        thread = threading.Thread(target=task, name="invest-ai-sec-bulk", daemon=True)
+        with self.bulk_guard:
+            self.bulk_status = {"phase":"starting", "message":"Resmî SEC toplu finansal taraması başlıyor"}
+            self.bulk_thread = thread
+        try:
+            thread.start()
+        except Exception:
+            self.lock.release()
+            raise
+        return {"ok":True,"phase":"starting",
+                "message":"SEC ZIP indirilecek ve tüm eşleşen şirketlerin finansalları SQLite'ya işlenecek."}
+
+    def log_bulk_error(self, exc):
+        # Terminal log includes the actual cause; browser status stays generic.
+        print(f"INVEST_AI SEC bulk error [{type(exc).__name__}]: {exc}", flush=True)
+        with self.bulk_guard:
+            self.bulk_status = {**self.bulk_status,"phase":"error",
+                                "message":f"Toplu SEC işlem hatası ({type(exc).__name__}). "
+                                          "Terminal kayıtlarını ve disk durumunu kontrol et."}
+
+    def scan_sec_list(self, request):
+        """List SEC ticker/CIK directory; does not download financial statements."""
+        if not isinstance(request, dict) or not set(request) <= {"query", "offset", "refresh"}:
+            raise RequestError("SEC liste isteği geçersiz.")
+        query = request.get("query", "")
+        offset = request.get("offset", 0)
+        refresh = request.get("refresh", False)
+        if not isinstance(query, str) or len(query) > SEC_LIST_MAX_SEARCH_LENGTH:
+            raise RequestError("Arama en fazla 80 karakter olmalı.")
+        if type(offset) is not int or not 0 <= offset <= 100000 or type(refresh) is not bool:
+            raise RequestError("Sayfa veya güncelleme isteği geçersiz.")
+        if not self.lock.acquire(blocking=False):
+            raise RequestError("Bir SEC işlemi çalışıyor. Daha sonra tekrar dene.", 409)
+        try:
+            path = self.root / "veri/sec_ticker_esleme.json"
+            if refresh or not path.is_file():
+                self._online_ok()
+                try:
+                    source = self.ticker_download(user_agent=self.user_agent, limiter=self.throttle)
+                except urllib.error.HTTPError as exc:
+                    if exc.code in (403, 429):
+                        self.sec_blocked = True
+                    raise RequestError(f"SEC şirket listesi HTTP {exc.code}", 503) from exc
+                except urllib.error.URLError as exc:
+                    raise RequestError("SEC şirket listesi indirilemedi.", 503) from exc
+                except StopSECRequests as exc:
+                    self.sec_blocked = True
+                    raise RequestError(str(exc), 503) from exc
+                ticker_mapping(source)
+                atomic_write(path, canonical_bytes(source))
+                source_label = "SEC_DOWNLOAD"
+            else:
+                source_label = "SAVED_SEC_MAP"
+            raw = load_json(path, max_bytes=12_000_000)
+            mapping = ticker_mapping(raw)
+            values = raw.values() if isinstance(raw, dict) else raw
+            names = {}
+            for row in values:
+                ticker = row["ticker"].strip().upper()
+                title = row.get("title", "")
+                names[ticker] = title[:300] if isinstance(title, str) else ""
+            records = sorted(
+                ({"ticker": ticker, "company": names.get(ticker, ""),
+                  "cik": f"{cik:010d}"} for ticker, cik in mapping.items()),
+                key=lambda row: (row["ticker"], row["cik"]))
+            term = query.strip().casefold()
+            if term:
+                records = [row for row in records if term in row["ticker"].casefold()
+                           or term in row["company"].casefold() or term in row["cik"]]
+            matched = len(records)
+            return {"ok": True, "source": source_label, "total": len(mapping),
+                    "matched": matched, "offset": offset, "limit": SEC_LIST_PAGE_SIZE,
+                    "rows": records[offset:offset + SEC_LIST_PAGE_SIZE],
+                    "has_more": offset + SEC_LIST_PAGE_SIZE < matched,
+                    "snapshot_updated_utc": datetime.fromtimestamp(
+                        path.stat().st_mtime, tz=timezone.utc).isoformat(),
+                    "data_scope": "SEC_TICKER_CIK_DIRECTORY_ONLY",
+                    "financial_facts_downloaded": False}
+        finally:
+            self.lock.release()
 
     def analyze(self, request):
         if (not isinstance(request, dict) or not REQUIRED_FIELDS <= set(request)
@@ -212,7 +339,7 @@ class ResearchService:
             as_of = self.clock().date().isoformat()
 
         result = build_company_research(raw, expected_cik=cik, as_of=as_of,
-                                        sector=sector,
+                                        sector=sector, include_piotroski=False,
                                         input_mode="sec_direct_download" if mode == "live" else "offline_file",
                                         **scenario)
         result["source"]["web_data_mode"] = mode
@@ -223,7 +350,7 @@ class ResearchService:
         digest = result["source"]["canonical_json_sha256"][:12]
         # A different analyst sector assumption must not overwrite an earlier report
         # generated from the same SEC snapshot with another classification.
-        basename = f"{ticker}_{mode.upper()}_{as_of}_{sector}_{digest}"
+        basename = f"{ticker}_{mode.upper()}_{as_of}_{sector}_{digest}_fundamentals"
         if any(value is not None for value in scenario.values()):
             # Different analyst scenario inputs must not overwrite each other either.
             basename += "_s" + hashlib.sha256(canonical_bytes(scenario)).hexdigest()[:8]
@@ -233,13 +360,7 @@ class ResearchService:
         atomic_write(out_json, json.dumps(result, ensure_ascii=False,
                                           indent=2, allow_nan=False).encode("utf-8"))
         atomic_write(out_html, page.encode("utf-8"))
-        p = result["quality"]["piotroski"]
         ttm = result["ttm_crosscheck"]
-        reasons = p.get("missing_reasons", {})
-        annual_history_missing = (
-            p.get("known_count") == 0 and len(reasons) == 9
-            and set(reasons.values()) == {"TWO_COMPARABLE_ANNUAL_INCOME_PERIODS_REQUIRED"}
-        )
         projection, valuation = result.get("projection") or {}, result.get("scenario_valuation") or {}
         implied = result.get("implied_growth") or {}
         return {
@@ -251,11 +372,8 @@ class ResearchService:
             "source": source, "coverage_status": result["coverage_status"],
             "annual_end": result["annual_source_audit"].get("latest_any_fy_end"),
             "ttm_end": ttm.get("primary", {}).get("periods", {}).get("current_9m_end"),
-            "ttm_status": ttm["status"], "piotroski_score": p["score"],
-            "piotroski_status": p["status"], "sector": sector,
-            "piotroski_known_count": p["known_count"],
-            "piotroski_missing_annual_history": annual_history_missing,
-            "piotroski_range": p["score_range"], "research_gaps": result["research_gaps"],
+            "ttm_status": ttm["status"], "sector": sector,
+            "research_gaps": result["research_gaps"],
             "report_url": "/" + out_html.relative_to(self.root).as_posix(),
             "no_investment_advice": True,
         }
@@ -312,7 +430,8 @@ class Website(SimpleHTTPRequestHandler):
         return super().do_HEAD()
 
     def do_POST(self):
-        if self.path != "/api/analyze":
+        if self.path not in ("/api/analyze", "/api/sec-scan", "/api/screener",
+                              "/api/bulk/start", "/api/bulk/status"):
             return self.respond(404, {"ok": False, "error": "API yolu bulunamadı"})
         origin = self.headers.get("Origin")
         host = self.headers.get("Host", "")
@@ -335,6 +454,16 @@ class Website(SimpleHTTPRequestHandler):
         except (ValueError, UnicodeError):
             return self.respond(400, {"ok": False, "error": "JSON okunamadı"})
         try:
+            if self.path == "/api/sec-scan":
+                return self.respond(200, self.service.scan_sec_list(payload))
+            if self.path == "/api/bulk/start":
+                return self.respond(202, self.service.start_bulk(payload))
+            if self.path == "/api/bulk/status":
+                return self.respond(200, self.service.bulk_state(payload))
+            if self.path == "/api/screener":
+                if payload != {}:
+                    raise RequestError("Tarama tablosu için boş JSON nesnesi gerekli.")
+                return self.respond(200, load_bulk_grid(self.service.root) or load_screening(self.service.root))
             return self.respond(200, self.service.analyze(payload))
         except RequestError as exc:
             return self.respond(exc.status, {"ok": False, "error": str(exc)})
@@ -357,7 +486,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     service = ResearchService()
     server = build_server(service, port=args.port)
-    print(f"INVEST_AI v0.2: http://127.0.0.1:{server.server_port}", flush=True)
+    print(f"INVEST_AI {VERSION}: http://127.0.0.1:{server.server_port}", flush=True)
     print("WEB ANALİZ ANAHTARI (sitedeki parola kutusuna yapıştır): " + service.secret, flush=True)
     print("Codespaces Ports görünürlüğünü PRIVATE tut; Ctrl+C ile kapat.", flush=True)
     try:

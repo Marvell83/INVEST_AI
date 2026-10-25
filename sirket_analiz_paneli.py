@@ -100,7 +100,9 @@ def _ratio_text(key, value):
     if kind == "percent":
         return f"{value * 100:.1f}%"
     if kind == "multiple":
-        return f"{value:.2f}x"
+        # Four decimals prevent CFO/net income values below 1 from rounding to 1.00.
+        # Precision helps readers distinguish cash coverage of earnings.
+        return f"{value:.4f}x" if key == "cash_conversion" else f"{value:.2f}x"
     return f"{value / 1e6:,.0f}"
 
 
@@ -151,11 +153,33 @@ def render_financial_sections(statements, ratios):
                 title = f" title='{_safe(' · '.join(notes))}'" if notes else ""
                 cells.append(f"<td class='num'{title}>{_safe(text)}</td>")
         ratio_rows.append(f"<tr><td title='{_safe(formula)}'>{_safe(label)}</td>{''.join(cells)}</tr>")
+    # Extremely high ROIC can come from a tiny equity + net-debt denominator,
+    # particularly after subtracting large cash / marketable security holdings.
+    # Explain the actual denominator; do not present these ratios as a reliable
+    # cross-company operating-efficiency comparison.
+    roic_capital = []
+    for item in ratios["years"]:
+        entry = item["ratios"]["roic"]
+        cap = entry.get("inputs", {}).get("average_invested_capital")
+        if entry.get("caution") == "VERY_SMALL_INVESTED_CAPITAL" and isinstance(cap, (int, float)) and cap > 0:
+            roic_capital.append(f"{item['fiscal_year_end']}: {cap / 1e6:,.1f} milyon USD")
+    roic_note = (
+        "<div class='note'><strong>ROIC yöntem uyarısı:</strong> Bu oran faaliyet kârı × "
+        "(1 − efektif vergi) / ortalama (özkaynak + net borç) olarak hesaplanır. "
+        "Net borç nakit ve menkul kıymetleri düşürdüğü için Apple gibi yüksek likit varlığı olan "
+        "şirketlerde sermaye tabanı küçülebilir ve ROIC aşırı yükselebilir. "
+        "İşletme sermayesi tanımına ve menkul kıymet sınıflamasına duyarlıdır; "
+        "tek başına sürdürülebilir faaliyet getirisi veya şirketler arası üstünlük kanıtı değildir. "
+        "<strong>Yüksek ROIC dönemlerindeki ortalama sermaye:</strong> " +
+        _safe("; ".join(roic_capital)) + ".</div>"
+        if roic_capital else ""
+    )
     ratio_table = (
         "<section class='card'><h2>Finansal oranlar</h2>"
         "<div class='scroll'><table><thead><tr><th>Oran</th>" + head + "</tr></thead><tbody>" +
-        "".join(ratio_rows) + "</tbody></table></div>"
-        "<p class='muted'>Oran adının üzerine gelince formül, — işaretinin üzerine gelince hesaplanamama "
+        "".join(ratio_rows) + "</tbody></table></div>" + roic_note +
+        "<p class='muted'>Nakit dönüşümü CFO / net kâr dört ondalıkla gösterilir. "
+        "Oran adının üzerine gelince formül, — işaretinin üzerine gelince hesaplanamama "
         "nedeni görünür. ≈ yaklaşık faaliyet kârıyla hesaplandı · ! ROIC %100'ün üstünde: yatırılan sermaye "
         "çok küçük, oran tek başına yorumlanmamalı. Net borç milyon USD'dir: toplam borç − nakit − bildirilmişse menkul kıymetler; "
         "kira yükümlülükleri dahil değildir. "
@@ -190,7 +214,7 @@ def _data_notes(statements):
         largest = max(g["spread"] for g in gaps)
         notes.append(f"<div class='note'>‡ {len(gaps)} dönemde gelir etiketleri en çok {_tr_percent(largest)} "
                      f"ayrışıyor (ör. net satışlar ile toplam gelirler). Öncelikli etiket ({_safe(gaps[0]['used'])}) "
-                     "kullanıldı; Piotroski de aynı kuralı uygular. %5'i aşan fark çelişki sayılır.</div>")
+                     "kullanıldı; %5'i aşan fark çelişki sayılır.</div>")
     fallbacks = statements.get("fallback_concepts", [])
     if fallbacks:
         concepts = sorted({f["concept"] for f in fallbacks})
@@ -277,10 +301,10 @@ def render_layer_reconciliation(layers):
                 f"{_safe(detail)}</p>")
     return (
         "<section class='card'><h2>Katman mutabakatı</h2>" +
-        line("Piotroski girdileri ↔ yıllık tablolar", piotroski) +
+        (line("Piotroski girdileri ↔ yıllık tablolar", piotroski) if "piotroski" in layers else "") +
         line("TTM ↔ son dört çeyreğin toplamı", ttm) + table +
-        "<p class='muted'>Piotroski ve TTM motorları SEC verisini hâlâ kendi kurallarıyla okur. Bu bölüm, "
-        "aynı SEC dosyasında onların kullandığı rakamları ortak tablo katmanıyla karşılaştırır (milyon USD). "
+        "<p class='muted'>Bu bölüm, hesap motorunun kullandığı rakamları SEC kaynaklı ortak "
+        "tablo katmanıyla karşılaştırır (milyon USD). "
         "Eşleşme, SEC verisinin bağımsız doğrulandığı anlamına gelmez.</p></section>")
 
 

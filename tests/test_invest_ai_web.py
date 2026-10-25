@@ -10,6 +10,7 @@ import tempfile
 import threading
 import unittest
 from urllib.error import HTTPError
+from unittest.mock import patch
 
 from invest_ai_web import ROOT, ResearchService, RequestError, build_server
 from sec_arsiv import SECThrottle
@@ -51,7 +52,7 @@ class ResearchServiceTests(unittest.TestCase):
             self.assertEqual(response["ticker"], "AAPL")
             self.assertEqual(response["source"], "MANUAL_APPLE_EXAMPLE_NOT_LIVE_SEC")
             self.assertEqual(response["as_of"], "2026-10-21")
-            self.assertIsNone(response["piotroski_score"])
+            self.assertNotIn("piotroski_score", response)
             self.assertEqual(response["ttm_status"], "RECONCILED_CALCULATIONS")
             html = s.root / response["report_url"].lstrip("/")
             research = json.loads(html.with_suffix(".json").read_text())
@@ -69,18 +70,21 @@ class ResearchServiceTests(unittest.TestCase):
             s.analyze({"ticker": "AAPL", "mode": "demo", "sector": "non_financial"})
             self.assertEqual(s.throttle.calls, 0)
 
-    def test_api_flags_missing_annual_history_only_when_it_blocks_piotroski(self):
-        cases = (("AAPL", "demo", "non_financial", 0, True),
-                 ("AAPL", "demo", "unknown", 0, False),
-                 ("SYN", "live", "non_financial", 8, False))
-        for ticker, mode, sector, known, missing in cases:
+    def test_active_reports_do_not_run_piotroski(self):
+        for ticker, mode, sector in (("AAPL", "demo", "non_financial"),
+                                     ("AAPL", "demo", "unknown"),
+                                     ("SYN", "live", "non_financial")):
             with self.subTest(mode=mode, sector=sector), tempfile.TemporaryDirectory() as folder:
-                s = service(folder)
-                response = s.analyze({"ticker": ticker, "mode": mode, "sector": sector})
-                self.assertEqual(response["piotroski_known_count"], known)
-                self.assertIs(response["piotroski_missing_annual_history"], missing)
-                page = (s.root / response["report_url"].lstrip("/")).read_text(encoding="utf-8")
-                self.assertEqual("10-K net kâr dönemi bulunmuyor" in page, missing)
+                response = service(folder).analyze({"ticker": ticker, "mode": mode, "sector": sector})
+                self.assertNotIn("piotroski_score", response)
+                self.assertNotIn("piotroski_status", response)
+                self.assertIn("_fundamentals", response["report_url"])
+                path = Path(folder) / response["report_url"].lstrip("/")
+                report = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+                self.assertNotIn("piotroski", report["quality"])
+                self.assertNotIn("piotroski", report["layer_reconciliation"])
+                self.assertNotIn("Piotroski", path.read_text(encoding="utf-8"))
+                self.assertIn("Finansal tablolar", path.read_text(encoding="utf-8"))
 
     def test_other_demo_company_blocked(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -124,6 +128,52 @@ class ResearchServiceTests(unittest.TestCase):
             self.assertEqual(result["mode"], "cache")
             self.assertEqual(result["ttm_status"], "RECONCILED_CALCULATIONS")
 
+
+    def test_sec_scanner_pages_without_companyfacts_download(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = [{"cik_str": i + 1000, "ticker": f"S{i:03d}",
+                          "title": f"Synthetic {i:03d} Incorporated"} for i in range(124)]
+            ticker_calls = []
+            def fetch_map(*, user_agent, limiter):
+                ticker_calls.append(1)
+                return directory
+            def reject_facts(*args, **kwargs):
+                self.fail("SEC ticker listing cannot fetch Company Facts")
+            app = service(folder, ticker_download=fetch_map, fact_download=reject_facts)
+            first = app.scan_sec_list({})
+            self.assertEqual((first["total"], first["matched"], len(first["rows"])), (124, 124, 50))
+            self.assertEqual(first["rows"][0]["ticker"], "S000")
+            self.assertFalse(first["financial_facts_downloaded"])
+            second = app.scan_sec_list({"offset": 50})
+            self.assertEqual(second["rows"][0]["ticker"], "S050")
+            self.assertEqual(len(app.scan_sec_list({"offset": 100})["rows"]), 24)
+            self.assertEqual(app.scan_sec_list({"query": "synthetic 123"})["rows"][0]["ticker"], "S123")
+            self.assertEqual(len(ticker_calls), 1)
+
+    def test_sec_scanner_cached_list_without_contact_and_explicit_refresh(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = service(folder)
+            self.assertEqual(app.scan_sec_list({})["source"], "SEC_DOWNLOAD")
+            saved = ResearchService(root=app.root, secret=SECRET, user_agent="",
+                                    ticker_download=lambda **kw: self.fail("unexpected network"))
+            self.assertEqual(saved.scan_sec_list({})["rows"][0]["ticker"], "SYN")
+            with self.assertRaisesRegex(RequestError, "SEC_USER_AGENT"):
+                saved.scan_sec_list({"refresh": True})
+
+    def test_sec_scanner_validation_and_lock(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = service(folder)
+            for bad in ({"offset": True}, {"offset": -1}, {"query": "x" * 81},
+                        {"refresh": "yes"}, {"unknown": 5}, []):
+                with self.subTest(bad=bad), self.assertRaises(RequestError):
+                    app.scan_sec_list(bad)
+            app.lock.acquire()
+            try:
+                with self.assertRaisesRegex(RequestError, "Bir SEC işlemi"):
+                    app.scan_sec_list({})
+            finally:
+                app.lock.release()
+
     def test_live_without_real_user_agent_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             s = service(folder, user_agent="")
@@ -144,8 +194,8 @@ class ResearchServiceTests(unittest.TestCase):
     def test_unknown_sector_is_not_assumed_nonfinancial(self):
         with tempfile.TemporaryDirectory() as folder:
             result = service(folder).analyze({"ticker": "SYN", "mode": "live", "sector": "unknown"})
-            self.assertIsNone(result["piotroski_score"])
-            self.assertIn("SECTOR_SPECIFIC_PIOTROSKI_UNAVAILABLE", result["research_gaps"])
+            self.assertNotIn("piotroski_score", result)
+            self.assertNotIn("SECTOR_SPECIFIC_PIOTROSKI_UNAVAILABLE", result["research_gaps"])
 
     def test_sec_429_disables_further_live_retries(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -226,6 +276,64 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(report_status, 200)
         self.assertIn(b"Apple", page)
         self.assertEqual(self.request("GET", answer["report_url"].replace(".html", ".json"))[0], 404)
+
+
+    def test_sec_scanner_http_requires_key_and_same_origin(self):
+        self.service.user_agent = "INVEST_AI test@example.com"
+        status, body = self.request("POST", "/api/sec-scan", payload={})
+        self.assertEqual(status, 200)
+        result = json.loads(body)
+        self.assertEqual(result["total"], 1)
+        self.assertFalse(result["financial_facts_downloaded"])
+        self.assertEqual(self.request("POST", "/api/sec-scan", payload={}, secret="wrong")[0], 403)
+        self.assertEqual(self.request("POST", "/api/sec-scan", payload={},
+                                      origin="https://evil.example")[0], 403)
+        self.assertEqual(self.request("POST", "/api/sec-scan", payload={"offset": -1})[0], 422)
+        self.assertEqual(self.request("GET", "/api/sec-scan")[0], 404)
+
+    def test_fundamentals_screener_http_is_authenticated_and_read_only(self):
+        payload = {"ticker": "AAPL", "mode": "demo", "sector": "non_financial"}
+        status, analysis = self.request("POST", "/api/analyze", payload=payload)
+        self.assertEqual(status, 200)
+        status, data = self.request("POST", "/api/screener", payload={})
+        self.assertEqual(status, 200)
+        screened = json.loads(data)
+        self.assertEqual(screened["available"], 1)
+        self.assertEqual(screened["rows"][0]["ticker"], "AAPL")
+        self.assertIsNone(screened["rows"][0]["peg"])
+        self.assertFalse(screened["market_price_fetched"])
+        self.assertEqual(self.request("POST", "/api/screener", payload={},
+                                      secret="invalid-key")[0], 403)
+        self.assertEqual(self.request("POST", "/api/screener", payload={},
+                                      origin="https://evil.example")[0], 403)
+        self.assertEqual(self.request("POST", "/api/screener",
+                                      payload={"ticker": "AAPL"})[0], 422)
+        self.assertEqual(self.request("GET", "/api/screener")[0], 404)
+
+
+    def test_one_click_bulk_sec_ingest_is_authenticated_and_status_readable(self):
+        (self.service.root / "veri").mkdir(parents=True, exist_ok=True)
+        (self.service.root / "veri/companyfacts.zip").write_bytes(b"fake zip intercepted")
+        (self.service.root / "veri/sec_ticker_esleme.json").write_text("{}", encoding="utf-8")
+        def fake_runner(root, *, user_agent, progress):
+            progress({"phase":"processing", "processed":1, "total":2})
+            progress({"phase":"complete", "processed":2, "total":2,
+                      "statuses":{"OK":2}, "message":"finished"})
+        with patch("invest_ai_web.run_sec_bulk", side_effect=fake_runner):
+            status, blob = self.request("POST", "/api/bulk/start", payload={})
+            self.assertEqual(status, 202, blob)
+            self.service.bulk_thread.join(timeout=2)
+            self.assertFalse(self.service.bulk_thread.is_alive())
+        status, result = self.request("POST", "/api/bulk/status", payload={})
+        self.assertEqual(status, 200)
+        state = json.loads(result)
+        self.assertEqual((state["phase"], state["processed"]), ("complete", 2))
+        self.assertEqual(self.request("POST", "/api/bulk/start", payload={},
+                                      secret="incorrect")[0], 403)
+        self.assertEqual(self.request("POST", "/api/bulk/status", payload={},
+                                      origin="https://evil.example")[0], 403)
+        self.assertEqual(self.request("POST", "/api/bulk/start",
+                                      payload={"untrusted_path": "/etc"})[0], 422)
 
     def test_unauthorized_post_forbidden(self):
         payload = {"ticker": "AAPL", "mode": "demo", "sector": "unknown"}

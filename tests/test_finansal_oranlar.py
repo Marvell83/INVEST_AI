@@ -8,7 +8,7 @@ import unittest
 
 from finansal_oranlar import compute_ratios, main
 from finansal_tablolar import build_annual_statements
-from sirket_analiz_paneli import render_financial_sections
+from sirket_analiz_paneli import _ratio_text, render_financial_sections
 from sirket_arastirma_akisi import build_company_research, render_company_research
 from test_finansal_tablolar import AS_OF, company, fact
 
@@ -140,6 +140,29 @@ class ResearchIntegrationTests(unittest.TestCase):
         r = compute_ratios(statements)["years"][0]["ratios"]
         self.assertAlmostEqual(r["operating_margin"]["value"], 133050 / 416161)
         self.assertEqual(r["current_ratio"]["reason"], "INPUT_UNAVAILABLE:current_assets,current_liabilities")
+
+    def test_cash_conversion_preserves_precision_when_piotroski_cash_test_fails(self):
+        self.assertEqual(_ratio_text("cash_conversion", 111482 / 112010), "0.9953x")
+        self.assertEqual(_ratio_text("cash_conversion", 1.0), "1.0000x")
+        self.assertEqual(_ratio_text("current_ratio", 0.894), "0.89x")
+
+    def test_high_roic_exposes_denomination_warning(self):
+        statements = build_annual_statements(company(), as_of=AS_OF)
+        computed = compute_ratios(statements)
+        flagged = computed["years"][0]["ratios"]["roic"]
+        flagged["caution"] = "VERY_SMALL_INVESTED_CAPITAL"
+        flagged["inputs"]["average_invested_capital"] = 23_449_500_000
+        page = render_financial_sections(statements, computed)
+        self.assertIn("ROIC yöntem uyarısı", page)
+        self.assertIn("23,449.5 milyon USD", page)
+        self.assertIn("İşletme sermayesi", page)
+        self.assertIn("Nakit dönüşümü CFO / net kâr", page)
+        self.assertIn("1.1500x", page)
+
+    def test_normal_roic_does_not_trigger_extra_warning(self):
+        statements = build_annual_statements(company(), as_of=AS_OF)
+        page = render_financial_sections(statements, compute_ratios(statements))
+        self.assertNotIn("ROIC yöntem uyarısı", page)
 
     def test_cli_writes_statements_and_ratios(self):
         with tempfile.TemporaryDirectory() as folder:
