@@ -1,0 +1,62 @@
+name: INVEST_AI Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - feat/windows-downloadable-invest-ai-exe
+    paths:
+      - '.github/workflows/windows-exe.yml'
+      - 'invest_ai_masaustu.py'
+      - 'tests/test_invest_ai_masaustu.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-exe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test portable Windows app
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Use Python for build only
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test Windows launcher without network access
+        run: python -m unittest discover -s tests -p test_invest_ai_masaustu.py -v
+
+      - name: Package app with PyInstaller
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller==6.22.3
+          pyinstaller --noconfirm --clean --onedir --console --name INVEST_AI --add-data "index.html;." --add-data "ornekler/apple_ttm_evidence_2026-10-21.json;ornekler" invest_ai_masaustu.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
+
+      - name: Smoke test compiled EXE and local HTTP service
+        shell: pwsh
+        run: |
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "INVEST_AI_CI_DATA"
+          & ".\dist\INVEST_AI\INVEST_AI.exe" --self-test | Tee-Object -FilePath ".\windows-self-test.txt"
+          if ($LASTEXITCODE -ne 0) { throw "Bundled EXE self-test failed" }
+          if (-not (Select-String -Path ".\windows-self-test.txt" -Pattern "INVEST_AI_WINDOWS_SELF_TEST_OK" -Quiet)) { throw "Missing EXE health-check success marker" }
+          if (-not (Test-Path (Join-Path $env:LOCALAPPDATA "INVEST_AI\index.html"))) { throw "Static UI was not installed into persistent data directory" }
+          if (-not (Test-Path (Join-Path $env:LOCALAPPDATA "INVEST_AI\SEC_USER_AGENT.txt"))) { throw "Missing SEC_USER_AGENT configuration file" }
+
+      - name: Upload portable Windows application (entire folder required)
+        uses: actions/upload-artifact@v4
+        with:
+          name: INVEST_AI_Windows_EXE
+          path: dist/INVEST_AI/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
